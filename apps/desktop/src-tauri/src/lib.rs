@@ -8,16 +8,17 @@ use magnetic_tape_core::{
 };
 use serde::{Deserialize, Serialize};
 use std::{
+    collections::{BTreeMap, HashMap, HashSet},
     fs::{self, OpenOptions},
     io::Write,
     path::{Path, PathBuf},
     process::Command,
     sync::{
         Arc, Mutex,
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
     thread::{self, JoinHandle},
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use tauri::Manager;
 
@@ -144,6 +145,92 @@ impl Default for SessionState {
 /// Shared audio recorder handle. The checkpoint thread keeps its own `Arc`
 /// while a session is active.
 struct RecorderState(Arc<Mutex<Option<AudioRecording>>>);
+
+/// In-memory live subtitle buffer. The frontend polls one chunk at a time so
+/// a slow ASR request never blocks recording or stopping.
+#[derive(Default)]
+struct LiveTranscriptionState {
+    active: bool,
+    busy: Arc<AtomicBool>,
+    processed: HashSet<(u8, u64)>,
+    first_seen: HashMap<u64, Instant>,
+    segments: Vec<asr::TranscriptSegment>,
+    provider: Option<asr::AsrProvider>,
+    model: String,
+    language: String,
+    error: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LiveTranscriptView {
+    active: bool,
+    segments: Vec<asr::TranscriptSegment>,
+    provider: Option<asr::AsrProvider>,
+    model: String,
+    language: String,
+    error: Option<String>,
+}
+
+fn live_view(state: &LiveTranscriptionState) -> LiveTranscriptView {
+    LiveTranscriptView {
+        active: state.active,
+        segments: state.segments.clone(),
+        provider: state.provider,
+        model: state.model.clone(),
+        language: state.language.clone(),
+        error: state.error.clone(),
+    }
+}
+
+fn live_transcript(state: &LiveTranscriptionState) -> asr::Transcript {
+    let duration_ms = state
+        .segments
+        .iter()
+        .map(|segment| segment.end_ms)
+        .max()
+        .unwrap_or(0);
+    let text = state
+        .segments
+        .iter()
+        .map(|segment| segment.text.trim())
+        .collect::<Vec<_>>()
+        .join("\n");
+    asr::Transcript {
+        provider: state
+            .provider
+            .map(|provider| provider.as_str().to_owned())
+            .unwrap_or_else(|| "minimax".into()),
+        model: state.model.clone(),
+        language: state.language.clone(),
+        duration_ms,
+        text,
+        segments: state.segments.clone(),
+        created_at_epoch_ms: epoch_ms(),
+    }
+}
+
+fn persist_live_transcript(directory: &Path, state: &LiveTranscriptionState) {
+    if state.segments.is_empty() {
+        return;
+    }
+    let transcript = live_transcript(state);
+    if let Ok(json) = serde_json::to_vec_pretty(&transcript) {
+        let path = directory.join("live-transcript.json");
+        let temporary = path.with_extension("json.tmp");
+        if fs::write(&temporary, json).is_ok() {
+            let _ = fs::rename(&temporary, &path);
+        }
+    }
+}
+
+fn finish_live_transcription(directory: &Path, state: &mut LiveTranscriptionState) {
+    if !state.segments.is_empty() {
+        let transcript = live_transcript(state);
+        let _ = write_transcript(directory, &transcript);
+    }
+    state.active = false;
+}
 
 impl SessionState {
     fn view(&self, now_ms: u64) -> SessionView {
@@ -855,6 +942,7 @@ fn start_session(
     app: tauri::AppHandle,
     state: tauri::State<'_, Mutex<SessionState>>,
     recorder: tauri::State<'_, RecorderState>,
+    live: tauri::State<'_, Mutex<LiveTranscriptionState>>,
 ) -> Result<SessionView, String> {
     let mut state = state.lock().expect("session state poisoned");
     if matches!(
@@ -906,6 +994,7 @@ fn start_session(
         checkpointer: Some(checkpointer),
         sequence,
     };
+    *live.lock().expect("live transcription state poisoned") = LiveTranscriptionState::default();
     Ok(state.view(now_ms))
 }
 
@@ -975,6 +1064,7 @@ fn stop_session(
     app: tauri::AppHandle,
     state: tauri::State<'_, Mutex<SessionState>>,
     recorder: tauri::State<'_, RecorderState>,
+    live: tauri::State<'_, Mutex<LiveTranscriptionState>>,
 ) -> Result<SessionView, String> {
     let now_ms = epoch_ms();
     {
@@ -1007,6 +1097,10 @@ fn stop_session(
         .ok_or_else(|| "当前没有录音会话".to_owned())?;
     let directory = recordings_root(&app)?.join(&session_id);
     let recorded = finalize_session(&directory, &mut state, &snapshot);
+    {
+        let mut live = live.lock().expect("live transcription state poisoned");
+        finish_live_transcription(&directory, &mut live);
+    }
     write_new_file(&directory.join(COMPLETED_MARKER), b"completed\n")?;
     state.resumed_at_epoch_ms = None;
     state.status = RecorderStatus::Finished;
@@ -1161,6 +1255,185 @@ fn get_transcript(
 }
 
 #[tauri::command]
+fn start_live_transcription(
+    provider: asr::AsrProvider,
+    language: Option<String>,
+    state: tauri::State<'_, Mutex<SessionState>>,
+    asr_state: tauri::State<'_, AsrState>,
+    live: tauri::State<'_, Mutex<LiveTranscriptionState>>,
+) -> Result<LiveTranscriptView, String> {
+    {
+        let state = state.lock().expect("session state poisoned");
+        if state.status != RecorderStatus::Recording {
+            return Err("只有录音中的会话可以开启实时字幕".into());
+        }
+    }
+    let config = asr_state.credential(provider)?;
+    let mut live = live.lock().expect("live transcription state poisoned");
+    *live = LiveTranscriptionState {
+        active: true,
+        busy: Arc::new(AtomicBool::new(false)),
+        processed: HashSet::new(),
+        first_seen: HashMap::new(),
+        segments: Vec::new(),
+        provider: Some(provider),
+        model: config.model,
+        language: language
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or(config.language),
+        error: None,
+    };
+    Ok(live_view(&live))
+}
+
+#[tauri::command]
+fn get_live_transcript(
+    live: tauri::State<'_, Mutex<LiveTranscriptionState>>,
+) -> LiveTranscriptView {
+    live_view(&live.lock().expect("live transcription state poisoned"))
+}
+
+fn track_slot(track: Track) -> u8 {
+    match track {
+        Track::Microphone => 0,
+        Track::System => 1,
+    }
+}
+
+async fn poll_live_inner(
+    app: &tauri::AppHandle,
+    state: &tauri::State<'_, Mutex<SessionState>>,
+    recorder: &tauri::State<'_, RecorderState>,
+    asr_state: &tauri::State<'_, AsrState>,
+    live: &tauri::State<'_, Mutex<LiveTranscriptionState>>,
+) -> Result<(), String> {
+    let (session_id, directory) = {
+        let state = state.lock().expect("session state poisoned");
+        if !matches!(
+            state.status,
+            RecorderStatus::Recording | RecorderStatus::Paused
+        ) {
+            return Ok(());
+        }
+        let session_id = state
+            .session_id
+            .clone()
+            .ok_or_else(|| "当前没有录音会话".to_owned())?;
+        let directory = recordings_root(app)?.join(&session_id);
+        (session_id, directory)
+    };
+    let snapshot = recorder
+        .0
+        .lock()
+        .expect("audio recorder state poisoned")
+        .as_ref()
+        .map(AudioRecording::snapshot);
+    let Some(snapshot) = snapshot else {
+        return Ok(());
+    };
+
+    let (ready, provider, language) = {
+        let mut live = live.lock().expect("live transcription state poisoned");
+        let mut slots: BTreeMap<u64, (Option<asr::AudioChunkRef>, Option<asr::AudioChunkRef>)> =
+            BTreeMap::new();
+        for chunk in &snapshot.chunks {
+            let key = (track_slot(chunk.track), chunk.start_frame);
+            if live.processed.contains(&key) {
+                continue;
+            }
+            let entry = slots.entry(chunk.start_frame).or_default();
+            let reference = asr::AudioChunkRef {
+                track: chunk.track,
+                path: chunk.path.clone(),
+                start_frame: chunk.start_frame,
+                frames: chunk.frames,
+            };
+            match chunk.track {
+                Track::Microphone => entry.0 = Some(reference),
+                Track::System => entry.1 = Some(reference),
+            }
+        }
+        for slot in slots.keys() {
+            live.first_seen.entry(*slot).or_insert_with(Instant::now);
+        }
+        let latest = slots.keys().next_back().copied();
+        let chosen = slots
+            .iter()
+            .find(|(slot, entry)| {
+                let complete = entry.0.is_some() && entry.1.is_some();
+                let superseded = latest.is_some_and(|latest| **slot < latest);
+                let stale = live
+                    .first_seen
+                    .get(slot)
+                    .is_some_and(|seen| seen.elapsed() >= Duration::from_secs(3));
+                complete || superseded || stale
+            })
+            .map(|(slot, entry)| (*slot, entry.0.clone(), entry.1.clone()));
+        (chosen, live.provider, live.language.clone())
+    };
+
+    let Some((slot, microphone, system)) = ready else {
+        return Ok(());
+    };
+    let provider = provider.ok_or_else(|| "实时转写未配置服务商".to_owned())?;
+    let mut config = asr_state.credential(provider)?;
+    if !language.is_empty() {
+        config.language = language;
+    }
+    let result =
+        asr::transcribe_pair(microphone.clone(), system.clone(), &config, &session_id).await;
+
+    let mut live = live.lock().expect("live transcription state poisoned");
+    if let Some(chunk) = &microphone {
+        live.processed.insert((track_slot(chunk.track), slot));
+    }
+    if let Some(chunk) = &system {
+        live.processed.insert((track_slot(chunk.track), slot));
+    }
+    live.first_seen.remove(&slot);
+    match result {
+        Ok(transcript) => {
+            live.segments.extend(transcript.segments);
+            live.error = None;
+        }
+        Err(error) => {
+            live.error = Some(error);
+        }
+    }
+    persist_live_transcript(&directory, &live);
+    Ok(())
+}
+
+#[tauri::command]
+async fn poll_live_transcription(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Mutex<SessionState>>,
+    recorder: tauri::State<'_, RecorderState>,
+    asr_state: tauri::State<'_, AsrState>,
+    live: tauri::State<'_, Mutex<LiveTranscriptionState>>,
+) -> Result<LiveTranscriptView, String> {
+    let busy = {
+        let live = live.lock().expect("live transcription state poisoned");
+        if !live.active {
+            return Ok(live_view(&live));
+        }
+        Arc::clone(&live.busy)
+    };
+    if busy.swap(true, Ordering::SeqCst) {
+        return Ok(live_view(
+            &live.lock().expect("live transcription state poisoned"),
+        ));
+    }
+    let result = poll_live_inner(&app, &state, &recorder, &asr_state, &live).await;
+    busy.store(false, Ordering::SeqCst);
+    let mut live = live.lock().expect("live transcription state poisoned");
+    if let Err(error) = result {
+        live.error = Some(error);
+    }
+    Ok(live_view(&live))
+}
+
+#[tauri::command]
 async fn translate_transcript(
     target_language: String,
     provider: ai::AiProvider,
@@ -1205,6 +1478,7 @@ pub fn run() {
         .manage(RecorderState(Arc::new(Mutex::new(None::<AudioRecording>))))
         .manage(AiState::default())
         .manage(AsrState::default())
+        .manage(Mutex::new(LiveTranscriptionState::default()))
         .setup(|app| {
             let recordings = app.path().app_data_dir()?.join("recordings");
             fs::create_dir_all(&recordings)?;
@@ -1238,7 +1512,10 @@ pub fn run() {
             asr::clear_asr,
             transcribe_session,
             get_transcript,
-            translate_transcript
+            translate_transcript,
+            start_live_transcription,
+            poll_live_transcription,
+            get_live_transcript
         ])
         .run(tauri::generate_context!())
         .expect("error while running MagneticTape desktop application");
@@ -1348,5 +1625,42 @@ mod tests {
             loaded.recorded.microphone_chunks[0].ends_with("mic-00000.ogg"),
             "chunks must be ordered by index"
         );
+    }
+
+    #[test]
+    fn live_segments_become_a_transcript_on_stop() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut live = LiveTranscriptionState {
+            active: true,
+            provider: Some(asr::AsrProvider::MiniMax),
+            model: "asr-1.0".into(),
+            language: "zh-CN".into(),
+            segments: vec![
+                asr::TranscriptSegment {
+                    start_ms: 0,
+                    end_ms: 1_500,
+                    speaker: Some("S1".into()),
+                    text: "大家好。".into(),
+                },
+                asr::TranscriptSegment {
+                    start_ms: 1_500,
+                    end_ms: 3_200,
+                    speaker: Some("S2".into()),
+                    text: "开始吧。".into(),
+                },
+            ],
+            ..Default::default()
+        };
+        finish_live_transcription(directory.path(), &mut live);
+
+        assert!(!live.active);
+        let transcript = read_transcript(directory.path()).unwrap();
+        assert_eq!(transcript.provider, "minimax");
+        assert_eq!(transcript.duration_ms, 3_200);
+        assert_eq!(transcript.text, "大家好。\n开始吧。");
+        assert_eq!(transcript.segments.len(), 2);
+        let markdown = fs::read_to_string(directory.path().join(TRANSCRIPT_MARKDOWN)).unwrap();
+        assert!(markdown.contains("**[00:00] S1**"));
+        assert!(markdown.contains("开始吧。"));
     }
 }

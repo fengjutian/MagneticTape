@@ -54,6 +54,13 @@ impl AsrProvider {
             Self::SiliconFlow => "FunAudioLLM/SenseVoiceSmall",
         }
     }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::MiniMax => "minimax",
+            Self::SiliconFlow => "siliconflow",
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -489,10 +496,7 @@ async fn upload_segment(
 
 impl AsrCredential {
     fn provider_name(&self) -> &'static str {
-        match self.provider {
-            AsrProvider::MiniMax => "minimax",
-            AsrProvider::SiliconFlow => "siliconflow",
-        }
+        self.provider.as_str()
     }
 }
 
@@ -503,9 +507,29 @@ pub async fn transcribe_chunks(
     config: &AsrCredential,
     session_id: &str,
 ) -> Result<Transcript, String> {
+    transcribe_refs(chunks, config, session_id, WAV_SEGMENT_SECONDS).await
+}
+
+/// Transcribes the newest 15 second chunk pair for live subtitles.
+pub async fn transcribe_pair(
+    microphone: Option<AudioChunkRef>,
+    system: Option<AudioChunkRef>,
+    config: &AsrCredential,
+    session_id: &str,
+) -> Result<Transcript, String> {
+    let chunks: Vec<AudioChunkRef> = microphone.into_iter().chain(system).collect();
+    transcribe_refs(&chunks, config, session_id, 60).await
+}
+
+async fn transcribe_refs(
+    chunks: &[AudioChunkRef],
+    config: &AsrCredential,
+    session_id: &str,
+    segment_seconds: u64,
+) -> Result<Transcript, String> {
     let working =
         std::env::temp_dir().join(format!("magnetic-tape-asr-{session_id}-{}", epoch_ms()));
-    let segments = build_segments(chunks, &working, WAV_SEGMENT_SECONDS)?;
+    let segments = build_segments(chunks, &working, segment_seconds)?;
     if segments.is_empty() {
         let _ = fs::remove_dir_all(&working);
         return Err("当前会话没有可转写的音频".into());

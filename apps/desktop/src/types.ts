@@ -102,3 +102,12 @@ export interface AsrConfiguration {
   configured: boolean;
 }
 
+export interface LiveTranscript {
+  active: boolean;
+  segments: TranscriptSegment[];
+  provider?: "minimax" | "silicon_flow";
+  model: string;
+  language: string;
+  error?: string;
+}
+

@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { applyAudioDevices, applyView, formatElapsed, renderApp, renderTranscript } from "./components";
-import type { AiConfiguration, AiResponse, AsrConfiguration, AudioDeviceSnapshot, AudioLevels, RecorderViewState, RecordingListItem, SessionState, Transcript } from "./types";
+import type { AiConfiguration, AiResponse, AsrConfiguration, AudioDeviceSnapshot, AudioLevels, LiveTranscript, RecorderViewState, RecordingListItem, SessionState, Transcript, TranscriptSegment } from "./types";
 import "./styles.css";
 
 const appElement = document.querySelector<HTMLElement>("#app");
@@ -13,6 +13,109 @@ let pending = false;
 let tickHandle: number | undefined;
 let levelHandle: number | undefined;
 let currentTranscript: Transcript | null = null;
+let liveDesired = false;
+let livePollHandle: number | undefined;
+let livePollBusy = false;
+let liveSegments: TranscriptSegment[] = [];
+let liveError: string | undefined;
+
+const liveButton = app.querySelector<HTMLButtonElement>(".live-caption")!;
+function setLiveIndicator(active: boolean): void {
+  liveButton.classList.toggle("active", active);
+  liveButton.querySelector<HTMLElement>(".live-state")!.textContent = active ? "开" : "关";
+}
+
+function renderLive(): void {
+  const body = app.querySelector<HTMLElement>(".content-body");
+  if (!body) return;
+  if (view.status !== "recording" && view.status !== "paused") return;
+  if (liveSegments.length === 0) {
+    if (liveError) {
+      body.replaceChildren();
+      const failure = document.createElement("p");
+      failure.className = "live-error";
+      failure.textContent = `实时字幕暂不可用：${liveError}`;
+      body.append(failure);
+    }
+    return;
+  }
+  renderTranscript(body, {
+    provider: "live",
+    model: "",
+    language: view.language,
+    durationMs: 0,
+    text: "",
+    segments: liveSegments,
+    createdAtEpochMs: 0,
+  });
+  if (liveError) {
+    const failure = document.createElement("p");
+    failure.className = "live-error";
+    failure.textContent = `实时字幕错误：${liveError}`;
+    body.append(failure);
+  }
+  body.scrollTop = body.scrollHeight;
+}
+
+async function pollLive(): Promise<void> {
+  if (livePollBusy) return;
+  livePollBusy = true;
+  try {
+    const live = await invoke<LiveTranscript>("poll_live_transcription");
+    liveSegments = live.segments;
+    liveError = live.error;
+    renderLive();
+  } catch {
+    // A later poll retries; recording must not be interrupted by ASR errors.
+  } finally {
+    livePollBusy = false;
+  }
+}
+
+function startLivePolling(): void {
+  if (livePollHandle !== undefined) return;
+  void pollLive();
+  livePollHandle = window.setInterval(() => void pollLive(), 3_000);
+}
+
+function stopLivePolling(): void {
+  window.clearInterval(livePollHandle);
+  livePollHandle = undefined;
+}
+
+async function beginLive(): Promise<void> {
+  try {
+    const live = await invoke<LiveTranscript>("start_live_transcription", {
+      provider: "minimax",
+      language: view.language,
+    });
+    liveSegments = live.segments;
+    liveError = live.error;
+    setLiveIndicator(true);
+    startLivePolling();
+  } catch (error) {
+    liveDesired = false;
+    setLiveIndicator(false);
+    view.errorMessage = `实时字幕启动失败：${error instanceof Error ? error.message : String(error)}`;
+    applyView(app, view);
+  }
+}
+
+liveButton.addEventListener("click", () => {
+  if (view.status === "recording" || view.status === "paused") {
+    if (livePollHandle !== undefined) {
+      stopLivePolling();
+      liveDesired = false;
+      setLiveIndicator(false);
+    } else {
+      liveDesired = true;
+      void beginLive();
+    }
+    return;
+  }
+  liveDesired = !liveDesired;
+  setLiveIndicator(false);
+});
 let view: RecorderViewState = { title: "新录音", status: "idle", elapsedMs: 0, language: "auto", translation: "none", retainAudio: true, volumeLevel: 0, sessionId: null, microphoneChunks: [], systemChunks: [] };
 
 function syncBackend(next: SessionState): void {
@@ -21,10 +124,16 @@ function syncBackend(next: SessionState): void {
   restartClock();
   applyView(app, view);
   if (next.status === "finished") {
+    stopLivePolling();
+    liveSegments = [];
+    liveError = undefined;
+    liveDesired = false;
+    setLiveIndicator(false);
     currentTranscript = null;
     void loadSessionNotes();
     void loadTranscript();
   }
+  renderLive();
 }
 
 async function loadSessionNotes(): Promise<void> {
@@ -75,7 +184,13 @@ async function command(name: "start_session" | "pause_session" | "resume_session
   }
   try {
     syncBackend(await invoke<SessionState>(name));
-    if (name === "stop_session") stopLevelPolling();
+    if (name === "stop_session") {
+      stopLevelPolling();
+      stopLivePolling();
+      liveSegments = [];
+      liveError = undefined;
+      setLiveIndicator(false);
+    }
   } catch (error) {
     view.status = backendState?.status ?? "error";
     view.errorMessage = error instanceof Error ? error.message : String(error);
@@ -98,6 +213,7 @@ async function startRecording(): Promise<void> {
   try {
     syncBackend(await invoke<SessionState>("start_session", { microphoneId, systemOutputId, title: view.title }));
     startLevelPolling();
+    if (liveDesired) void beginLive();
   } catch (error) {
     view.errorMessage = `无法启动音频监测：${error instanceof Error ? error.message : String(error)}`;
     applyView(app, view);

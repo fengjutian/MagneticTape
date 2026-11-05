@@ -65,6 +65,11 @@ button:disabled, select:disabled { cursor: not-allowed; }
 .ai-settings svg { grid-row: 1 / 3; width: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; }
 .ai-settings span { color: #4e5969; font-size: 13px; }
 .ai-settings small { color: #8f959e; font-size: 10px; }
+.live-caption { grid-template-columns: auto auto; align-items: center; border: 0; padding: 0; background: transparent; text-align: left; cursor: pointer; }
+.live-caption span { color: #4e5969; font-size: 13px; }
+.live-caption .live-state { color: #b1b6bf; font-size: 10px; }
+.live-caption.active span, .live-caption.active .live-state { color: #245bdb; }
+.live-caption:disabled { cursor: default; opacity: .62; }
 .ai-dialog { width: min(470px, calc(100vw - 40px)); border: 0; border-radius: 16px; padding: 0; color: #1f2329; box-shadow: 0 24px 80px rgba(31, 35, 41, .24); }
 .ai-dialog::backdrop { background: rgba(20, 24, 31, .38); backdrop-filter: blur(3px); }
 .history-dialog { width: min(560px, calc(100vw - 40px)); max-height: min(680px, calc(100vh - 60px)); border: 0; border-radius: 16px; padding: 0; color: #1f2329; box-shadow: 0 24px 80px rgba(31, 35, 41, .24); }
@@ -206,6 +211,7 @@ button:disabled, select:disabled { cursor: not-allowed; }
 .transcribe { background: #3370ff; color: #fff; }
 .asr-settings, .translate-transcript { background: #e8eeff; color: #245bdb; }
 .transcript-translation { margin: 0 0 8px; color: #245bdb; font-weight: 600; }
+.live-error { margin: 10px 0 0; color: #b42318; font-size: 12px; }
 .notes-editor > header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 9px; }
 .notes-state { color: #8f959e; font-size: 11px; }
 .meeting-notes { width: 100%; box-sizing: border-box; border: 1px solid #dfe2e7; border-radius: 9px; padding: 11px; color: #1f2329; font: 12px/1.65 "Cascadia Mono", Consolas, monospace; resize: vertical; outline: none; }
