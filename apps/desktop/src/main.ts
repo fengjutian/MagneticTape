@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
-import { applyAudioDevices, applyView, renderApp } from "./components";
-import type { AiResponse, AudioDeviceSnapshot, AudioLevels, RecorderViewState, SessionState } from "./types";
+import { applyAudioDevices, applyView, formatElapsed, renderApp } from "./components";
+import type { AiResponse, AudioDeviceSnapshot, AudioLevels, RecorderViewState, RecordingListItem, SessionState } from "./types";
 import "./styles.css";
 
 const appElement = document.querySelector<HTMLElement>("#app");
@@ -113,6 +113,61 @@ app.querySelector<HTMLButtonElement>(".start-button")!.addEventListener("click",
 app.querySelector<HTMLButtonElement>(".pause-button")!.addEventListener("click", () => void command(view.status === "paused" ? "resume_session" : "pause_session"));
 app.querySelector<HTMLButtonElement>(".stop-button")!.addEventListener("click", () => void command("stop_session"));
 app.querySelector<HTMLButtonElement>(".refresh-devices")!.addEventListener("click", () => void refreshAudioDevices());
+
+const historyDialog = app.querySelector<HTMLDialogElement>(".history-dialog")!;
+const historyList = app.querySelector<HTMLElement>(".history-list")!;
+async function refreshHistory(): Promise<void> {
+  historyList.replaceChildren();
+  try {
+    const recordings = await invoke<RecordingListItem[]>("list_recordings");
+    if (recordings.length === 0) {
+      const empty = document.createElement("p");
+      empty.className = "history-empty";
+      empty.textContent = "还没有本地录音。";
+      historyList.append(empty);
+      return;
+    }
+    for (const recording of recordings) {
+      const button = document.createElement("button");
+      button.className = "history-item";
+      button.type = "button";
+      button.dataset.sessionId = recording.sessionId;
+      const title = document.createElement("strong");
+      title.textContent = new Date(recording.startedAtEpochMs).toLocaleString("zh-CN");
+      const details = document.createElement("span");
+      const status = recording.status === "completed" ? "已完成" : recording.status === "recovered" ? "已恢复" : "意外中断";
+      details.textContent = `${formatElapsed(recording.durationMs)} · ${status}`;
+      const id = document.createElement("small");
+      id.textContent = recording.sessionId;
+      button.append(title, details, id);
+      historyList.append(button);
+    }
+  } catch (error) {
+    const failure = document.createElement("p");
+    failure.className = "history-empty failure";
+    failure.textContent = `无法读取历史录音：${error instanceof Error ? error.message : String(error)}`;
+    historyList.append(failure);
+  }
+}
+app.querySelector<HTMLButtonElement>(".history-button")!.addEventListener("click", () => {
+  historyDialog.showModal();
+  void refreshHistory();
+});
+app.querySelector<HTMLButtonElement>(".history-close")!.addEventListener("click", () => historyDialog.close());
+historyList.addEventListener("click", async (event) => {
+  const button = (event.target as HTMLElement).closest<HTMLButtonElement>(".history-item");
+  if (!button?.dataset.sessionId) return;
+  button.disabled = true;
+  try {
+    syncBackend(await invoke<SessionState>("open_recording", { sessionId: button.dataset.sessionId }));
+    historyDialog.close();
+  } catch (error) {
+    view.errorMessage = `无法打开历史录音：${error instanceof Error ? error.message : String(error)}`;
+    applyView(app, view);
+  } finally {
+    button.disabled = false;
+  }
+});
 
 const aiDialog = app.querySelector<HTMLDialogElement>(".ai-dialog")!;
 const aiProvider = app.querySelector<HTMLSelectElement>(".ai-provider")!;

@@ -334,7 +334,10 @@ fn open_recording(
     }
     let now_ms = epoch_ms();
     let mut state = state.lock().expect("session state poisoned");
-    if matches!(state.status, RecorderStatus::Recording | RecorderStatus::Paused) {
+    if matches!(
+        state.status,
+        RecorderStatus::Recording | RecorderStatus::Paused
+    ) {
         return Err("录音进行中，无法打开历史会话".into());
     }
     *state = SessionState {

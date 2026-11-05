@@ -55,3 +55,12 @@ export interface AiResponse {
   content: string;
 }
 
+export interface RecordingListItem {
+  sessionId: string;
+  startedAtEpochMs: number;
+  durationMs: number;
+  status: "completed" | "recovered" | "interrupted";
+  microphonePath: string | null;
+  systemPath: string | null;
+}
+

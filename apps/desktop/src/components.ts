@@ -20,6 +20,7 @@ export function renderApp(): string {
             <button class="title-display" id="recording-title" type="button" aria-label="编辑录音标题">新录音</button>
             <input class="title-input" type="text" maxlength="80" aria-label="录音标题" hidden />
             <span class="local-badge">本地</span>
+            <button class="history-button" type="button">历史录音</button>
           </div>
           <div class="options" aria-label="录音选项">
             <label class="option"><span>转写语言</span><select data-option="language" aria-label="转写语言"><option value="auto">自动识别</option><option value="zh-CN">中文</option><option value="en-US">English</option></select></label>
@@ -72,6 +73,12 @@ export function renderApp(): string {
         <output class="ai-result" aria-live="polite"></output>
         <footer><button class="ai-cancel" value="cancel">取消</button><button class="ai-generate" type="button">发送</button><button class="ai-test" type="button">保存并测试连接</button></footer>
       </form>
+    </dialog>
+    <dialog class="history-dialog" aria-labelledby="history-dialog-title">
+      <section class="history-panel">
+        <header><div><p class="section-kicker">RECORDING LIBRARY</p><h2 id="history-dialog-title">历史录音</h2></div><button class="history-close" type="button" aria-label="关闭">×</button></header>
+        <div class="history-list"><p class="history-empty">正在读取录音…</p></div>
+      </section>
     </dialog>
   `;
 }
