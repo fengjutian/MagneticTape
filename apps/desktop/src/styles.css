@@ -92,6 +92,10 @@ button:disabled, select:disabled { cursor: not-allowed; }
 .ai-form input, .ai-form select, .ai-form textarea { border: 1px solid #dfe2e7; border-radius: 8px; padding: 10px 11px; background: #fff; color: #1f2329; font: inherit; outline: none; resize: vertical; }
 .ai-form input:focus, .ai-form select:focus, .ai-form textarea:focus { border-color: #3370ff; box-shadow: 0 0 0 3px #e8eeff; }
 .ai-privacy { margin: -4px 0 0; color: #8f959e; font-size: 11px; line-height: 1.6; }
+.ai-credential-row { display: flex; align-items: center; justify-content: space-between; margin-top: -9px; }
+.ai-config-status { color: #8f959e; font-size: 11px; }
+.ai-config-status.configured { color: #287a43; }
+.ai-clear { border: 0; padding: 3px 0; background: transparent; color: #b42318; font-size: 11px; }
 .ai-result { min-height: 20px; color: #4e5969; font-size: 12px; line-height: 1.6; }
 .ai-result.success { color: #287a43; }
 .ai-result.failure { color: #b42318; }

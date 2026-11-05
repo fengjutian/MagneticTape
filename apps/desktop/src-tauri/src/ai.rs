@@ -66,6 +66,13 @@ struct ChatResponseMessage {
 }
 
 impl AiProvider {
+    fn credential_name(self) -> &'static str {
+        match self {
+            Self::MiniMax => "minimax",
+            Self::DeepSeek => "deepseek",
+        }
+    }
+
     fn default_model(self) -> &'static str {
         match self {
             Self::MiniMax => "MiniMax-M3.1-Flash",
@@ -79,6 +86,11 @@ impl AiProvider {
             Self::DeepSeek => "https://api.deepseek.com/chat/completions",
         }
     }
+}
+
+fn credential_entry(provider: AiProvider) -> Result<keyring::Entry, String> {
+    keyring::Entry::new("com.magnetictape.desktop.ai", provider.credential_name())
+        .map_err(|error| format!("无法访问 Windows 凭据管理器：{error}"))
 }
 
 #[tauri::command]
@@ -95,6 +107,9 @@ pub fn configure_ai(
     let model = model
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| provider.default_model().to_owned());
+    credential_entry(provider)?
+        .set_password(&api_key)
+        .map_err(|error| format!("无法保存 API Key：{error}"))?;
     state.0.lock().expect("AI state poisoned").insert(
         provider,
         AiCredential {
@@ -107,6 +122,43 @@ pub fn configure_ai(
         model,
         configured: true,
     })
+}
+
+#[tauri::command]
+pub fn get_ai_configurations(state: tauri::State<'_, AiState>) -> Vec<AiConfigurationView> {
+    [AiProvider::MiniMax, AiProvider::DeepSeek]
+        .into_iter()
+        .map(|provider| {
+            let model = state
+                .0
+                .lock()
+                .expect("AI state poisoned")
+                .get(&provider)
+                .map_or_else(
+                    || provider.default_model().to_owned(),
+                    |value| value.model.clone(),
+                );
+            let configured = credential_entry(provider)
+                .and_then(|entry| entry.get_password().map_err(|error| error.to_string()))
+                .is_ok_and(|secret| !secret.is_empty());
+            AiConfigurationView {
+                provider,
+                model,
+                configured,
+            }
+        })
+        .collect()
+}
+
+#[tauri::command]
+pub fn clear_ai(provider: AiProvider, state: tauri::State<'_, AiState>) -> Result<(), String> {
+    let entry = credential_entry(provider)?;
+    match entry.delete_credential() {
+        Ok(()) | Err(keyring::Error::NoEntry) => {}
+        Err(error) => return Err(format!("无法清除 API Key：{error}")),
+    }
+    state.0.lock().expect("AI state poisoned").remove(&provider);
+    Ok(())
 }
 
 #[tauri::command]
@@ -134,13 +186,21 @@ async fn generate(
     prompt: &str,
     state: &tauri::State<'_, AiState>,
 ) -> Result<AiResponse, String> {
-    let credential = state
+    let cached = state
         .0
         .lock()
         .expect("AI state poisoned")
         .get(&provider)
-        .cloned()
-        .ok_or_else(|| "请先配置该 AI Provider 的 API Key".to_owned())?;
+        .cloned();
+    let credential = match cached {
+        Some(credential) => credential,
+        None => AiCredential {
+            api_key: credential_entry(provider)?
+                .get_password()
+                .map_err(|_| "请先配置该 AI Provider 的 API Key".to_owned())?,
+            model: provider.default_model().to_owned(),
+        },
+    };
     let request = ChatRequest {
         model: &credential.model,
         messages: [

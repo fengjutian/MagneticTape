@@ -67,8 +67,9 @@ export function renderApp(): string {
         <header><div><p class="section-kicker">AI PROVIDER</p><h2 id="ai-dialog-title">配置 AI 助手</h2></div><button class="dialog-close" value="cancel" aria-label="关闭">×</button></header>
         <label><span>服务商</span><select class="ai-provider"><option value="minimax">MiniMax</option><option value="deep_seek">DeepSeek</option></select></label>
         <label><span>模型</span><input class="ai-model" value="MiniMax-M3.1-Flash" autocomplete="off" /></label>
-        <label><span>API Key</span><input class="ai-key" type="password" placeholder="仅保存在本次应用运行期间" autocomplete="off" /></label>
-        <p class="ai-privacy">密钥只发送到所选服务商，不会进入前端日志或录音文件。</p>
+        <label><span>API Key</span><input class="ai-key" type="password" placeholder="保存在 Windows 凭据管理器" autocomplete="off" /></label>
+        <p class="ai-privacy">密钥由 Windows 凭据管理器加密保存，只发送到所选服务商。</p>
+        <div class="ai-credential-row"><span class="ai-config-status">正在读取配置…</span><button class="ai-clear" type="button">清除密钥</button></div>
         <label><span>向 AI 提问</span><textarea class="ai-prompt" rows="3" placeholder="例如：给我一个中文会议纪要模板"></textarea></label>
         <output class="ai-result" aria-live="polite"></output>
         <footer><button class="ai-cancel" value="cancel">取消</button><button class="ai-generate" type="button">发送</button><button class="ai-test" type="button">保存并测试连接</button></footer>

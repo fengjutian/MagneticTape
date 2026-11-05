@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { applyAudioDevices, applyView, formatElapsed, renderApp } from "./components";
-import type { AiResponse, AudioDeviceSnapshot, AudioLevels, RecorderViewState, RecordingListItem, SessionState } from "./types";
+import type { AiConfiguration, AiResponse, AudioDeviceSnapshot, AudioLevels, RecorderViewState, RecordingListItem, SessionState } from "./types";
 import "./styles.css";
 
 const appElement = document.querySelector<HTMLElement>("#app");
@@ -216,10 +216,41 @@ const aiModel = app.querySelector<HTMLInputElement>(".ai-model")!;
 const aiKey = app.querySelector<HTMLInputElement>(".ai-key")!;
 const aiResult = app.querySelector<HTMLOutputElement>(".ai-result")!;
 const aiPrompt = app.querySelector<HTMLTextAreaElement>(".ai-prompt")!;
-app.querySelector<HTMLButtonElement>(".ai-settings")!.addEventListener("click", () => aiDialog.showModal());
+const aiConfigStatus = app.querySelector<HTMLElement>(".ai-config-status")!;
+const aiClear = app.querySelector<HTMLButtonElement>(".ai-clear")!;
+async function refreshAiConfiguration(): Promise<void> {
+  try {
+    const configurations = await invoke<AiConfiguration[]>("get_ai_configurations");
+    const current = configurations.find((configuration) => configuration.provider === aiProvider.value);
+    if (current) aiModel.value = current.model;
+    aiConfigStatus.textContent = current?.configured ? "API Key 已安全保存" : "尚未配置 API Key";
+    aiConfigStatus.className = `ai-config-status ${current?.configured ? "configured" : ""}`;
+    aiClear.hidden = !current?.configured;
+  } catch (error) {
+    aiConfigStatus.textContent = `无法读取凭据状态：${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+app.querySelector<HTMLButtonElement>(".ai-settings")!.addEventListener("click", () => {
+  aiDialog.showModal();
+  void refreshAiConfiguration();
+});
 aiProvider.addEventListener("change", () => {
   aiModel.value = aiProvider.value === "minimax" ? "MiniMax-M3.1-Flash" : "deepseek-flash";
   aiResult.textContent = "";
+  void refreshAiConfiguration();
+});
+aiClear.addEventListener("click", async () => {
+  aiClear.disabled = true;
+  try {
+    await invoke("clear_ai", { provider: aiProvider.value });
+    aiResult.textContent = "API Key 已从 Windows 凭据管理器清除。";
+    await refreshAiConfiguration();
+  } catch (error) {
+    aiResult.className = "ai-result failure";
+    aiResult.textContent = error instanceof Error ? error.message : String(error);
+  } finally {
+    aiClear.disabled = false;
+  }
 });
 app.querySelector<HTMLButtonElement>(".ai-test")!.addEventListener("click", async (event) => {
   const button = event.currentTarget as HTMLButtonElement;
@@ -233,6 +264,7 @@ app.querySelector<HTMLButtonElement>(".ai-test")!.addEventListener("click", asyn
     aiKey.value = "";
     aiResult.className = "ai-result success";
     aiResult.textContent = `${response.model}：${response.content}`;
+    await refreshAiConfiguration();
   } catch (error) {
     aiResult.className = "ai-result failure";
     aiResult.textContent = error instanceof Error ? error.message : String(error);

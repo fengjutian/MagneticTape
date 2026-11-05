@@ -56,6 +56,12 @@ export interface AiResponse {
   content: string;
 }
 
+export interface AiConfiguration {
+  provider: "minimax" | "deep_seek";
+  model: string;
+  configured: boolean;
+}
+
 export interface RecordingListItem {
   sessionId: string;
   title: string;

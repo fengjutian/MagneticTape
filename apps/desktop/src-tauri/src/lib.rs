@@ -669,6 +669,8 @@ pub fn run() {
             resume_session,
             stop_session,
             ai::configure_ai,
+            ai::get_ai_configurations,
+            ai::clear_ai,
             ai::test_ai,
             ai::generate_ai
         ])
