@@ -1,0 +1,117 @@
+:root {
+  font-family: Inter, "Segoe UI Variable", "Microsoft YaHei UI", sans-serif;
+  color: #ede9dc;
+  background: #0c0e0b;
+  font-synthesis: none;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-width: 720px;
+  min-height: 600px;
+  background:
+    radial-gradient(circle at 75% 20%, rgba(175, 209, 105, .1), transparent 31rem),
+    #0c0e0b;
+}
+
+button { font: inherit; }
+
+.shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 30px 42px 24px;
+}
+
+.topbar, footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.brand { display: flex; align-items: center; gap: 13px; }
+.brand strong { display: block; font-size: 16px; letter-spacing: .02em; }
+.brand small { display: block; margin-top: 3px; color: #7e8377; font-size: 11px; }
+
+.reel {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  border: 1px solid #656a5f;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+.reel::after { content: ""; width: 8px; height: 8px; border: 1px solid #aeb49f; border-radius: 50%; }
+.reel i { position: absolute; width: 6px; height: 6px; border-radius: 50%; background: #6d7366; }
+.reel i:nth-child(1) { transform: translateY(-9px); }
+.reel i:nth-child(2) { transform: rotate(120deg) translateY(-9px); }
+.reel i:nth-child(3) { transform: rotate(240deg) translateY(-9px); }
+
+.build-tag, .eyebrow {
+  color: #9ba28f;
+  letter-spacing: .16em;
+  font-size: 10px;
+}
+
+.hero { width: min(760px, 100%); margin: auto; padding: 64px 0 54px; }
+.eyebrow { margin: 0 0 12px; }
+h1 { margin: 0; font-family: Georgia, "Songti SC", serif; font-weight: 400; font-size: clamp(35px, 6vw, 55px); }
+.lede { max-width: 580px; color: #94998d; line-height: 1.8; font-size: 14px; }
+
+.source-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 36px 0 18px; }
+.source-card {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid #292d27;
+  border-radius: 12px;
+  background: rgba(24, 27, 23, .82);
+}
+.source-icon { color: #a6ad9a; border: 1px solid #3b4038; border-radius: 6px; padding: 6px; font: 10px ui-monospace, monospace; }
+.source-card strong, .source-card small { display: block; }
+.source-card strong { font-size: 13px; }
+.source-card small { margin-top: 4px; color: #6f756b; font-size: 11px; }
+.status-dot { width: 7px; height: 7px; border-radius: 50%; background: #4a4e47; }
+
+.recorder {
+  border: 1px solid #292d27;
+  border-radius: 16px;
+  padding: 34px;
+  text-align: center;
+  background: linear-gradient(145deg, rgba(27, 30, 25, .95), rgba(16, 18, 15, .95));
+}
+.timer { font: 32px ui-monospace, "Cascadia Mono", monospace; letter-spacing: .08em; font-variant-numeric: tabular-nums; }
+.track { height: 58px; display: flex; align-items: center; justify-content: center; gap: 4px; margin: 17px 0 23px; opacity: .42; }
+.track i { width: 2px; height: calc(5px + (var(--n) % 7) * 3px); background: #8d9484; border-radius: 4px; }
+.is-recording .track i { animation: pulse .8s ease-in-out infinite alternate; animation-delay: calc(var(--n) * -31ms); background: #b8d27e; }
+@keyframes pulse { to { height: calc(12px + (var(--n) % 9) * 4px); } }
+
+.record-button {
+  min-width: 160px;
+  border: 0;
+  border-radius: 999px;
+  padding: 13px 20px;
+  background: #d8ef9f;
+  color: #151810;
+  cursor: pointer;
+  transition: transform .15s, background .15s;
+}
+.record-button:hover { transform: translateY(-1px); background: #e5f9b6; }
+.record-button:disabled { opacity: .6; cursor: wait; }
+.record-button span { display: inline-block; width: 8px; height: 8px; margin-right: 9px; border-radius: 50%; background: #bd3930; }
+.record-button.is-stop span { border-radius: 1px; }
+.notice { margin: 18px 0 0; color: #686e64; font-size: 11px; }
+
+footer { color: #61675d; font: 10px ui-monospace, monospace; letter-spacing: .06em; }
+
+@media (max-width: 760px) {
+  body { min-width: 0; }
+  .shell { padding: 24px; }
+  .source-grid { grid-template-columns: 1fr; }
+}
+
