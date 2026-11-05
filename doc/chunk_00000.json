@@ -1,0 +1,10 @@
+{
+  "index": 0,
+  "uuid": "1a1a9b783a5-598c",
+  "sample_rate": 48000,
+  "channels": 1,
+  "frame_size": 960,
+  "duration_ms": 3000,
+  "packet_count": 151,
+  "start_epoch_ms": 1793848738748
+}
