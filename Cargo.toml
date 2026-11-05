@@ -1,16 +1,26 @@
-[package]
-name = "magnetic-tape"
+[workspace]
+resolver = "2"
+members = [
+    "crates/core",
+    "apps/desktop/src-tauri",
+]
+default-members = ["crates/core"]
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
 license = "MIT"
-description = "Reliable meeting audio capture and transcription primitives"
+repository = "https://github.com/fengjutian/MagneticTape"
 
-[dependencies]
+[workspace.dependencies]
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "2.0"
 
-[dev-dependencies]
-tempfile = "3.23"
+[profile.release]
+codegen-units = 1
+lto = "thin"
+strip = true
+
 

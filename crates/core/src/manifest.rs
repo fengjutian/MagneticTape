@@ -105,7 +105,7 @@ mod tests {
 
     #[test]
     fn reads_the_existing_chunk_metadata_contract() {
-        let json = include_str!("../doc/chunk_00000.json");
+        let json = include_str!("../../../doc/chunk_00000.json");
         let chunk: ChunkMetadata = serde_json::from_str(json).unwrap();
         assert_eq!(chunk.sample_rate, INTERNAL_SAMPLE_RATE);
         assert_eq!(chunk.frame_size, 960);

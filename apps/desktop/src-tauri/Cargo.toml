@@ -1,9 +1,10 @@
 [package]
 name = "magnetic-tape-desktop"
-version = "0.1.0"
-edition = "2024"
-rust-version = "1.85"
-license = "MIT"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
 
 [lib]
 name = "magnetic_tape_desktop_lib"
@@ -13,7 +14,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2.4", features = [] }
 
 [dependencies]
-magnetic-tape = { path = "../../.." }
-serde = { version = "1.0", features = ["derive"] }
+magnetic-tape-core = { path = "../../../crates/core" }
+serde.workspace = true
 tauri = { version = "2.9", features = [] }
 
