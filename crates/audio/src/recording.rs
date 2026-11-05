@@ -11,11 +11,14 @@ use std::{
     sync::{
         Arc,
         atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering},
-        mpsc::{Receiver, SyncSender, TrySendError, sync_channel},
+        mpsc::{Receiver, RecvTimeoutError, SyncSender, TrySendError, sync_channel},
     },
     thread::{self, JoinHandle},
+    time::{Duration, Instant},
 };
 use thiserror::Error;
+
+const CHECKPOINT_INTERVAL: Duration = Duration::from_secs(2);
 
 #[derive(Debug, Error)]
 pub enum RecordingError {
@@ -201,13 +204,28 @@ fn spawn_writer(
     Ok(thread::Builder::new()
         .name("magnetic-tape-wav-writer".into())
         .spawn(move || {
-            while let Ok(block) = receiver.recv() {
-                let writer = match block.source {
-                    Source::Microphone => &mut microphone,
-                    Source::System => &mut system,
-                };
-                for sample in block.samples {
-                    writer.write_sample(sample)?;
+            let mut checkpoint_at = Instant::now() + CHECKPOINT_INTERVAL;
+            loop {
+                let timeout = checkpoint_at.saturating_duration_since(Instant::now());
+                match receiver.recv_timeout(timeout) {
+                    Ok(block) => {
+                        let writer = match block.source {
+                            Source::Microphone => &mut microphone,
+                            Source::System => &mut system,
+                        };
+                        for sample in block.samples {
+                            writer.write_sample(sample)?;
+                        }
+                        if Instant::now() >= checkpoint_at {
+                            checkpoint_writers(&mut microphone, &mut system)?;
+                            checkpoint_at = Instant::now() + CHECKPOINT_INTERVAL;
+                        }
+                    }
+                    Err(RecvTimeoutError::Timeout) => {
+                        checkpoint_writers(&mut microphone, &mut system)?;
+                        checkpoint_at = Instant::now() + CHECKPOINT_INTERVAL;
+                    }
+                    Err(RecvTimeoutError::Disconnected) => break,
                 }
             }
             microphone.finalize()?;
@@ -216,10 +234,21 @@ fn spawn_writer(
         })?)
 }
 
+type FloatWavWriter = hound::WavWriter<BufWriter<std::fs::File>>;
+
+fn checkpoint_writers(
+    microphone: &mut FloatWavWriter,
+    system: &mut FloatWavWriter,
+) -> Result<(), hound::Error> {
+    microphone.flush()?;
+    system.flush()?;
+    Ok(())
+}
+
 fn float_writer(
     path: &Path,
     config: SupportedStreamConfig,
-) -> Result<hound::WavWriter<BufWriter<std::fs::File>>, hound::Error> {
+) -> Result<FloatWavWriter, hound::Error> {
     hound::WavWriter::create(
         path,
         hound::WavSpec {
