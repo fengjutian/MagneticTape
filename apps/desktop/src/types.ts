@@ -77,3 +77,28 @@ export interface RecordingListItem {
   sizeBytes: number;
 }
 
+export interface TranscriptSegment {
+  startMs: number;
+  endMs: number;
+  speaker?: string;
+  text: string;
+}
+
+export interface Transcript {
+  provider: string;
+  model: string;
+  language: string;
+  durationMs: number;
+  text: string;
+  segments: TranscriptSegment[];
+  createdAtEpochMs: number;
+}
+
+export interface AsrConfiguration {
+  provider: "minimax" | "silicon_flow";
+  endpoint: string;
+  model: string;
+  language: string;
+  configured: boolean;
+}
+

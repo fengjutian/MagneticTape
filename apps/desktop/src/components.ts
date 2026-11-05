@@ -1,5 +1,5 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
-import type { AudioDeviceInfo, AudioDeviceSnapshot, RecorderStatus, RecorderViewState } from "./types";
+import type { AudioDeviceInfo, AudioDeviceSnapshot, RecorderStatus, RecorderViewState, Transcript } from "./types";
 
 function icon(name: "pause" | "play" | "stop" | "sparkles"): string {
   const paths = {
@@ -73,6 +73,20 @@ export function renderApp(): string {
         <label><span>向 AI 提问</span><textarea class="ai-prompt" rows="3" placeholder="例如：给我一个中文会议纪要模板"></textarea></label>
         <output class="ai-result" aria-live="polite"></output>
         <footer><button class="ai-cancel" value="cancel">取消</button><button class="ai-generate" type="button">发送</button><button class="ai-test" type="button">保存并测试连接</button></footer>
+      </form>
+    </dialog>
+    <dialog class="asr-dialog" aria-labelledby="asr-dialog-title">
+      <form method="dialog" class="asr-form">
+        <header><div><p class="section-kicker">SPEECH TO TEXT</p><h2 id="asr-dialog-title">配置转写服务</h2></div><button class="dialog-close" value="cancel" aria-label="关闭">×</button></header>
+        <label><span>服务商</span><select class="asr-dialog-provider"><option value="minimax">MiniMax（可复用 AI 密钥）</option><option value="silicon_flow">SiliconFlow</option></select></label>
+        <label><span>接口地址</span><input class="asr-endpoint" autocomplete="off" /></label>
+        <label><span>模型</span><input class="asr-model" autocomplete="off" /></label>
+        <label><span>识别语言</span><select class="asr-language"><option value="auto">自动识别</option><option value="zh-CN">中文</option><option value="en-US">English</option></select></label>
+        <label><span>API Key</span><input class="asr-key" type="password" placeholder="留空则复用已保存的密钥" autocomplete="off" /></label>
+        <p class="ai-privacy">转写会把混音后的 16 kHz 音频上传到所选服务商；密钥保存在 Windows 凭据管理器。</p>
+        <div class="ai-credential-row"><span class="asr-config-status">正在读取配置…</span><button class="asr-clear" type="button">清除密钥</button></div>
+        <output class="asr-result" aria-live="polite"></output>
+        <footer><button value="cancel">取消</button><button class="asr-save" type="button">保存配置</button></footer>
       </form>
     </dialog>
     <dialog class="history-dialog" aria-labelledby="history-dialog-title">
@@ -175,14 +189,14 @@ export function applyView(root: HTMLElement, state: RecorderViewState): void {
 function contentForStatus(state: RecorderViewState): string {
   const { status, sessionId } = state;
   if (status === "recording" || status === "paused") {
-    return `<div class="transcript-placeholder"><span class="pulse-dot"></span><h3>${status === "paused" ? "字幕已暂停" : "等待实时字幕"}</h3><p>ASR 尚未接入，因此不会生成虚构的转写内容。</p><div class="skeleton"><i></i><i></i><i></i></div></div>`;
+    return `<div class="transcript-placeholder"><span class="pulse-dot"></span><h3>${status === "paused" ? "字幕已暂停" : "等待实时字幕"}</h3><p>实时字幕尚未接入；录音结束后可在完成页一键转写。</p><div class="skeleton"><i></i><i></i><i></i></div></div>`;
   }
   if (status === "stopping") return `<div class="saving"><span class="spinner" aria-hidden="true"></span><h3>正在安全结束会话</h3><p>请勿重复提交停止操作。</p></div>`;
   if (status === "finished") {
     const revealPath = state.microphonePath ?? state.systemPath;
     const microphonePlayer = audioPlayer("麦克风声轨", state.microphoneChunks);
     const systemPlayer = audioPlayer("系统声音声轨", state.systemChunks);
-    return `<div class="finished-card"><span class="check">✓</span><h3>${state.recovered ? "已恢复上次录音" : "录音已保存"}</h3><p>会话编号：${sessionId?.slice(0, 12) ?? "—"}</p><div class="audio-players">${microphonePlayer}${systemPlayer}</div><section class="notes-editor"><header><strong>会议笔记</strong><span class="notes-state"></span></header><textarea class="meeting-notes" rows="9" placeholder="输入会议笔记，或粘贴转写文本后使用 AI 生成纪要…"></textarea><div class="notes-actions"><select class="notes-provider" aria-label="AI 服务商"><option value="minimax">MiniMax</option><option value="deep_seek">DeepSeek</option></select><button class="save-notes" type="button">保存笔记</button><button class="summarize-notes" type="button">AI 生成纪要</button></div></section><dl><div><dt>麦克风</dt><dd title="${escapeHtml(state.microphonePath ?? "")}">${escapeHtml(state.microphonePath ?? "未生成")}</dd></div><div><dt>系统声音</dt><dd title="${escapeHtml(state.systemPath ?? "")}">${escapeHtml(state.systemPath ?? "未生成")}</dd></div><div><dt>音频分片</dt><dd>${(state.microphoneChunks?.length ?? 0) + (state.systemChunks?.length ?? 0)}</dd></div><div><dt>丢弃缓冲块</dt><dd>${state.droppedBlocks ?? 0}</dd></div></dl>${revealPath ? `<button class="reveal-recording" type="button" data-path="${escapeHtml(revealPath)}">在资源管理器中查看</button>` : ""}</div>`;
+    return `<div class="finished-card"><span class="check">✓</span><h3>${state.recovered ? "已恢复上次录音" : "录音已保存"}</h3><p>会话编号：${sessionId?.slice(0, 12) ?? "—"}</p><div class="audio-players">${microphonePlayer}${systemPlayer}</div><section class="transcript-panel"><header><strong>转写文本</strong><span class="transcript-state"></span></header><div class="transcript-body"><p class="transcript-empty">尚未转写。配置 ASR 服务后可从录音生成带时间戳与说话人的文本。</p></div><div class="transcript-actions"><select class="asr-provider" aria-label="转写服务商"><option value="minimax">MiniMax</option><option value="silicon_flow">SiliconFlow</option></select><button class="transcribe" type="button">开始转写</button><button class="asr-settings" type="button">转写设置</button><select class="translate-target" aria-label="翻译语言"><option value="zh">中文</option><option value="en">English</option></select><button class="translate-transcript" type="button">AI 翻译</button></div></section><section class="notes-editor"><header><strong>会议笔记</strong><span class="notes-state"></span></header><textarea class="meeting-notes" rows="9" placeholder="输入会议笔记，或直接使用转写文本生成纪要…"></textarea><div class="notes-actions"><select class="notes-provider" aria-label="AI 服务商"><option value="minimax">MiniMax</option><option value="deep_seek">DeepSeek</option></select><button class="save-notes" type="button">保存笔记</button><button class="summarize-notes" type="button">AI 生成纪要</button></div></section><dl><div><dt>麦克风</dt><dd title="${escapeHtml(state.microphonePath ?? "")}">${escapeHtml(state.microphonePath ?? "未生成")}</dd></div><div><dt>系统声音</dt><dd title="${escapeHtml(state.systemPath ?? "")}">${escapeHtml(state.systemPath ?? "未生成")}</dd></div><div><dt>音频分片</dt><dd>${(state.microphoneChunks?.length ?? 0) + (state.systemChunks?.length ?? 0)}</dd></div><div><dt>丢弃缓冲块</dt><dd>${state.droppedBlocks ?? 0}</dd></div></dl>${revealPath ? `<button class="reveal-recording" type="button" data-path="${escapeHtml(revealPath)}">在资源管理器中查看</button>` : ""}</div>`;
   }
   return `<div class="empty-content"><div class="cassette-mini" aria-hidden="true"><i></i><i></i></div><h3>内容将在这里出现</h3><p>开始录音后，这里将承载实时字幕。停止后可继续生成摘要、章节和待办。</p></div>`;
 }
@@ -206,6 +220,29 @@ function wireChunkPlayback(root: HTMLElement): void {
       void audio.play();
     });
   });
+}
+
+/// Renders provider segments with timestamps and speaker labels.
+export function renderTranscript(container: HTMLElement, transcript: Transcript): void {
+  container.replaceChildren();
+  if (transcript.segments.length === 0) {
+    const paragraph = document.createElement("p");
+    paragraph.textContent = transcript.text;
+    container.append(paragraph);
+    return;
+  }
+  for (const segment of transcript.segments) {
+    const line = document.createElement("p");
+    line.className = "transcript-line";
+    const time = document.createElement("time");
+    time.textContent = formatElapsed(segment.startMs);
+    const speaker = document.createElement("strong");
+    speaker.textContent = segment.speaker ? `${segment.speaker} ` : "";
+    const text = document.createElement("span");
+    text.textContent = segment.text;
+    line.append(time, speaker, text);
+    container.append(line);
+  }
 }
 
 function escapeHtml(value: string): string {

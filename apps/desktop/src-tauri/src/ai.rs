@@ -94,6 +94,16 @@ fn credential_entry(provider: AiProvider) -> Result<keyring::Entry, String> {
         .map_err(|error| format!("无法访问 Windows 凭据管理器：{error}"))
 }
 
+/// Reads a previously saved provider key. Used by the ASR module so a MiniMax
+/// user does not have to store the same secret twice.
+pub(crate) fn stored_api_key(provider: AiProvider) -> Option<String> {
+    credential_entry(provider)
+        .ok()?
+        .get_password()
+        .ok()
+        .filter(|key| !key.is_empty())
+}
+
 #[tauri::command]
 pub fn configure_ai(
     provider: AiProvider,
@@ -183,6 +193,21 @@ pub async fn generate_ai(
         return Err("发送给 AI 的文本不能超过 200 KB".into());
     }
     generate(provider, prompt.trim(), &state).await
+}
+
+/// Generates plain text with a configured provider. Shared with transcript
+/// translation so the ASR module does not duplicate the HTTP client.
+pub(crate) async fn generate_text(
+    provider: AiProvider,
+    prompt: &str,
+    state: &tauri::State<'_, AiState>,
+) -> Result<String, String> {
+    if prompt.trim().is_empty() {
+        return Err("提示词不能为空".into());
+    }
+    generate(provider, prompt.trim(), state)
+        .await
+        .map(|response| response.content)
 }
 
 async fn generate(

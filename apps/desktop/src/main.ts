@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
-import { applyAudioDevices, applyView, formatElapsed, renderApp } from "./components";
-import type { AiConfiguration, AiResponse, AudioDeviceSnapshot, AudioLevels, RecorderViewState, RecordingListItem, SessionState } from "./types";
+import { applyAudioDevices, applyView, formatElapsed, renderApp, renderTranscript } from "./components";
+import type { AiConfiguration, AiResponse, AsrConfiguration, AudioDeviceSnapshot, AudioLevels, RecorderViewState, RecordingListItem, SessionState, Transcript } from "./types";
 import "./styles.css";
 
 const appElement = document.querySelector<HTMLElement>("#app");
@@ -12,6 +12,7 @@ let backendState: SessionState;
 let pending = false;
 let tickHandle: number | undefined;
 let levelHandle: number | undefined;
+let currentTranscript: Transcript | null = null;
 let view: RecorderViewState = { title: "新录音", status: "idle", elapsedMs: 0, language: "auto", translation: "none", retainAudio: true, volumeLevel: 0, sessionId: null, microphoneChunks: [], systemChunks: [] };
 
 function syncBackend(next: SessionState): void {
@@ -19,7 +20,11 @@ function syncBackend(next: SessionState): void {
   view = { ...view, title: next.title, status: next.status, elapsedMs: next.elapsedMs, sessionId: next.sessionId, microphonePath: next.microphonePath, systemPath: next.systemPath, microphoneChunks: next.microphoneChunks, systemChunks: next.systemChunks, droppedBlocks: next.droppedBlocks, recovered: next.recovered, errorMessage: undefined };
   restartClock();
   applyView(app, view);
-  if (next.status === "finished") void loadSessionNotes();
+  if (next.status === "finished") {
+    currentTranscript = null;
+    void loadSessionNotes();
+    void loadTranscript();
+  }
 }
 
 async function loadSessionNotes(): Promise<void> {
@@ -30,6 +35,21 @@ async function loadSessionNotes(): Promise<void> {
   } catch (error) {
     const status = app.querySelector<HTMLElement>(".notes-state");
     if (status) status.textContent = `读取失败：${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+async function loadTranscript(): Promise<void> {
+  const body = app.querySelector<HTMLElement>(".transcript-body");
+  const status = app.querySelector<HTMLElement>(".transcript-state");
+  if (!body || !status) return;
+  try {
+    const transcript = await invoke<Transcript | null>("get_transcript");
+    if (!transcript) return;
+    currentTranscript = transcript;
+    renderTranscript(body, transcript);
+    status.textContent = `${transcript.model} · ${transcript.segments.length} 段`;
+  } catch {
+    // No transcript has been generated for this session yet.
   }
 }
 
@@ -305,6 +325,136 @@ app.querySelector<HTMLButtonElement>(".ai-generate")!.addEventListener("click", 
     button.disabled = false;
   }
 });
+const asrDialog = app.querySelector<HTMLDialogElement>(".asr-dialog")!;
+const asrDialogProvider = app.querySelector<HTMLSelectElement>(".asr-dialog-provider")!;
+const asrEndpoint = app.querySelector<HTMLInputElement>(".asr-endpoint")!;
+const asrModel = app.querySelector<HTMLInputElement>(".asr-model")!;
+const asrLanguage = app.querySelector<HTMLSelectElement>(".asr-language")!;
+const asrKey = app.querySelector<HTMLInputElement>(".asr-key")!;
+const asrStatus = app.querySelector<HTMLElement>(".asr-config-status")!;
+const asrResult = app.querySelector<HTMLOutputElement>(".asr-result")!;
+const asrDefaults: Record<string, { endpoint: string; model: string }> = {
+  minimax: { endpoint: "https://api.minimax.cn/v1/speech_to_text", model: "asr-1.0" },
+  silicon_flow: { endpoint: "https://api.siliconflow.cn/v1/audio/transcriptions", model: "FunAudioLLM/SenseVoiceSmall" },
+};
+function applyAsrDefaults(): void {
+  const defaults = asrDefaults[asrDialogProvider.value];
+  asrEndpoint.value = defaults.endpoint;
+  asrModel.value = defaults.model;
+}
+async function refreshAsrConfiguration(): Promise<void> {
+  try {
+    const configurations = await invoke<AsrConfiguration[]>("get_asr_configurations");
+    const current = configurations.find((configuration) => configuration.provider === asrDialogProvider.value);
+    if (current) {
+      asrEndpoint.value = current.endpoint;
+      asrModel.value = current.model;
+      asrLanguage.value = current.language;
+      asrStatus.textContent = current.configured ? "API Key 已安全保存" : "尚未配置 API Key";
+    }
+    asrKey.value = "";
+  } catch (error) {
+    asrStatus.textContent = `无法读取配置：${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+asrDialogProvider.addEventListener("change", () => {
+  applyAsrDefaults();
+  void refreshAsrConfiguration();
+});
+app.addEventListener("click", (event) => {
+  const button = (event.target as HTMLElement).closest<HTMLButtonElement>(".asr-settings");
+  if (!button) return;
+  asrResult.textContent = "";
+  asrDialog.showModal();
+  void refreshAsrConfiguration();
+});
+app.querySelector<HTMLButtonElement>(".asr-save")!.addEventListener("click", async () => {
+  asrResult.className = "asr-result pending";
+  asrResult.textContent = "正在保存…";
+  try {
+    const configuration = await invoke<AsrConfiguration>("configure_asr", {
+      provider: asrDialogProvider.value,
+      apiKey: asrKey.value,
+      endpoint: asrEndpoint.value,
+      model: asrModel.value,
+      language: asrLanguage.value,
+    });
+    asrKey.value = "";
+    asrResult.className = "asr-result success";
+    asrResult.textContent = `${configuration.model} 配置已保存`;
+    await refreshAsrConfiguration();
+  } catch (error) {
+    asrResult.className = "asr-result failure";
+    asrResult.textContent = error instanceof Error ? error.message : String(error);
+  }
+});
+app.querySelector<HTMLButtonElement>(".asr-clear")!.addEventListener("click", async () => {
+  try {
+    await invoke("clear_asr", { provider: asrDialogProvider.value });
+    asrResult.className = "asr-result success";
+    asrResult.textContent = "API Key 已清除";
+    await refreshAsrConfiguration();
+  } catch (error) {
+    asrResult.className = "asr-result failure";
+    asrResult.textContent = error instanceof Error ? error.message : String(error);
+  }
+});
+app.addEventListener("click", async (event) => {
+  const button = (event.target as HTMLElement).closest<HTMLButtonElement>(".transcribe");
+  if (!button) return;
+  const body = app.querySelector<HTMLElement>(".transcript-body");
+  const status = app.querySelector<HTMLElement>(".transcript-state");
+  const provider = app.querySelector<HTMLSelectElement>(".asr-provider")?.value ?? "minimax";
+  if (!body || !status) return;
+  button.disabled = true;
+  status.textContent = "正在解码并混音…";
+  try {
+    const transcript = await invoke<Transcript>("transcribe_session", { provider, language: null });
+    currentTranscript = transcript;
+    renderTranscript(body, transcript);
+    status.textContent = `${transcript.model} · ${transcript.segments.length} 段`;
+  } catch (error) {
+    status.textContent = "转写失败";
+    view.errorMessage = `转写失败：${error instanceof Error ? error.message : String(error)}`;
+    applyView(app, view);
+  } finally {
+    button.disabled = false;
+  }
+});
+app.addEventListener("click", async (event) => {
+  const button = (event.target as HTMLElement).closest<HTMLButtonElement>(".translate-transcript");
+  if (!button) return;
+  if (!currentTranscript) {
+    view.errorMessage = "请先完成转写，再生成译文。";
+    applyView(app, view);
+    return;
+  }
+  const target = app.querySelector<HTMLSelectElement>(".translate-target")?.value ?? "zh";
+  const targetLanguage = target === "zh" ? "中文" : "English";
+  const provider = app.querySelector<HTMLSelectElement>(".notes-provider")?.value ?? "minimax";
+  const body = app.querySelector<HTMLElement>(".transcript-body");
+  const status = app.querySelector<HTMLElement>(".transcript-state");
+  if (!body) return;
+  button.disabled = true;
+  if (status) status.textContent = "AI 正在翻译…";
+  try {
+    const translation = await invoke<string>("translate_transcript", { targetLanguage, provider });
+    body.replaceChildren();
+    const heading = document.createElement("p");
+    heading.className = "transcript-translation";
+    heading.textContent = `译文（${targetLanguage}）`;
+    const text = document.createElement("p");
+    text.textContent = translation;
+    body.append(heading, text);
+    if (status) status.textContent = "已翻译";
+  } catch (error) {
+    if (status) status.textContent = "翻译失败";
+    view.errorMessage = `翻译失败：${error instanceof Error ? error.message : String(error)}`;
+    applyView(app, view);
+  } finally {
+    button.disabled = false;
+  }
+});
 app.addEventListener("click", async (event) => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>(".reveal-recording");
   if (!button?.dataset.path) return;
@@ -340,13 +490,14 @@ app.addEventListener("click", async (event) => {
   const editor = app.querySelector<HTMLTextAreaElement>(".meeting-notes")!;
   const provider = app.querySelector<HTMLSelectElement>(".notes-provider")!.value;
   const status = app.querySelector<HTMLElement>(".notes-state")!;
-  if (!editor.value.trim()) {
-    status.textContent = "请先输入笔记或粘贴转写文本";
+  const source = editor.value.trim() || currentTranscript?.text.trim() || "";
+  if (!source) {
+    status.textContent = "请先完成转写或输入会议笔记";
     return;
   }
   button.disabled = true;
   status.textContent = "AI 正在整理…";
-  const prompt = `请将以下会议文本整理为 Markdown 会议纪要。必须包含：核心结论、讨论要点、待办事项（负责人和截止时间未知时明确写“待确认”）、风险与未决问题。不要编造原文没有的信息。\n\n${editor.value}`;
+  const prompt = `请将以下会议文本整理为 Markdown 会议纪要。必须包含：核心结论、讨论要点、待办事项（负责人和截止时间未知时明确写“待确认”）、风险与未决问题。不要编造原文没有的信息。\n\n${source}`;
   try {
     const response = await invoke<AiResponse>("generate_ai", { provider, prompt });
     editor.value = response.content;

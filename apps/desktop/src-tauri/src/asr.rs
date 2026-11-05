@@ -1,0 +1,758 @@
+//! Speech-to-text through OpenAI-compatible and MiniMax ASR APIs.
+//!
+//! The recording pipeline stores 15 second Ogg Opus chunks. Before upload the
+//! chunks are decoded, mixed into one mono track, resampled to 16 kHz and
+//! packed into WAV segments that stay below the providers' 500 second / 50 MB
+//! limits.
+
+use magnetic_tape_audio::{OPUS_SAMPLE_RATE, Track, decode_ogg_opus};
+use reqwest::{
+    Client,
+    multipart::{Form, Part},
+};
+use serde::{Deserialize, Serialize};
+use std::{
+    collections::{BTreeMap, HashMap},
+    fs,
+    io::Write,
+    path::{Path, PathBuf},
+    sync::Mutex,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
+
+const ASR_SERVICE: &str = "com.magnetictape.desktop.asr";
+const ASR_SAMPLE_RATE: u32 = 16_000;
+const WAV_SEGMENT_SECONDS: u64 = 480;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AsrProvider {
+    #[serde(rename = "minimax")]
+    MiniMax,
+    #[serde(rename = "silicon_flow")]
+    SiliconFlow,
+}
+
+impl AsrProvider {
+    fn credential_name(self) -> &'static str {
+        match self {
+            Self::MiniMax => "minimax",
+            Self::SiliconFlow => "siliconflow",
+        }
+    }
+
+    fn default_endpoint(self) -> &'static str {
+        match self {
+            Self::MiniMax => "https://api.minimax.cn/v1/speech_to_text",
+            Self::SiliconFlow => "https://api.siliconflow.cn/v1/audio/transcriptions",
+        }
+    }
+
+    fn default_model(self) -> &'static str {
+        match self {
+            Self::MiniMax => "asr-1.0",
+            Self::SiliconFlow => "FunAudioLLM/SenseVoiceSmall",
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct AsrCredential {
+    pub provider: AsrProvider,
+    pub api_key: String,
+    pub endpoint: String,
+    pub model: String,
+    pub language: String,
+}
+
+#[derive(Default)]
+pub struct AsrState(Mutex<HashMap<AsrProvider, AsrCredential>>);
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AsrConfigurationView {
+    provider: AsrProvider,
+    endpoint: String,
+    model: String,
+    language: String,
+    configured: bool,
+}
+
+/// One committed chunk that contributes audio to a transcription.
+#[derive(Debug, Clone)]
+pub struct AudioChunkRef {
+    pub track: Track,
+    pub path: PathBuf,
+    pub start_frame: u64,
+    pub frames: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct TranscriptSegment {
+    pub start_ms: u64,
+    pub end_ms: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub speaker: Option<String>,
+    pub text: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Transcript {
+    pub provider: String,
+    pub model: String,
+    pub language: String,
+    pub duration_ms: u64,
+    pub text: String,
+    pub segments: Vec<TranscriptSegment>,
+    pub created_at_epoch_ms: u64,
+}
+
+impl AsrState {
+    pub fn credential(&self, provider: AsrProvider) -> Result<AsrCredential, String> {
+        if let Some(credential) = self
+            .0
+            .lock()
+            .expect("ASR state poisoned")
+            .get(&provider)
+            .cloned()
+        {
+            return Ok(credential);
+        }
+        let api_key = stored_api_key(provider).ok_or_else(|| {
+            "尚未配置转写 API Key。MiniMax 会复用 AI 助手的密钥，也可以单独保存。".to_owned()
+        })?;
+        Ok(AsrCredential {
+            provider,
+            api_key,
+            endpoint: provider.default_endpoint().to_owned(),
+            model: provider.default_model().to_owned(),
+            language: "auto".to_owned(),
+        })
+    }
+}
+
+fn credential_entry(provider: AsrProvider) -> Result<keyring::Entry, String> {
+    keyring::Entry::new(ASR_SERVICE, provider.credential_name())
+        .map_err(|error| format!("无法访问 Windows 凭据管理器：{error}"))
+}
+
+fn stored_api_key(provider: AsrProvider) -> Option<String> {
+    let own = credential_entry(provider)
+        .ok()?
+        .get_password()
+        .ok()
+        .filter(|key| !key.is_empty());
+    own.or_else(|| {
+        // MiniMax chat and ASR use the same account, so the AI key can be
+        // reused without asking the user for the secret twice.
+        (provider == AsrProvider::MiniMax)
+            .then(|| crate::ai::stored_api_key(crate::ai::AiProvider::MiniMax))
+            .flatten()
+    })
+}
+
+fn epoch_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis()
+        .try_into()
+        .unwrap_or(u64::MAX)
+}
+
+#[tauri::command]
+pub fn configure_asr(
+    provider: AsrProvider,
+    api_key: String,
+    endpoint: Option<String>,
+    model: Option<String>,
+    language: Option<String>,
+    state: tauri::State<'_, AsrState>,
+) -> Result<AsrConfigurationView, String> {
+    let api_key = api_key.trim().to_owned();
+    let previous = state
+        .0
+        .lock()
+        .expect("ASR state poisoned")
+        .get(&provider)
+        .cloned();
+    if api_key.is_empty() && stored_api_key(provider).is_none() {
+        return Err("API Key 不能为空".into());
+    }
+    if !api_key.is_empty() {
+        credential_entry(provider)?
+            .set_password(&api_key)
+            .map_err(|error| format!("无法保存 API Key：{error}"))?;
+    }
+    let endpoint = endpoint
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| previous.as_ref().map(|value| value.endpoint.clone()))
+        .unwrap_or_else(|| provider.default_endpoint().to_owned());
+    let model = model
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| previous.as_ref().map(|value| value.model.clone()))
+        .unwrap_or_else(|| provider.default_model().to_owned());
+    let language = language
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| previous.as_ref().map(|value| value.language.clone()))
+        .unwrap_or_else(|| "auto".to_owned());
+    state.0.lock().expect("ASR state poisoned").insert(
+        provider,
+        AsrCredential {
+            provider,
+            api_key: if api_key.is_empty() {
+                stored_api_key(provider).unwrap_or_default()
+            } else {
+                api_key
+            },
+            endpoint: endpoint.clone(),
+            model: model.clone(),
+            language: language.clone(),
+        },
+    );
+    Ok(AsrConfigurationView {
+        provider,
+        endpoint,
+        model,
+        language,
+        configured: true,
+    })
+}
+
+#[tauri::command]
+pub fn get_asr_configurations(state: tauri::State<'_, AsrState>) -> Vec<AsrConfigurationView> {
+    [AsrProvider::MiniMax, AsrProvider::SiliconFlow]
+        .into_iter()
+        .map(|provider| {
+            let cached = state
+                .0
+                .lock()
+                .expect("ASR state poisoned")
+                .get(&provider)
+                .cloned();
+            AsrConfigurationView {
+                provider,
+                endpoint: cached
+                    .as_ref()
+                    .map(|value| value.endpoint.clone())
+                    .unwrap_or_else(|| provider.default_endpoint().to_owned()),
+                model: cached
+                    .as_ref()
+                    .map(|value| value.model.clone())
+                    .unwrap_or_else(|| provider.default_model().to_owned()),
+                language: cached
+                    .as_ref()
+                    .map(|value| value.language.clone())
+                    .unwrap_or_else(|| "auto".to_owned()),
+                configured: stored_api_key(provider).is_some(),
+            }
+        })
+        .collect()
+}
+
+#[tauri::command]
+pub fn clear_asr(provider: AsrProvider, state: tauri::State<'_, AsrState>) -> Result<(), String> {
+    match credential_entry(provider)?.delete_credential() {
+        Ok(()) | Err(keyring::Error::NoEntry) => {}
+        Err(error) => return Err(format!("无法清除 API Key：{error}")),
+    }
+    state
+        .0
+        .lock()
+        .expect("ASR state poisoned")
+        .remove(&provider);
+    Ok(())
+}
+
+#[derive(Deserialize)]
+struct RawResponse {
+    #[serde(default)]
+    text: String,
+    #[serde(default)]
+    duration: f64,
+    #[serde(default)]
+    segments: Vec<RawSegment>,
+}
+
+#[derive(Deserialize)]
+struct RawSegment {
+    start: f64,
+    end: f64,
+    #[serde(default)]
+    speaker: Option<String>,
+    #[serde(default)]
+    text: String,
+}
+
+#[derive(Deserialize)]
+struct ApiErrorBody {
+    error: Option<ApiErrorDetail>,
+}
+
+#[derive(Deserialize)]
+struct ApiErrorDetail {
+    message: String,
+}
+
+struct AudioSegment {
+    path: PathBuf,
+    start_ms: u64,
+    duration_ms: u64,
+}
+
+fn language_header(language: &str) -> Option<&str> {
+    match language {
+        "" | "auto" => None,
+        "zh-CN" => Some("zh"),
+        "en-US" => Some("en"),
+        other => Some(other),
+    }
+}
+
+/// Decodes, mixes and downsamples committed chunks into WAV segments small
+/// enough for the transcription APIs.
+fn build_segments(
+    chunks: &[AudioChunkRef],
+    directory: &Path,
+    segment_seconds: u64,
+) -> Result<Vec<AudioSegment>, String> {
+    fs::create_dir_all(directory).map_err(|error| error.to_string())?;
+    let mut slots: BTreeMap<u64, [Option<&AudioChunkRef>; 2]> = BTreeMap::new();
+    for chunk in chunks {
+        let slot = slots.entry(chunk.start_frame).or_default();
+        match chunk.track {
+            Track::Microphone => slot[0] = Some(chunk),
+            Track::System => slot[1] = Some(chunk),
+        }
+    }
+    let mut segments = Vec::new();
+    let mut buffer: Vec<f32> = Vec::new();
+    let mut segment_start_frame = 0_u64;
+    let mut cursor_frame = 0_u64;
+    let limit = (segment_seconds.max(1) * u64::from(ASR_SAMPLE_RATE)) as usize;
+
+    let flush = |buffer: &mut Vec<f32>,
+                 start_frame: u64,
+                 segments: &mut Vec<AudioSegment>|
+     -> Result<(), String> {
+        if buffer.is_empty() {
+            return Ok(());
+        }
+        let index = segments.len();
+        let path = directory.join(format!("segment-{index:03}.wav"));
+        write_wav(&path, buffer)?;
+        let duration_ms = buffer.len() as u64 * 1_000 / u64::from(ASR_SAMPLE_RATE);
+        segments.push(AudioSegment {
+            path,
+            start_ms: start_frame * 1_000 / u64::from(OPUS_SAMPLE_RATE),
+            duration_ms,
+        });
+        buffer.clear();
+        Ok(())
+    };
+
+    for (slot_start, slot) in slots {
+        if slot_start > cursor_frame {
+            let silence = ((slot_start - cursor_frame) / 3) as usize;
+            buffer.resize(buffer.len() + silence, 0.0);
+        }
+        while buffer.len() >= limit {
+            let remainder = buffer.split_off(limit);
+            let mut chunk = std::mem::take(&mut buffer);
+            chunk.truncate(limit);
+            flush(&mut chunk, segment_start_frame, &mut segments)?;
+            segment_start_frame +=
+                (limit as u64 * u64::from(OPUS_SAMPLE_RATE)) / u64::from(ASR_SAMPLE_RATE);
+            buffer = remainder;
+        }
+
+        let microphone = slot[0].map(decode_chunk).transpose()?;
+        let system = slot[1].map(decode_chunk).transpose()?;
+        let length = microphone
+            .as_ref()
+            .map(Vec::len)
+            .unwrap_or(0)
+            .max(system.as_ref().map(Vec::len).unwrap_or(0));
+        if length == 0 {
+            continue;
+        }
+        let mut mixed = Vec::with_capacity(length / 3 + 1);
+        for index in 0..length {
+            let left = microphone
+                .as_ref()
+                .map_or(0.0, |samples| samples.get(index).copied().unwrap_or(0.0));
+            let right = system
+                .as_ref()
+                .map_or(0.0, |samples| samples.get(index).copied().unwrap_or(0.0));
+            mixed.push((left + right).clamp(-1.0, 1.0));
+        }
+        buffer.extend(downsample(&mixed));
+        cursor_frame = slot_start + length as u64;
+
+        while buffer.len() >= limit {
+            let remainder = buffer.split_off(limit);
+            let mut chunk = std::mem::take(&mut buffer);
+            flush(&mut chunk, segment_start_frame, &mut segments)?;
+            segment_start_frame +=
+                (limit as u64 * u64::from(OPUS_SAMPLE_RATE)) / u64::from(ASR_SAMPLE_RATE);
+            buffer = remainder;
+        }
+    }
+    flush(&mut buffer, segment_start_frame, &mut segments)?;
+    Ok(segments)
+}
+
+fn decode_chunk(chunk: &AudioChunkRef) -> Result<Vec<f32>, String> {
+    let mut samples = decode_ogg_opus(&chunk.path).map_err(|error| error.to_string())?;
+    samples.truncate(chunk.frames as usize);
+    Ok(samples)
+}
+
+fn downsample(samples: &[f32]) -> Vec<f32> {
+    samples
+        .chunks(3)
+        .map(|group| group.iter().sum::<f32>() / group.len() as f32)
+        .collect()
+}
+
+fn write_wav(path: &Path, samples: &[f32]) -> Result<(), String> {
+    let data_len = (samples.len() * 2) as u32;
+    let mut file = fs::File::create(path).map_err(|error| error.to_string())?;
+    let mut header = Vec::with_capacity(44);
+    header.extend_from_slice(b"RIFF");
+    header.extend_from_slice(&(36 + data_len).to_le_bytes());
+    header.extend_from_slice(b"WAVEfmt ");
+    header.extend_from_slice(&16_u32.to_le_bytes());
+    header.extend_from_slice(&1_u16.to_le_bytes());
+    header.extend_from_slice(&1_u16.to_le_bytes());
+    header.extend_from_slice(&ASR_SAMPLE_RATE.to_le_bytes());
+    header.extend_from_slice(&(ASR_SAMPLE_RATE * 2).to_le_bytes());
+    header.extend_from_slice(&2_u16.to_le_bytes());
+    header.extend_from_slice(&16_u16.to_le_bytes());
+    header.extend_from_slice(b"data");
+    header.extend_from_slice(&data_len.to_le_bytes());
+    file.write_all(&header).map_err(|error| error.to_string())?;
+    let mut bytes = Vec::with_capacity(samples.len() * 2);
+    for sample in samples {
+        let value = (sample.clamp(-1.0, 1.0) * f32::from(i16::MAX)) as i16;
+        bytes.extend_from_slice(&value.to_le_bytes());
+    }
+    file.write_all(&bytes).map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+async fn upload_segment(
+    client: &Client,
+    config: &AsrCredential,
+    segment: &AudioSegment,
+) -> Result<RawResponse, String> {
+    let bytes = fs::read(&segment.path).map_err(|error| format!("无法读取临时音频：{error}"))?;
+    let part = Part::bytes(bytes)
+        .file_name("segment.wav")
+        .mime_str("audio/wav")
+        .map_err(|error| error.to_string())?;
+    let mut form = Form::new()
+        .text("model", config.model.clone())
+        .part("file", part);
+    if config.provider == AsrProvider::MiniMax {
+        form = form.text("response_format", "verbose_json");
+    }
+    let mut request = client
+        .post(&config.endpoint)
+        .bearer_auth(&config.api_key)
+        .multipart(form);
+    if let Some(language) = language_header(&config.language) {
+        request = request.header("language", language);
+    }
+    let response = request
+        .send()
+        .await
+        .map_err(|error| format!("ASR 请求失败：{error}"))?;
+    let status = response.status();
+    let body = response
+        .text()
+        .await
+        .map_err(|error| format!("无法读取 ASR 响应：{error}"))?;
+    if !status.is_success() {
+        let message = serde_json::from_str::<ApiErrorBody>(&body)
+            .ok()
+            .and_then(|body| body.error)
+            .map(|error| error.message)
+            .unwrap_or_else(|| body.chars().take(300).collect());
+        return Err(format!("ASR 服务返回 {status}：{message}"));
+    }
+    serde_json::from_str::<RawResponse>(&body)
+        .map_err(|error| format!("无法解析 ASR 响应：{error}"))
+}
+
+impl AsrCredential {
+    fn provider_name(&self) -> &'static str {
+        match self.provider {
+            AsrProvider::MiniMax => "minimax",
+            AsrProvider::SiliconFlow => "siliconflow",
+        }
+    }
+}
+
+/// Transcribes all chunks of a session, merging provider segments with the
+/// global session timeline. Temporary WAV segments are removed afterwards.
+pub async fn transcribe_chunks(
+    chunks: &[AudioChunkRef],
+    config: &AsrCredential,
+    session_id: &str,
+) -> Result<Transcript, String> {
+    let working =
+        std::env::temp_dir().join(format!("magnetic-tape-asr-{session_id}-{}", epoch_ms()));
+    let segments = build_segments(chunks, &working, WAV_SEGMENT_SECONDS)?;
+    if segments.is_empty() {
+        let _ = fs::remove_dir_all(&working);
+        return Err("当前会话没有可转写的音频".into());
+    }
+    let client = Client::builder()
+        .timeout(Duration::from_secs(300))
+        .build()
+        .map_err(|error| error.to_string())?;
+    let mut transcript = Transcript {
+        provider: config.provider_name().into(),
+        model: config.model.clone(),
+        language: config.language.clone(),
+        duration_ms: 0,
+        text: String::new(),
+        segments: Vec::new(),
+        created_at_epoch_ms: epoch_ms(),
+    };
+    let mut failures = Vec::new();
+    for segment in &segments {
+        match upload_segment(&client, config, segment).await {
+            Ok(response) => {
+                transcript.duration_ms = transcript
+                    .duration_ms
+                    .max(segment.start_ms + segment.duration_ms);
+                if !transcript.text.is_empty() && !response.text.is_empty() {
+                    transcript.text.push('\n');
+                }
+                transcript.text.push_str(response.text.trim());
+                if response.segments.is_empty() && !response.text.trim().is_empty() {
+                    let duration = if response.duration > 0.0 {
+                        (response.duration * 1_000.0) as u64
+                    } else {
+                        segment.duration_ms
+                    };
+                    transcript.segments.push(TranscriptSegment {
+                        start_ms: segment.start_ms,
+                        end_ms: segment.start_ms + duration,
+                        speaker: None,
+                        text: response.text.trim().to_owned(),
+                    });
+                }
+                for raw in response.segments {
+                    transcript.segments.push(TranscriptSegment {
+                        start_ms: segment.start_ms + (raw.start * 1_000.0) as u64,
+                        end_ms: segment.start_ms + (raw.end * 1_000.0) as u64,
+                        speaker: raw.speaker,
+                        text: raw.text,
+                    });
+                }
+            }
+            Err(error) => failures.push(error),
+        }
+    }
+    let _ = fs::remove_dir_all(&working);
+    if transcript.text.is_empty() && !failures.is_empty() {
+        return Err(failures.join("；"));
+    }
+    Ok(transcript)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use magnetic_tape_audio::OpusTrackWriter;
+    use std::{
+        io::{Read, Write as IoWrite},
+        net::{TcpListener, TcpStream},
+        sync::Arc,
+        thread,
+    };
+
+    #[test]
+    fn downsamples_48k_to_16k_by_averaging() {
+        let input = vec![1.0_f32; 48_000];
+        assert_eq!(downsample(&input).len(), 16_000);
+    }
+
+    #[test]
+    fn language_headers_drop_the_region() {
+        assert_eq!(language_header("auto"), None);
+        assert_eq!(language_header("zh-CN"), Some("zh"));
+        assert_eq!(language_header("en-US"), Some("en"));
+    }
+
+    #[test]
+    fn writes_a_valid_16k_mono_wav() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("segment.wav");
+        write_wav(&path, &[0.0, 0.5, -0.5]).unwrap();
+        let bytes = fs::read(path).unwrap();
+        assert_eq!(&bytes[..4], b"RIFF");
+        assert_eq!(&bytes[8..12], b"WAVE");
+        assert_eq!(
+            u32::from_le_bytes(bytes[24..28].try_into().unwrap()),
+            16_000
+        );
+        assert_eq!(u16::from_le_bytes(bytes[22..24].try_into().unwrap()), 1);
+        assert_eq!(bytes.len(), 44 + 6);
+    }
+
+    #[test]
+    fn mixes_both_tracks_and_splits_wav_segments() {
+        let directory = tempfile::tempdir().unwrap();
+        let chunks = Arc::new(Mutex::new(Vec::new()));
+        let mut microphone = OpusTrackWriter::new(
+            directory.path(),
+            Track::Microphone,
+            48_000,
+            1,
+            Arc::clone(&chunks),
+        )
+        .unwrap();
+        let mut system = OpusTrackWriter::new(
+            directory.path(),
+            Track::System,
+            48_000,
+            1,
+            Arc::clone(&chunks),
+        )
+        .unwrap();
+        let tone: Vec<f32> = (0..96_000)
+            .map(|index| (index as f32 * 0.06).sin() * 0.25)
+            .collect();
+        microphone.push_interleaved(&tone).unwrap();
+        system.push_interleaved(&tone).unwrap();
+        microphone.finish().unwrap();
+        system.finish().unwrap();
+
+        let refs: Vec<AudioChunkRef> = chunks
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|chunk| AudioChunkRef {
+                track: chunk.track,
+                path: chunk.path.clone(),
+                start_frame: chunk.start_frame,
+                frames: chunk.frames,
+            })
+            .collect();
+        let working = directory.path().join("segments");
+        let segments = build_segments(&refs, &working, 1).unwrap();
+        assert_eq!(segments.len(), 2);
+        assert_eq!(segments[0].start_ms, 0);
+        assert_eq!(segments[1].start_ms, 1_000);
+        for segment in &segments {
+            let bytes = fs::read(&segment.path).unwrap();
+            assert_eq!(bytes.len(), 44 + 16_000 * 2);
+        }
+    }
+
+    fn read_request(stream: &mut TcpStream) -> Vec<u8> {
+        let mut data = Vec::new();
+        let mut buffer = [0_u8; 8_192];
+        loop {
+            let read = stream.read(&mut buffer).unwrap();
+            if read == 0 {
+                break;
+            }
+            data.extend_from_slice(&buffer[..read]);
+            let Some(header_end) = data.windows(4).position(|window| window == b"\r\n\r\n") else {
+                continue;
+            };
+            let headers = String::from_utf8_lossy(&data[..header_end]);
+            let length = headers
+                .lines()
+                .find_map(|line| {
+                    line.to_ascii_lowercase()
+                        .strip_prefix("content-length:")
+                        .and_then(|value| value.trim().parse::<usize>().ok())
+                })
+                .unwrap_or(0);
+            if data.len() >= header_end + 4 + length {
+                break;
+            }
+        }
+        data
+    }
+
+    #[test]
+    fn uploads_a_segment_and_merges_segments_with_global_timestamps() {
+        let directory = tempfile::tempdir().unwrap();
+        let chunks = Arc::new(Mutex::new(Vec::new()));
+        let mut writer = OpusTrackWriter::new(
+            directory.path(),
+            Track::Microphone,
+            48_000,
+            1,
+            Arc::clone(&chunks),
+        )
+        .unwrap();
+        let tone: Vec<f32> = (0..96_000)
+            .map(|index| (index as f32 * 0.06).sin() * 0.25)
+            .collect();
+        writer.push_interleaved(&tone).unwrap();
+        writer.finish().unwrap();
+        let refs: Vec<AudioChunkRef> = chunks
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|chunk| AudioChunkRef {
+                track: chunk.track,
+                path: chunk.path.clone(),
+                start_frame: chunk.start_frame,
+                frames: chunk.frames,
+            })
+            .collect();
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let request = read_request(&mut stream);
+            let body = r#"{"text":"你好，世界。","duration":2.0,"segments":[{"start":0.0,"end":1.0,"speaker":"S1","text":"你好，"},{"start":1.0,"end":2.0,"speaker":"S2","text":"世界。"}]}"#;
+            write!(
+                stream,
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                body.len(),
+                body
+            )
+            .unwrap();
+            request
+        });
+
+        let config = AsrCredential {
+            provider: AsrProvider::MiniMax,
+            api_key: "test-key".into(),
+            endpoint: format!("http://{address}/v1/speech_to_text"),
+            model: "asr-1.0".into(),
+            language: "zh-CN".into(),
+        };
+        let transcript =
+            tauri::async_runtime::block_on(transcribe_chunks(&refs, &config, "session")).unwrap();
+        let request = String::from_utf8_lossy(&server.join().unwrap()).into_owned();
+
+        assert!(request.contains(r#"name="model""#));
+        assert!(request.contains("asr-1.0"));
+        assert!(request.contains("verbose_json"));
+        assert!(request.contains(r#"name="file""#));
+        assert!(request.contains(r#"filename="segment.wav""#));
+        assert!(request.to_ascii_lowercase().contains("\nlanguage: zh"));
+
+        assert_eq!(transcript.provider, "minimax");
+        assert_eq!(transcript.text, "你好，世界。");
+        assert_eq!(transcript.segments.len(), 2);
+        assert_eq!(transcript.segments[0].start_ms, 0);
+        assert_eq!(transcript.segments[1].start_ms, 1_000);
+        assert_eq!(transcript.segments[1].speaker.as_deref(), Some("S2"));
+        assert_eq!(transcript.duration_ms, 2_000);
+    }
+}

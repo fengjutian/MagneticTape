@@ -22,7 +22,9 @@ use std::{
 use tauri::Manager;
 
 mod ai;
+mod asr;
 use ai::AiState;
+use asr::AsrState;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -38,6 +40,8 @@ const RECOVERED_MARKER: &str = "session-recovered";
 const LEGACY_MARKER: &str = "session-recording.json";
 const TITLE_FILE: &str = "session-title.txt";
 const NOTES_FILE: &str = "meeting-notes.md";
+const TRANSCRIPT_FILE: &str = "transcript.json";
+const TRANSCRIPT_MARKDOWN: &str = "transcript.md";
 
 fn default_session_title() -> String {
     "新录音".into()
@@ -1004,14 +1008,194 @@ fn stop_session(
     let directory = recordings_root(&app)?.join(&session_id);
     let recorded = finalize_session(&directory, &mut state, &snapshot);
     write_new_file(&directory.join(COMPLETED_MARKER), b"completed\n")?;
-    if state.status == RecorderStatus::Recording {
-        state.accumulated_ms = state.view(now_ms).elapsed_ms;
-    }
     state.resumed_at_epoch_ms = None;
     state.status = RecorderStatus::Finished;
     state.accumulated_ms = recorded.duration_ms;
     state.recorded = Some(recorded);
     Ok(state.view(now_ms))
+}
+
+fn format_timestamp(milliseconds: u64) -> String {
+    let seconds = milliseconds / 1_000;
+    let hours = seconds / 3_600;
+    let minutes = (seconds % 3_600) / 60;
+    let seconds = seconds % 60;
+    if hours > 0 {
+        format!("{hours:02}:{minutes:02}:{seconds:02}")
+    } else {
+        format!("{minutes:02}:{seconds:02}")
+    }
+}
+
+fn write_transcript(directory: &Path, transcript: &asr::Transcript) -> Result<(), String> {
+    let json = serde_json::to_vec_pretty(transcript).map_err(|error| error.to_string())?;
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(directory.join(TRANSCRIPT_FILE))
+        .map_err(|error| error.to_string())?;
+    file.write_all(&json).map_err(|error| error.to_string())?;
+    file.sync_all().map_err(|error| error.to_string())?;
+
+    let mut markdown = format!(
+        "# 会议转写\n\n- 服务商：{}\n- 模型：{}\n- 时长：{}\n\n",
+        transcript.provider,
+        transcript.model,
+        format_timestamp(transcript.duration_ms)
+    );
+    if transcript.segments.is_empty() {
+        markdown.push_str(&transcript.text);
+        markdown.push('\n');
+    } else {
+        for segment in &transcript.segments {
+            let speaker = segment
+                .speaker
+                .as_ref()
+                .map(|speaker| format!("{speaker} "))
+                .unwrap_or_default();
+            markdown.push_str(&format!(
+                "**[{}] {speaker}** {}\n\n",
+                format_timestamp(segment.start_ms),
+                segment.text.trim()
+            ));
+        }
+    }
+    let mut markdown_file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(directory.join(TRANSCRIPT_MARKDOWN))
+        .map_err(|error| error.to_string())?;
+    markdown_file
+        .write_all(markdown.as_bytes())
+        .map_err(|error| error.to_string())?;
+    markdown_file.sync_all().map_err(|error| error.to_string())
+}
+
+fn read_transcript(directory: &Path) -> Option<asr::Transcript> {
+    fs::read(directory.join(TRANSCRIPT_FILE))
+        .ok()
+        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+}
+
+fn audio_chunks(directory: &Path) -> Result<Vec<asr::AudioChunkRef>, String> {
+    let mut chunks = Vec::new();
+    for entry in fs::read_dir(directory).map_err(|error| error.to_string())? {
+        let path = entry.map_err(|error| error.to_string())?.path();
+        let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        if !name.ends_with(".json") || name.starts_with("checkpoint-") || name == LEGACY_MARKER {
+            continue;
+        }
+        let Ok(bytes) = fs::read(&path) else {
+            continue;
+        };
+        let Ok(info) = serde_json::from_slice::<ChunkInfo>(&bytes) else {
+            continue;
+        };
+        let audio_path = directory.join(format!("{}.ogg", info.uuid));
+        if !audio_path.is_file() {
+            continue;
+        }
+        chunks.push(asr::AudioChunkRef {
+            track: info.track,
+            path: audio_path,
+            start_frame: info.start_frame,
+            frames: info.frames,
+        });
+    }
+    chunks.sort_by_key(|chunk| {
+        (
+            match chunk.track {
+                Track::Microphone => 0_u8,
+                Track::System => 1_u8,
+            },
+            chunk.start_frame,
+        )
+    });
+    Ok(chunks)
+}
+
+#[tauri::command]
+async fn transcribe_session(
+    provider: asr::AsrProvider,
+    language: Option<String>,
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Mutex<SessionState>>,
+    asr_state: tauri::State<'_, AsrState>,
+) -> Result<asr::Transcript, String> {
+    let (directory, session_id) = {
+        let state = state.lock().expect("session state poisoned");
+        if state.status != RecorderStatus::Finished {
+            return Err("只有已结束的录音才能转写".into());
+        }
+        let session_id = state
+            .session_id
+            .clone()
+            .ok_or_else(|| "当前没有录音会话".to_owned())?;
+        let directory = recordings_root(&app)?.join(&session_id);
+        (directory, session_id)
+    };
+    let chunks = audio_chunks(&directory)?;
+    if chunks.is_empty() {
+        return Err("当前会话没有可转写的 Opus 分片".into());
+    }
+    let mut config = asr_state.credential(provider)?;
+    if let Some(language) = language.filter(|value| !value.trim().is_empty()) {
+        config.language = language;
+    }
+    let transcript = asr::transcribe_chunks(&chunks, &config, &session_id).await?;
+    write_transcript(&directory, &transcript)?;
+    Ok(transcript)
+}
+
+#[tauri::command]
+fn get_transcript(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Mutex<SessionState>>,
+) -> Result<Option<asr::Transcript>, String> {
+    let directory = current_session_directory(&app, &state)?;
+    Ok(read_transcript(&directory))
+}
+
+#[tauri::command]
+async fn translate_transcript(
+    target_language: String,
+    provider: ai::AiProvider,
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Mutex<SessionState>>,
+    ai_state: tauri::State<'_, AiState>,
+) -> Result<String, String> {
+    let directory = current_session_directory(&app, &state)?;
+    let transcript =
+        read_transcript(&directory).ok_or_else(|| "请先完成转写，再生成译文".to_owned())?;
+    let prompt = format!(
+        "请将以下会议转写翻译为{}。保留时间戳、说话人标记和段落结构，只输出译文，不要解释，不要编造原文没有的信息。\n\n{}",
+        target_language, transcript.text
+    );
+    let translation = ai::generate_text(provider, &prompt, &ai_state).await?;
+    let suffix: String = target_language
+        .chars()
+        .filter(|character| character.is_ascii_alphanumeric())
+        .collect();
+    let suffix = if suffix.is_empty() {
+        "target"
+    } else {
+        suffix.as_str()
+    };
+    let path = directory.join(format!("translation-{suffix}.md"));
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(path)
+        .map_err(|error| error.to_string())?;
+    file.write_all(translation.as_bytes())
+        .map_err(|error| error.to_string())?;
+    file.sync_all().map_err(|error| error.to_string())?;
+    Ok(translation)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -1020,6 +1204,7 @@ pub fn run() {
         .manage(Mutex::new(SessionState::default()))
         .manage(RecorderState(Arc::new(Mutex::new(None::<AudioRecording>))))
         .manage(AiState::default())
+        .manage(AsrState::default())
         .setup(|app| {
             let recordings = app.path().app_data_dir()?.join("recordings");
             fs::create_dir_all(&recordings)?;
@@ -1047,7 +1232,13 @@ pub fn run() {
             ai::get_ai_configurations,
             ai::clear_ai,
             ai::test_ai,
-            ai::generate_ai
+            ai::generate_ai,
+            asr::configure_asr,
+            asr::get_asr_configurations,
+            asr::clear_asr,
+            transcribe_session,
+            get_transcript,
+            translate_transcript
         ])
         .run(tauri::generate_context!())
         .expect("error while running MagneticTape desktop application");
