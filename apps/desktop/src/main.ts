@@ -72,7 +72,9 @@ titleDisplay.addEventListener("click", () => {
   titleInput.focus();
   titleInput.select();
 });
-titleInput.addEventListener("blur", () => finishTitleEdit());
+titleInput.addEventListener("blur", () => {
+  if (!titleInput.hidden) finishTitleEdit();
+});
 titleInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter") { event.preventDefault(); finishTitleEdit(); }
   if (event.key === "Escape") { event.preventDefault(); finishTitleEdit(true); }

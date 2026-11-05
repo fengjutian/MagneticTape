@@ -79,6 +79,7 @@ function statusText(status: RecorderStatus): { title: string; copy: string; badg
 
 export function applyView(root: HTMLElement, state: RecorderViewState): void {
   const text = statusText(state.status);
+  const statusChanged = root.dataset.status !== state.status;
   root.dataset.status = state.status;
   root.querySelector<HTMLElement>(".status-title")!.textContent = text.title;
   root.querySelector<HTMLElement>(".status-copy")!.textContent = text.copy;
@@ -102,7 +103,9 @@ export function applyView(root: HTMLElement, state: RecorderViewState): void {
   const error = root.querySelector<HTMLElement>(".error-banner")!;
   error.hidden = !state.errorMessage;
   error.textContent = state.errorMessage ?? "";
-  root.querySelector<HTMLElement>(".content-body")!.innerHTML = contentForStatus(state.status, state.sessionId);
+  if (statusChanged) {
+    root.querySelector<HTMLElement>(".content-body")!.innerHTML = contentForStatus(state.status, state.sessionId);
+  }
 }
 
 function contentForStatus(status: RecorderStatus, sessionId: string | null): string {
