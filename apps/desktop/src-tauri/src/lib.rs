@@ -1413,7 +1413,8 @@ fn get_transcript(
 #[tauri::command]
 fn get_settings(settings: tauri::State<'_, Mutex<AppSettings>>) -> AppSettings {
     settings.lock().expect("settings state poisoned").clone()
-}#[tauri::command]
+}
+#[tauri::command]
 fn save_settings(
     settings: AppSettings,
     app: tauri::AppHandle,

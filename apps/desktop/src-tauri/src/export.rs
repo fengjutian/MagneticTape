@@ -172,10 +172,7 @@ pub fn write_mixed_wav(chunks: &[AudioChunkRef], path: &Path) -> Result<u64, Str
             buffer.extend(std::iter::repeat_n(0_i16, silence));
             samples_written += silence as u64;
         }
-        let microphone = microphone
-            .map(decode)
-            .transpose()?
-            .unwrap_or_default();
+        let microphone = microphone.map(decode).transpose()?.unwrap_or_default();
         let system = system.map(decode).transpose()?.unwrap_or_default();
         let length = microphone.len().max(system.len());
         for index in 0..length {
@@ -234,10 +231,7 @@ fn sanitize_component(value: &str) -> String {
 }
 
 /// Writes every available artifact and returns the created directory.
-pub fn export_all(
-    input: &ExportInput<'_>,
-    parent: &Path,
-) -> Result<ExportResult, String> {
+pub fn export_all(input: &ExportInput<'_>, parent: &Path) -> Result<ExportResult, String> {
     let directory = parent.join(format!(
         "{}-{}",
         sanitize_component(input.title),
@@ -357,14 +351,9 @@ mod tests {
             Arc::clone(&chunks),
         )
         .unwrap();
-        let mut system = OpusTrackWriter::new(
-            &chunks_dir,
-            Track::System,
-            48_000,
-            1,
-            Arc::clone(&chunks),
-        )
-        .unwrap();
+        let mut system =
+            OpusTrackWriter::new(&chunks_dir, Track::System, 48_000, 1, Arc::clone(&chunks))
+                .unwrap();
         let tone: Vec<f32> = (0..48_000)
             .map(|index| (index as f32 * 0.05).sin() * 0.2)
             .collect();
@@ -411,9 +400,10 @@ mod tests {
         assert_eq!(&audio[..4], b"RIFF");
         let data_len = u32::from_le_bytes(audio[40..44].try_into().unwrap()) as usize;
         assert_eq!(data_len, audio.len() - 44);
-        let metadata: serde_json::Value =
-            serde_json::from_slice(&std::fs::read(exported.directory.join("session.json")).unwrap())
-                .unwrap();
+        let metadata: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(exported.directory.join("session.json")).unwrap(),
+        )
+        .unwrap();
         assert_eq!(metadata["transcriptProvider"], "minimax");
     }
 }
