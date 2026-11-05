@@ -36,3 +36,8 @@ export interface AudioDeviceSnapshot {
   systemOutputs: AudioDeviceInfo[];
 }
 
+export interface AudioLevels {
+  microphone: number;
+  system: number;
+}
+

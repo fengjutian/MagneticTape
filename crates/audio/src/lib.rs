@@ -4,6 +4,10 @@ use cpal::traits::{DeviceTrait, HostTrait};
 use serde::Serialize;
 use thiserror::Error;
 
+mod monitor;
+
+pub use monitor::{AudioLevelMonitor, AudioLevels, MonitorError};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DeviceKind {

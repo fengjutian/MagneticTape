@@ -97,6 +97,40 @@ fn list_audio_devices() -> Result<magnetic_tape_audio::AudioDeviceSnapshot, Stri
 }
 
 #[tauri::command]
+fn start_audio_monitor(
+    microphone_id: String,
+    system_output_id: String,
+    monitor: tauri::State<'_, Mutex<Option<magnetic_tape_audio::AudioLevelMonitor>>>,
+) -> Result<magnetic_tape_audio::AudioLevels, String> {
+    let next = magnetic_tape_audio::AudioLevelMonitor::start(&microphone_id, &system_output_id)
+        .map_err(|error| error.to_string())?;
+    let levels = next.levels();
+    *monitor.lock().expect("audio monitor state poisoned") = Some(next);
+    Ok(levels)
+}
+
+#[tauri::command]
+fn get_audio_levels(
+    monitor: tauri::State<'_, Mutex<Option<magnetic_tape_audio::AudioLevelMonitor>>>,
+) -> magnetic_tape_audio::AudioLevels {
+    monitor
+        .lock()
+        .expect("audio monitor state poisoned")
+        .as_ref()
+        .map_or_else(
+            Default::default,
+            magnetic_tape_audio::AudioLevelMonitor::levels,
+        )
+}
+
+#[tauri::command]
+fn stop_audio_monitor(
+    monitor: tauri::State<'_, Mutex<Option<magnetic_tape_audio::AudioLevelMonitor>>>,
+) {
+    monitor.lock().expect("audio monitor state poisoned").take();
+}
+
+#[tauri::command]
 fn get_session_state(state: tauri::State<'_, Mutex<SessionState>>) -> SessionView {
     state
         .lock()
@@ -162,8 +196,12 @@ fn stop_session(state: tauri::State<'_, Mutex<SessionState>>) -> Result<SessionV
 pub fn run() {
     tauri::Builder::default()
         .manage(Mutex::new(SessionState::default()))
+        .manage(Mutex::new(None::<magnetic_tape_audio::AudioLevelMonitor>))
         .invoke_handler(tauri::generate_handler![
             list_audio_devices,
+            start_audio_monitor,
+            get_audio_levels,
+            stop_audio_monitor,
             get_session_state,
             start_session,
             pause_session,

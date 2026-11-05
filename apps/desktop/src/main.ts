@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { applyAudioDevices, applyView, renderApp } from "./components";
-import type { AudioDeviceSnapshot, RecorderViewState, SessionState } from "./types";
+import type { AudioDeviceSnapshot, AudioLevels, RecorderViewState, SessionState } from "./types";
 import "./styles.css";
 
 const appElement = document.querySelector<HTMLElement>("#app");
@@ -11,6 +11,7 @@ app.innerHTML = renderApp();
 let backendState: SessionState;
 let pending = false;
 let tickHandle: number | undefined;
+let levelHandle: number | undefined;
 let view: RecorderViewState = { title: "新录音", status: "idle", elapsedMs: 0, language: "auto", translation: "none", retainAudio: true, volumeLevel: 0, sessionId: null };
 
 function syncBackend(next: SessionState): void {
@@ -42,6 +43,10 @@ async function command(name: "start_session" | "pause_session" | "resume_session
   }
   try {
     syncBackend(await invoke<SessionState>(name));
+    if (name === "stop_session") {
+      await invoke("stop_audio_monitor");
+      stopLevelPolling();
+    }
   } catch (error) {
     view.status = backendState?.status ?? "error";
     view.errorMessage = error instanceof Error ? error.message : String(error);
@@ -49,6 +54,49 @@ async function command(name: "start_session" | "pause_session" | "resume_session
   } finally {
     pending = false;
   }
+}
+
+async function startRecording(): Promise<void> {
+  if (pending) return;
+  const microphoneId = app.querySelector<HTMLSelectElement>(".microphone-select")!.value;
+  const systemOutputId = app.querySelector<HTMLSelectElement>(".system-output-select")!.value;
+  if (!microphoneId || !systemOutputId) {
+    view.errorMessage = "需要可用的麦克风和系统输出设备才能开始监测。";
+    applyView(app, view);
+    return;
+  }
+  pending = true;
+  try {
+    await invoke<AudioLevels>("start_audio_monitor", { microphoneId, systemOutputId });
+    syncBackend(await invoke<SessionState>("start_session"));
+    startLevelPolling();
+  } catch (error) {
+    await invoke("stop_audio_monitor").catch(() => undefined);
+    view.errorMessage = `无法启动音频监测：${error instanceof Error ? error.message : String(error)}`;
+    applyView(app, view);
+  } finally {
+    pending = false;
+  }
+}
+
+function startLevelPolling(): void {
+  stopLevelPolling();
+  levelHandle = window.setInterval(async () => {
+    if (view.status !== "recording") return;
+    try {
+      const levels = await invoke<AudioLevels>("get_audio_levels");
+      const level = Math.max(levels.microphone, levels.system);
+      app.style.setProperty("--audio-level", level.toFixed(3));
+      app.querySelector<HTMLElement>(".waveform")!.title = `麦克风 ${Math.round(levels.microphone * 100)}% · 系统声音 ${Math.round(levels.system * 100)}%`;
+    } catch {
+      app.style.setProperty("--audio-level", "0");
+    }
+  }, 100);
+}
+
+function stopLevelPolling(): void {
+  window.clearInterval(levelHandle);
+  app.style.setProperty("--audio-level", "0");
 }
 
 async function refreshAudioDevices(): Promise<void> {
@@ -66,7 +114,7 @@ async function refreshAudioDevices(): Promise<void> {
   }
 }
 
-app.querySelector<HTMLButtonElement>(".start-button")!.addEventListener("click", () => void command("start_session"));
+app.querySelector<HTMLButtonElement>(".start-button")!.addEventListener("click", () => void startRecording());
 app.querySelector<HTMLButtonElement>(".pause-button")!.addEventListener("click", () => void command(view.status === "paused" ? "resume_session" : "pause_session"));
 app.querySelector<HTMLButtonElement>(".stop-button")!.addEventListener("click", () => void command("stop_session"));
 app.querySelector<HTMLButtonElement>(".refresh-devices")!.addEventListener("click", () => void refreshAudioDevices());

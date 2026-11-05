@@ -87,10 +87,9 @@ button:disabled, select:disabled { cursor: not-allowed; }
 
 .controls { flex: none; padding-top: 12px; }
 .waveform { height: 32px; display: flex; align-items: center; justify-content: center; gap: 4px; overflow: hidden; }
-.waveform i { flex: 1 1 2px; max-width: 3px; height: calc(5px + (var(--bar) % 6) * 3px); border-radius: 999px; background: #b8bdc6; transform-origin: center; }
-[data-status="recording"] .waveform i { background: #7095f8; animation: wave .72s ease-in-out infinite alternate; animation-delay: calc(var(--bar) * -29ms); }
+.waveform i { flex: 1 1 2px; max-width: 3px; height: calc(5px + (var(--bar) % 6) * 3px); border-radius: 999px; background: #b8bdc6; transform: scaleY(calc(.35 + var(--audio-level, 0) * 1.8)); transform-origin: center; transition: transform 80ms linear; }
+[data-status="recording"] .waveform i { background: #7095f8; }
 [data-status="paused"] .waveform { opacity: .48; }
-@keyframes wave { to { height: calc(8px + (var(--bar) % 9) * 2.6px); } }
 
 .control-row { display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: center; min-height: 68px; margin-top: 10px; }
 .elapsed { justify-self: start; font: 500 20px "Cascadia Mono", Consolas, monospace; font-variant-numeric: tabular-nums; }
