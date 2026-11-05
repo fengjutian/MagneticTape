@@ -24,6 +24,7 @@ use tauri::Manager;
 
 mod ai;
 mod asr;
+mod export;
 use ai::AiState;
 use asr::AsrState;
 
@@ -732,16 +733,25 @@ fn spawn_checkpointer(
         .name("magnetic-tape-checkpoint".into())
         .spawn(move || {
             let mut committed = 0_usize;
+            let mut last_health_check = Instant::now();
             loop {
                 thread::sleep(Duration::from_millis(500));
-                let snapshot = recorder
-                    .lock()
-                    .expect("audio recorder state poisoned")
-                    .as_ref()
-                    .map(AudioRecording::snapshot);
-                let Some(snapshot) = snapshot else {
+                let mut guard = recorder.lock().expect("audio recorder state poisoned");
+                let Some(active) = guard.as_mut() else {
                     break;
                 };
+                // Watchdog: rebuild streams after device loss, sleep/wake, or
+                // an audio service restart without restarting the recording.
+                if last_health_check.elapsed() >= Duration::from_secs(2) {
+                    last_health_check = Instant::now();
+                    if active.health().needs_rebuild()
+                        && let Err(error) = active.rebuild()
+                    {
+                        eprintln!("failed to rebuild audio streams: {error}");
+                    }
+                }
+                let snapshot = active.snapshot();
+                drop(guard);
                 if snapshot.chunks.len() <= committed {
                     continue;
                 }
@@ -859,6 +869,44 @@ fn get_audio_levels(recorder: tauri::State<'_, RecorderState>) -> AudioLevels {
         .expect("audio recorder state poisoned")
         .as_ref()
         .map_or_else(Default::default, AudioRecording::levels)
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AudioHealthView {
+    active: bool,
+    paused: bool,
+    stalled: bool,
+    microphone_error: Option<String>,
+    system_error: Option<String>,
+    needs_rebuild: bool,
+}
+
+#[tauri::command]
+fn get_audio_health(recorder: tauri::State<'_, RecorderState>) -> AudioHealthView {
+    let guard = recorder.0.lock().expect("audio recorder state poisoned");
+    match guard.as_ref() {
+        Some(recording) => {
+            let health = recording.health();
+            let needs_rebuild = health.needs_rebuild();
+            AudioHealthView {
+                active: true,
+                paused: health.paused,
+                stalled: health.stalled,
+                microphone_error: health.microphone_error,
+                system_error: health.system_error,
+                needs_rebuild,
+            }
+        }
+        None => AudioHealthView {
+            active: false,
+            paused: false,
+            stalled: false,
+            microphone_error: None,
+            system_error: None,
+            needs_rebuild: false,
+        },
+    }
 }
 
 #[tauri::command]
@@ -1365,9 +1413,7 @@ fn get_transcript(
 #[tauri::command]
 fn get_settings(settings: tauri::State<'_, Mutex<AppSettings>>) -> AppSettings {
     settings.lock().expect("settings state poisoned").clone()
-}
-
-#[tauri::command]
+}#[tauri::command]
 fn save_settings(
     settings: AppSettings,
     app: tauri::AppHandle,
@@ -1598,6 +1644,75 @@ async fn translate_transcript(
     Ok(translation)
 }
 
+fn exports_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    app.path()
+        .document_dir()
+        .map_err(|error| error.to_string())
+        .map(|directory| directory.join("MagneticTape"))
+}
+
+#[tauri::command]
+fn export_session(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Mutex<SessionState>>,
+) -> Result<export::ExportResult, String> {
+    let (directory, title, session_id, started_at_epoch_ms, duration_ms) = {
+        let state = state.lock().expect("session state poisoned");
+        if state.status != RecorderStatus::Finished {
+            return Err("只有已结束的录音可以导出".into());
+        }
+        let session_id = state
+            .session_id
+            .clone()
+            .ok_or_else(|| "当前没有录音会话".to_owned())?;
+        (
+            recordings_root(&app)?.join(&session_id),
+            state.title.clone(),
+            session_id,
+            state.started_at_epoch_ms.unwrap_or(0),
+            state.accumulated_ms,
+        )
+    };
+    let transcript = read_transcript(&directory);
+    let notes = fs::read_to_string(directory.join(NOTES_FILE)).unwrap_or_default();
+    let chunks = audio_chunks(&directory)?;
+    let root = exports_root(&app)?;
+    let input = export::ExportInput {
+        title: &title,
+        session_id: &session_id,
+        started_at_epoch_ms,
+        duration_ms,
+        transcript: transcript.as_ref(),
+        notes: &notes,
+        chunks: &chunks,
+    };
+    export::export_all(&input, &root)
+}
+
+#[tauri::command]
+fn reveal_export(path: PathBuf, app: tauri::AppHandle) -> Result<(), String> {
+    let root = exports_root(&app)?
+        .canonicalize()
+        .map_err(|error| error.to_string())?;
+    let target = path.canonicalize().map_err(|error| error.to_string())?;
+    if !target.starts_with(&root) {
+        return Err("只能打开 MagneticTape 导出目录".into());
+    }
+    #[cfg(target_os = "windows")]
+    {
+        Command::new("explorer.exe")
+            .arg(&target)
+            .spawn()
+            .map(|_| ())
+            .map_err(|error| format!("无法打开资源管理器：{error}"))
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = target;
+        Err("当前平台暂不支持打开导出目录".into())
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -1635,6 +1750,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             list_audio_devices,
             get_audio_levels,
+            get_audio_health,
             get_session_state,
             list_recordings,
             open_recording,
@@ -1663,7 +1779,9 @@ pub fn run() {
             poll_live_transcription,
             get_live_transcript,
             get_settings,
-            save_settings
+            save_settings,
+            export_session,
+            reveal_export
         ])
         .run(tauri::generate_context!())
         .expect("error while running MagneticTape desktop application");
@@ -1778,21 +1896,23 @@ mod tests {
     #[test]
     fn settings_round_trip_sanitizes_invalid_values() {
         let directory = tempfile::tempdir().unwrap();
-        let mut settings = AppSettings::default();
-        settings.language = "fr".into();
-        settings.translation = "klingon".into();
-        settings.microphone_id = Some(String::new());
-        settings.asr_provider = "other".into();
-        settings
-            .asr_profiles
-            .insert("unknown".into(), AsrProfile::default());
-        settings.asr_profiles.insert(
-            "minimax".into(),
-            AsrProfile {
-                endpoint: String::new(),
-                ..AsrProfile::default()
-            },
-        );
+        let settings = AppSettings {
+            language: "fr".into(),
+            translation: "klingon".into(),
+            microphone_id: Some(String::new()),
+            asr_provider: "other".into(),
+            asr_profiles: HashMap::from([
+                ("unknown".into(), AsrProfile::default()),
+                (
+                    "minimax".into(),
+                    AsrProfile {
+                        endpoint: String::new(),
+                        ..AsrProfile::default()
+                    },
+                ),
+            ]),
+            ..AppSettings::default()
+        };
         write_settings(directory.path(), &settings.sanitized()).unwrap();
 
         let loaded = load_settings(directory.path());
@@ -1803,27 +1923,26 @@ mod tests {
         assert!(loaded.asr_profiles.is_empty());
         assert!(loaded.retain_audio);
 
-        let mut valid = AppSettings::default();
-        valid.language = "zh-CN".into();
-        valid.translation = "en-US".into();
-        valid.live_captions = true;
-        valid.microphone_id = Some("microphone-1".into());
-        valid.asr_profiles.insert(
-            "silicon_flow".into(),
-            AsrProfile {
-                endpoint: "https://api.siliconflow.cn/v1/audio/transcriptions".into(),
-                model: "FunAudioLLM/SenseVoiceSmall".into(),
-                language: "zh-CN".into(),
-            },
-        );
+        let valid = AppSettings {
+            language: "zh-CN".into(),
+            translation: "en-US".into(),
+            live_captions: true,
+            microphone_id: Some("microphone-1".into()),
+            asr_profiles: HashMap::from([(
+                "silicon_flow".into(),
+                AsrProfile {
+                    endpoint: "https://api.siliconflow.cn/v1/audio/transcriptions".into(),
+                    model: "FunAudioLLM/SenseVoiceSmall".into(),
+                    language: "zh-CN".into(),
+                },
+            )]),
+            ..AppSettings::default()
+        };
         write_settings(directory.path(), &valid.sanitized()).unwrap();
         let loaded = load_settings(directory.path());
         assert_eq!(loaded.language, "zh-CN");
         assert!(loaded.live_captions);
-        assert_eq!(
-            loaded.microphone_id.as_deref(),
-            Some("microphone-1")
-        );
+        assert_eq!(loaded.microphone_id.as_deref(), Some("microphone-1"));
         assert_eq!(loaded.asr_profiles.len(), 1);
     }
 

@@ -26,6 +26,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
     let recording = AudioRecording::start(&microphone.id, &system.id, &output)?;
     thread::sleep(Duration::from_secs(duration_seconds));
+    println!("health: {:?}", recording.health());
     let result = recording.finish()?;
     for chunk in &result.chunks {
         println!(

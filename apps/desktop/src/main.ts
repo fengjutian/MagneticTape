@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { applyAudioDevices, applyView, formatElapsed, renderApp, renderTranscript } from "./components";
-import type { AiConfiguration, AiResponse, AppSettings, AsrConfiguration, AudioDeviceSnapshot, AudioLevels, LiveTranscript, RecorderViewState, RecordingListItem, SessionState, Transcript, TranscriptSegment } from "./types";
+import type { AiConfiguration, AiResponse, AppSettings, AsrConfiguration, AudioDeviceSnapshot, AudioHealth, AudioLevels, ExportResult, LiveTranscript, RecorderViewState, RecordingListItem, SessionState, Transcript, TranscriptSegment } from "./types";
 import "./styles.css";
 
 const appElement = document.querySelector<HTMLElement>("#app");
@@ -12,6 +12,7 @@ let backendState: SessionState;
 let pending = false;
 let tickHandle: number | undefined;
 let levelHandle: number | undefined;
+let healthHandle: number | undefined;
 let currentTranscript: Transcript | null = null;
 let liveDesired = false;
 let livePollHandle: number | undefined;
@@ -192,6 +193,7 @@ function syncBackend(next: SessionState): void {
   applyView(app, view);
   if (next.status === "finished") {
     stopLivePolling();
+    stopHealthPolling();
     liveSegments = [];
     liveError = undefined;
     liveDesired = false;
@@ -253,6 +255,7 @@ async function command(name: "start_session" | "pause_session" | "resume_session
     syncBackend(await invoke<SessionState>(name));
     if (name === "stop_session") {
       stopLevelPolling();
+      stopHealthPolling();
       stopLivePolling();
       liveSegments = [];
       liveError = undefined;
@@ -280,6 +283,7 @@ async function startRecording(): Promise<void> {
   try {
     syncBackend(await invoke<SessionState>("start_session", { microphoneId, systemOutputId, title: view.title }));
     startLevelPolling();
+    startHealthPolling();
     if (liveDesired) void beginLive();
   } catch (error) {
     view.errorMessage = `无法启动音频监测：${error instanceof Error ? error.message : String(error)}`;
@@ -307,6 +311,44 @@ function startLevelPolling(): void {
 function stopLevelPolling(): void {
   window.clearInterval(levelHandle);
   app.style.setProperty("--audio-level", "0");
+}
+
+function applyHealth(health: AudioHealth): void {
+  const warning = app.querySelector<HTMLElement>(".device-warning");
+  if (!warning) return;
+  const message = health.microphoneError
+    ? "麦克风连接中断，正在自动重连…"
+    : health.systemError
+      ? "系统声音连接中断，正在自动重连…"
+      : health.stalled
+        ? "麦克风音频流已停止，正在自动重连…"
+        : "";
+  warning.hidden = message.length === 0;
+  warning.textContent = message;
+}
+
+function startHealthPolling(): void {
+  stopHealthPolling();
+  const poll = async (): Promise<void> => {
+    if (view.status !== "recording" && view.status !== "paused") return;
+    try {
+      applyHealth(await invoke<AudioHealth>("get_audio_health"));
+    } catch {
+      // The health endpoint is best-effort; recording continues regardless.
+    }
+  };
+  void poll();
+  healthHandle = window.setInterval(() => void poll(), 3_000);
+}
+
+function stopHealthPolling(): void {
+  window.clearInterval(healthHandle);
+  healthHandle = undefined;
+  const warning = app.querySelector<HTMLElement>(".device-warning");
+  if (warning) {
+    warning.hidden = true;
+    warning.textContent = "";
+  }
 }
 
 async function refreshAudioDevices(): Promise<void> {
@@ -643,6 +685,26 @@ app.addEventListener("click", async (event) => {
     if (status) status.textContent = "翻译失败";
     view.errorMessage = `翻译失败：${error instanceof Error ? error.message : String(error)}`;
     applyView(app, view);
+  } finally {
+    button.disabled = false;
+  }
+});
+app.addEventListener("click", async (event) => {
+  const button = (event.target as HTMLElement).closest<HTMLButtonElement>(".export-session");
+  if (!button) return;
+  const status = app.querySelector<HTMLElement>(".export-state");
+  button.disabled = true;
+  if (status) status.textContent = "正在导出…";
+  try {
+    const result = await invoke<ExportResult>("export_session");
+    if (status) status.textContent = `已导出 ${result.files.length} 个文件到 ${result.directory}`;
+    try {
+      await invoke("reveal_export", { path: result.directory });
+    } catch {
+      // The export itself succeeded; opening Explorer is best effort.
+    }
+  } catch (error) {
+    if (status) status.textContent = `导出失败：${error instanceof Error ? error.message : String(error)}`;
   } finally {
     button.disabled = false;
   }

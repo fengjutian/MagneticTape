@@ -212,6 +212,7 @@ button:disabled, select:disabled { cursor: not-allowed; }
 .asr-settings, .translate-transcript { background: #e8eeff; color: #245bdb; }
 .transcript-translation { margin: 0 0 8px; color: #245bdb; font-weight: 600; }
 .live-error { margin: 10px 0 0; color: #b42318; font-size: 12px; }
+.device-warning { margin: 12px 0 0; padding: 8px 12px; border-radius: 8px; background: #fff7e8; color: #8a5a00; font-size: 12px; }
 .notes-editor > header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 9px; }
 .notes-state { color: #8f959e; font-size: 11px; }
 .meeting-notes { width: 100%; box-sizing: border-box; border: 1px solid #dfe2e7; border-radius: 9px; padding: 11px; color: #1f2329; font: 12px/1.65 "Cascadia Mono", Consolas, monospace; resize: vertical; outline: none; }
@@ -224,6 +225,10 @@ button:disabled, select:disabled { cursor: not-allowed; }
 .finished-card dt { color: #4e5969; }
 .finished-card dd { max-width: 300px; margin: 0; overflow: hidden; color: #8f959e; text-overflow: ellipsis; white-space: nowrap; }
 .reveal-recording { margin-top: 22px; border: 0; border-radius: 8px; padding: 10px 16px; background: #e8eeff; color: #245bdb; font-weight: 600; }
+.export-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 22px; }
+.export-session { border: 0; border-radius: 8px; padding: 10px 16px; background: #3370ff; color: #fff; font-weight: 600; }
+.export-session:disabled { opacity: .6; }
+.export-state { color: #4e5969; font-size: 11px; }
 .reveal-recording:hover { background: #dce6ff; }
 .reveal-recording:disabled { opacity: .6; }
 .error-banner { flex: none; margin: 0 34px 28px; padding: 12px 14px; border-radius: 8px; background: #fff0f0; color: #b42318; font-size: 13px; }

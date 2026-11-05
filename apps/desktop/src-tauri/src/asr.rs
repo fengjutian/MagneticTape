@@ -118,13 +118,7 @@ pub struct Transcript {
 
 impl AsrState {
     /// Seeds persisted endpoint/model preferences without a cached secret.
-    pub fn seed(
-        &self,
-        provider: AsrProvider,
-        endpoint: String,
-        model: String,
-        language: String,
-    ) {
+    pub fn seed(&self, provider: AsrProvider, endpoint: String, model: String, language: String) {
         self.0
             .lock()
             .expect("ASR state poisoned")
@@ -151,8 +145,7 @@ impl AsrState {
             .filter(|key| !key.is_empty())
             .or_else(|| stored_api_key(provider))
             .ok_or_else(|| {
-                "尚未配置转写 API Key。MiniMax 会复用 AI 助手的密钥，也可以单独保存。"
-                    .to_owned()
+                "尚未配置转写 API Key。MiniMax 会复用 AI 助手的密钥，也可以单独保存。".to_owned()
             })?;
         let defaults = AsrCredential {
             provider,

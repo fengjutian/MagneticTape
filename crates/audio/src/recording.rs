@@ -30,6 +30,8 @@ pub enum RecordingError {
     Io(#[from] std::io::Error),
     #[error("sample format {0} is not supported")]
     UnsupportedSampleFormat(SampleFormat),
+    #[error("audio device configuration changed; restart the recording")]
+    ConfigurationChanged,
     #[error("audio writer thread stopped unexpectedly")]
     WriterStopped,
 }
@@ -82,6 +84,10 @@ struct SharedState {
     paused: AtomicBool,
     dropped_blocks: AtomicU64,
     chunks: Arc<Mutex<Vec<ChunkInfo>>>,
+    microphone_error: Mutex<Option<String>>,
+    system_error: Mutex<Option<String>>,
+    last_microphone_ms: AtomicU64,
+    last_system_ms: AtomicU64,
 }
 
 impl Default for SharedState {
@@ -92,13 +98,48 @@ impl Default for SharedState {
             paused: AtomicBool::new(false),
             dropped_blocks: AtomicU64::new(0),
             chunks: Arc::new(Mutex::new(Vec::new())),
+            microphone_error: Mutex::new(None),
+            system_error: Mutex::new(None),
+            last_microphone_ms: AtomicU64::new(0),
+            last_system_ms: AtomicU64::new(0),
         }
+    }
+}
+
+fn epoch_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis()
+        .try_into()
+        .unwrap_or(u64::MAX)
+}
+
+/// Snapshot of stream health used by the desktop watchdog.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecordingHealth {
+    pub microphone_error: Option<String>,
+    pub system_error: Option<String>,
+    /// True when the microphone stream stopped delivering blocks while the
+    /// recording is running. The system loopback may legitimately be silent.
+    pub stalled: bool,
+    pub paused: bool,
+}
+
+impl RecordingHealth {
+    pub fn needs_rebuild(&self) -> bool {
+        self.microphone_error.is_some() || self.system_error.is_some() || self.stalled
     }
 }
 
 /// An active dual-source recording. Dropping it stops capture; call `finish`
 /// to seal the last chunk and its metadata.
 pub struct AudioRecording {
+    microphone_id: String,
+    system_output_id: String,
+    microphone_config: SupportedStreamConfig,
+    system_config: SupportedStreamConfig,
     microphone_stream: Option<Stream>,
     system_stream: Option<Stream>,
     sender: Option<SyncSender<AudioBlock>>,
@@ -144,7 +185,14 @@ impl AudioRecording {
         )?;
         microphone_stream.play()?;
         system_stream.play()?;
+        let now = epoch_ms();
+        shared.last_microphone_ms.store(now, Ordering::Relaxed);
+        shared.last_system_ms.store(now, Ordering::Relaxed);
         Ok(Self {
+            microphone_id: microphone_id.to_owned(),
+            system_output_id: system_output_id.to_owned(),
+            microphone_config,
+            system_config,
             microphone_stream: Some(microphone_stream),
             system_stream: Some(system_stream),
             sender: Some(sender),
@@ -162,6 +210,10 @@ impl AudioRecording {
             self.shared
                 .system_level
                 .store(0.0_f32.to_bits(), Ordering::Relaxed);
+        } else {
+            let now = epoch_ms();
+            self.shared.last_microphone_ms.store(now, Ordering::Relaxed);
+            self.shared.last_system_ms.store(now, Ordering::Relaxed);
         }
     }
 
@@ -170,6 +222,98 @@ impl AudioRecording {
             microphone: f32::from_bits(self.shared.microphone_level.load(Ordering::Relaxed)),
             system: f32::from_bits(self.shared.system_level.load(Ordering::Relaxed)),
         }
+    }
+
+    pub fn health(&self) -> RecordingHealth {
+        let paused = self.shared.paused.load(Ordering::Acquire);
+        let now = epoch_ms();
+        let last_microphone = self.shared.last_microphone_ms.load(Ordering::Relaxed);
+        let stalled = !paused && last_microphone > 0 && now.saturating_sub(last_microphone) > 3_000;
+        RecordingHealth {
+            microphone_error: self
+                .shared
+                .microphone_error
+                .lock()
+                .expect("microphone error poisoned")
+                .clone(),
+            system_error: self
+                .shared
+                .system_error
+                .lock()
+                .expect("system error poisoned")
+                .clone(),
+            stalled,
+            paused,
+        }
+    }
+
+    /// Reopens both streams, keeping the encoder/writer alive. Used after a
+    /// device loss, sleep/wake, or an audio service restart. The configuration
+    /// must stay compatible with the running writer.
+    pub fn rebuild(&mut self) -> Result<(), RecordingError> {
+        self.microphone_stream.take();
+        self.system_stream.take();
+        let host = cpal::default_host();
+        let microphone = match find_device(&host, &self.microphone_id) {
+            Ok(device) => device,
+            Err(RecordingError::DeviceNotFound(_)) => host
+                .default_input_device()
+                .ok_or_else(|| RecordingError::DeviceNotFound(self.microphone_id.clone()))?,
+            Err(error) => return Err(error),
+        };
+        let system = match find_device(&host, &self.system_output_id) {
+            Ok(device) => device,
+            Err(RecordingError::DeviceNotFound(_)) => host
+                .default_output_device()
+                .ok_or_else(|| RecordingError::DeviceNotFound(self.system_output_id.clone()))?,
+            Err(error) => return Err(error),
+        };
+        let microphone_config = microphone.default_input_config()?;
+        let system_config = system.default_output_config()?;
+        if microphone_config.sample_rate() != self.microphone_config.sample_rate()
+            || microphone_config.channels() != self.microphone_config.channels()
+            || system_config.sample_rate() != self.system_config.sample_rate()
+            || system_config.channels() != self.system_config.channels()
+        {
+            return Err(RecordingError::ConfigurationChanged);
+        }
+        let sender = self
+            .sender
+            .as_ref()
+            .ok_or(RecordingError::WriterStopped)?
+            .clone();
+        let microphone_stream = build_stream(
+            &microphone,
+            microphone_config,
+            sender.clone(),
+            Arc::clone(&self.shared),
+            Source::Microphone,
+        )?;
+        let system_stream = build_stream(
+            &system,
+            system_config,
+            sender,
+            Arc::clone(&self.shared),
+            Source::System,
+        )?;
+        microphone_stream.play()?;
+        system_stream.play()?;
+        self.microphone_stream = Some(microphone_stream);
+        self.system_stream = Some(system_stream);
+        let now = epoch_ms();
+        self.shared.last_microphone_ms.store(now, Ordering::Relaxed);
+        self.shared.last_system_ms.store(now, Ordering::Relaxed);
+        *self
+            .shared
+            .microphone_error
+            .lock()
+            .expect("microphone error poisoned") = None;
+        *self
+            .shared
+            .system_error
+            .lock()
+            .expect("system error poisoned") = None;
+        Ok(())
     }
 
     /// Returns the chunks committed so far. Safe to call while recording.
@@ -281,47 +425,80 @@ fn build_stream(
 ) -> Result<Stream, RecordingError> {
     let config = supported.config();
     let stream = match supported.sample_format() {
-        SampleFormat::F32 => device.build_input_stream(
-            config,
-            move |samples: &[f32], _| submit(samples.to_vec(), &sender, &shared, source),
-            |_| {},
-            None,
-        )?,
-        SampleFormat::I16 => device.build_input_stream(
-            config,
-            move |samples: &[i16], _| {
-                submit(
-                    samples
-                        .iter()
-                        .map(|sample| *sample as f32 / i16::MAX as f32)
-                        .collect(),
-                    &sender,
-                    &shared,
-                    source,
-                )
-            },
-            |_| {},
-            None,
-        )?,
-        SampleFormat::U16 => device.build_input_stream(
-            config,
-            move |samples: &[u16], _| {
-                submit(
-                    samples
-                        .iter()
-                        .map(|sample| (*sample as f32 - 32_768.0) / 32_768.0)
-                        .collect(),
-                    &sender,
-                    &shared,
-                    source,
-                )
-            },
-            |_| {},
-            None,
-        )?,
+        SampleFormat::F32 => {
+            let data_shared = Arc::clone(&shared);
+            let error_shared = Arc::clone(&shared);
+            device.build_input_stream(
+                config,
+                move |samples: &[f32], _| submit(samples.to_vec(), &sender, &data_shared, source),
+                move |error| record_stream_error(&error_shared, source, error),
+                None,
+            )?
+        }
+        SampleFormat::I16 => {
+            let data_shared = Arc::clone(&shared);
+            let error_shared = Arc::clone(&shared);
+            device.build_input_stream(
+                config,
+                move |samples: &[i16], _| {
+                    submit(
+                        samples
+                            .iter()
+                            .map(|sample| *sample as f32 / i16::MAX as f32)
+                            .collect(),
+                        &sender,
+                        &data_shared,
+                        source,
+                    )
+                },
+                move |error| record_stream_error(&error_shared, source, error),
+                None,
+            )?
+        }
+        SampleFormat::U16 => {
+            let data_shared = Arc::clone(&shared);
+            let error_shared = Arc::clone(&shared);
+            device.build_input_stream(
+                config,
+                move |samples: &[u16], _| {
+                    submit(
+                        samples
+                            .iter()
+                            .map(|sample| (*sample as f32 - 32_768.0) / 32_768.0)
+                            .collect(),
+                        &sender,
+                        &data_shared,
+                        source,
+                    )
+                },
+                move |error| record_stream_error(&error_shared, source, error),
+                None,
+            )?
+        }
         other => return Err(RecordingError::UnsupportedSampleFormat(other)),
     };
     Ok(stream)
+}
+
+fn record_stream_error(shared: &SharedState, source: Source, error: cpal::Error) {
+    let message = error.to_string();
+    match source {
+        Source::Microphone => {
+            *shared
+                .microphone_error
+                .lock()
+                .expect("microphone error poisoned") = Some(message);
+            shared
+                .microphone_level
+                .store(0.0_f32.to_bits(), Ordering::Relaxed);
+        }
+        Source::System => {
+            *shared.system_error.lock().expect("system error poisoned") = Some(message);
+            shared
+                .system_level
+                .store(0.0_f32.to_bits(), Ordering::Relaxed);
+        }
+    }
 }
 
 fn submit(
@@ -341,11 +518,18 @@ fn submit(
             .clamp(0.0, 1.0)
             .sqrt()
     };
+    let now = epoch_ms();
     match source {
-        Source::Microphone => shared
-            .microphone_level
-            .store(rms.to_bits(), Ordering::Relaxed),
-        Source::System => shared.system_level.store(rms.to_bits(), Ordering::Relaxed),
+        Source::Microphone => {
+            shared
+                .microphone_level
+                .store(rms.to_bits(), Ordering::Relaxed);
+            shared.last_microphone_ms.store(now, Ordering::Relaxed);
+        }
+        Source::System => {
+            shared.system_level.store(rms.to_bits(), Ordering::Relaxed);
+            shared.last_system_ms.store(now, Ordering::Relaxed);
+        }
     }
     if let Err(error) = sender.try_send(AudioBlock { source, samples })
         && matches!(error, TrySendError::Full(_))

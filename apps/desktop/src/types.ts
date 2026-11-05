@@ -128,3 +128,17 @@ export interface AppSettings {
   asrProfiles: Record<string, AsrProfile>;
 }
 
+export interface AudioHealth {
+  active: boolean;
+  paused: boolean;
+  stalled: boolean;
+  microphoneError?: string;
+  systemError?: string;
+  needsRebuild: boolean;
+}
+
+export interface ExportResult {
+  directory: string;
+  files: string[];
+}
+

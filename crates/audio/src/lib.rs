@@ -12,7 +12,9 @@ mod recording;
 pub use decode::{DecodeError, decode_ogg_opus, decode_track};
 pub use monitor::{AudioLevelMonitor, AudioLevels, MonitorError};
 pub use opus::{ChunkInfo, OPUS_SAMPLE_RATE, OpusTrackWriter, Track};
-pub use recording::{AudioRecording, RecordingError, RecordingSnapshot, wav_duration_ms};
+pub use recording::{
+    AudioRecording, RecordingError, RecordingHealth, RecordingSnapshot, wav_duration_ms,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
