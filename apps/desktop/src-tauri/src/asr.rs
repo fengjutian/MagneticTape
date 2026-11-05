@@ -117,25 +117,58 @@ pub struct Transcript {
 }
 
 impl AsrState {
+    /// Seeds persisted endpoint/model preferences without a cached secret.
+    pub fn seed(
+        &self,
+        provider: AsrProvider,
+        endpoint: String,
+        model: String,
+        language: String,
+    ) {
+        self.0
+            .lock()
+            .expect("ASR state poisoned")
+            .entry(provider)
+            .or_insert(AsrCredential {
+                provider,
+                api_key: String::new(),
+                endpoint,
+                model,
+                language,
+            });
+    }
+
     pub fn credential(&self, provider: AsrProvider) -> Result<AsrCredential, String> {
-        if let Some(credential) = self
+        let cached = self
             .0
             .lock()
             .expect("ASR state poisoned")
             .get(&provider)
-            .cloned()
-        {
-            return Ok(credential);
-        }
-        let api_key = stored_api_key(provider).ok_or_else(|| {
-            "尚未配置转写 API Key。MiniMax 会复用 AI 助手的密钥，也可以单独保存。".to_owned()
-        })?;
-        Ok(AsrCredential {
+            .cloned();
+        let api_key = cached
+            .as_ref()
+            .map(|credential| credential.api_key.clone())
+            .filter(|key| !key.is_empty())
+            .or_else(|| stored_api_key(provider))
+            .ok_or_else(|| {
+                "尚未配置转写 API Key。MiniMax 会复用 AI 助手的密钥，也可以单独保存。"
+                    .to_owned()
+            })?;
+        let defaults = AsrCredential {
             provider,
             api_key,
             endpoint: provider.default_endpoint().to_owned(),
             model: provider.default_model().to_owned(),
             language: "auto".to_owned(),
+        };
+        Ok(match cached {
+            Some(cached) => AsrCredential {
+                endpoint: cached.endpoint,
+                model: cached.model,
+                language: cached.language,
+                ..defaults
+            },
+            None => defaults,
         })
     }
 }

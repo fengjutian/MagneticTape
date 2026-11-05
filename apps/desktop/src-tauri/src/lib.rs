@@ -43,6 +43,113 @@ const TITLE_FILE: &str = "session-title.txt";
 const NOTES_FILE: &str = "meeting-notes.md";
 const TRANSCRIPT_FILE: &str = "transcript.json";
 const TRANSCRIPT_MARKDOWN: &str = "transcript.md";
+const SETTINGS_FILE: &str = "settings.json";
+
+/// Non-secret preferences persisted between launches. API keys never enter
+/// this file; they stay in the Windows Credential Manager.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct AppSettings {
+    microphone_id: Option<String>,
+    system_output_id: Option<String>,
+    language: String,
+    translation: String,
+    retain_audio: bool,
+    live_captions: bool,
+    asr_provider: String,
+    asr_profiles: HashMap<String, AsrProfile>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct AsrProfile {
+    endpoint: String,
+    model: String,
+    language: String,
+}
+
+impl Default for AsrProfile {
+    fn default() -> Self {
+        Self {
+            endpoint: "https://api.minimax.cn/v1/speech_to_text".into(),
+            model: "asr-1.0".into(),
+            language: "auto".into(),
+        }
+    }
+}
+
+impl Default for AppSettings {
+    fn default() -> Self {
+        Self {
+            microphone_id: None,
+            system_output_id: None,
+            language: "auto".into(),
+            translation: "none".into(),
+            retain_audio: true,
+            live_captions: false,
+            asr_provider: "minimax".into(),
+            asr_profiles: HashMap::new(),
+        }
+    }
+}
+
+impl AppSettings {
+    fn sanitized(mut self) -> Self {
+        if !matches!(self.language.as_str(), "auto" | "zh-CN" | "en-US") {
+            self.language = "auto".into();
+        }
+        if !matches!(self.translation.as_str(), "none" | "zh-CN" | "en-US") {
+            self.translation = "none".into();
+        }
+        if !matches!(self.asr_provider.as_str(), "minimax" | "silicon_flow") {
+            self.asr_provider = "minimax".into();
+        }
+        self.microphone_id = self
+            .microphone_id
+            .map(|id| id.chars().take(512).collect::<String>())
+            .filter(|id| !id.is_empty());
+        self.system_output_id = self
+            .system_output_id
+            .map(|id| id.chars().take(512).collect::<String>())
+            .filter(|id| !id.is_empty());
+        self.asr_profiles.retain(|key, profile| {
+            if !matches!(key.as_str(), "minimax" | "silicon_flow") {
+                return false;
+            }
+            profile.endpoint = profile.endpoint.chars().take(512).collect();
+            profile.model = profile.model.chars().take(128).collect();
+            if !matches!(profile.language.as_str(), "auto" | "zh-CN" | "en-US") {
+                profile.language = "auto".into();
+            }
+            !profile.endpoint.trim().is_empty() && !profile.model.trim().is_empty()
+        });
+        self
+    }
+}
+
+fn load_settings(data_directory: &Path) -> AppSettings {
+    fs::read(data_directory.join(SETTINGS_FILE))
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<AppSettings>(&bytes).ok())
+        .unwrap_or_default()
+        .sanitized()
+}
+
+fn write_settings(data_directory: &Path, settings: &AppSettings) -> Result<(), String> {
+    fs::create_dir_all(data_directory).map_err(|error| error.to_string())?;
+    let json = serde_json::to_vec_pretty(settings).map_err(|error| error.to_string())?;
+    let path = data_directory.join(SETTINGS_FILE);
+    let temporary = data_directory.join(format!(".{SETTINGS_FILE}.tmp"));
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(&temporary)
+        .map_err(|error| error.to_string())?;
+    file.write_all(&json).map_err(|error| error.to_string())?;
+    file.sync_all().map_err(|error| error.to_string())?;
+    fs::rename(&temporary, path).map_err(|error| error.to_string())
+}
 
 fn default_session_title() -> String {
     "新录音".into()
@@ -1145,14 +1252,15 @@ fn write_transcript(directory: &Path, transcript: &asr::Transcript) -> Result<()
         for segment in &transcript.segments {
             let speaker = segment
                 .speaker
-                .as_ref()
-                .map(|speaker| format!("{speaker} "))
-                .unwrap_or_default();
-            markdown.push_str(&format!(
-                "**[{}] {speaker}** {}\n\n",
-                format_timestamp(segment.start_ms),
-                segment.text.trim()
-            ));
+                .as_deref()
+                .map(str::trim)
+                .filter(|speaker| !speaker.is_empty());
+            let timestamp = format_timestamp(segment.start_ms);
+            let prefix = match speaker {
+                Some(speaker) => format!("**[{timestamp}] {speaker}**"),
+                None => format!("**[{timestamp}]**"),
+            };
+            markdown.push_str(&format!("{prefix} {}\n\n", segment.text.trim()));
         }
     }
     let mut markdown_file = OpenOptions::new()
@@ -1252,6 +1360,27 @@ fn get_transcript(
 ) -> Result<Option<asr::Transcript>, String> {
     let directory = current_session_directory(&app, &state)?;
     Ok(read_transcript(&directory))
+}
+
+#[tauri::command]
+fn get_settings(settings: tauri::State<'_, Mutex<AppSettings>>) -> AppSettings {
+    settings.lock().expect("settings state poisoned").clone()
+}
+
+#[tauri::command]
+fn save_settings(
+    settings: AppSettings,
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Mutex<AppSettings>>,
+) -> Result<AppSettings, String> {
+    let sanitized = settings.sanitized();
+    let data_directory = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| error.to_string())?;
+    write_settings(&data_directory, &sanitized)?;
+    *state.lock().expect("settings state poisoned") = sanitized.clone();
+    Ok(sanitized)
 }
 
 #[tauri::command]
@@ -1384,12 +1513,10 @@ async fn poll_live_inner(
         asr::transcribe_pair(microphone.clone(), system.clone(), &config, &session_id).await;
 
     let mut live = live.lock().expect("live transcription state poisoned");
-    if let Some(chunk) = &microphone {
-        live.processed.insert((track_slot(chunk.track), slot));
-    }
-    if let Some(chunk) = &system {
-        live.processed.insert((track_slot(chunk.track), slot));
-    }
+    // Mark the slot as consumed even if one track had not committed yet; a
+    // late chunk for the same window must not be transcribed twice.
+    live.processed.insert((0, slot));
+    live.processed.insert((1, slot));
     live.first_seen.remove(&slot);
     match result {
         Ok(transcript) => {
@@ -1480,10 +1607,29 @@ pub fn run() {
         .manage(AsrState::default())
         .manage(Mutex::new(LiveTranscriptionState::default()))
         .setup(|app| {
-            let recordings = app.path().app_data_dir()?.join("recordings");
+            let data_directory = app.path().app_data_dir()?;
+            let recordings = data_directory.join("recordings");
             fs::create_dir_all(&recordings)?;
             app.asset_protocol_scope()
                 .allow_directory(&recordings, true)?;
+            let settings = load_settings(&data_directory);
+            {
+                let asr_state = app.state::<AsrState>();
+                for (name, profile) in &settings.asr_profiles {
+                    let provider = match name.as_str() {
+                        "minimax" => asr::AsrProvider::MiniMax,
+                        "silicon_flow" => asr::AsrProvider::SiliconFlow,
+                        _ => continue,
+                    };
+                    asr_state.seed(
+                        provider,
+                        profile.endpoint.clone(),
+                        profile.model.clone(),
+                        profile.language.clone(),
+                    );
+                }
+            }
+            app.manage(Mutex::new(settings));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -1515,7 +1661,9 @@ pub fn run() {
             translate_transcript,
             start_live_transcription,
             poll_live_transcription,
-            get_live_transcript
+            get_live_transcript,
+            get_settings,
+            save_settings
         ])
         .run(tauri::generate_context!())
         .expect("error while running MagneticTape desktop application");
@@ -1625,6 +1773,58 @@ mod tests {
             loaded.recorded.microphone_chunks[0].ends_with("mic-00000.ogg"),
             "chunks must be ordered by index"
         );
+    }
+
+    #[test]
+    fn settings_round_trip_sanitizes_invalid_values() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut settings = AppSettings::default();
+        settings.language = "fr".into();
+        settings.translation = "klingon".into();
+        settings.microphone_id = Some(String::new());
+        settings.asr_provider = "other".into();
+        settings
+            .asr_profiles
+            .insert("unknown".into(), AsrProfile::default());
+        settings.asr_profiles.insert(
+            "minimax".into(),
+            AsrProfile {
+                endpoint: String::new(),
+                ..AsrProfile::default()
+            },
+        );
+        write_settings(directory.path(), &settings.sanitized()).unwrap();
+
+        let loaded = load_settings(directory.path());
+        assert_eq!(loaded.language, "auto");
+        assert_eq!(loaded.translation, "none");
+        assert_eq!(loaded.asr_provider, "minimax");
+        assert_eq!(loaded.microphone_id, None);
+        assert!(loaded.asr_profiles.is_empty());
+        assert!(loaded.retain_audio);
+
+        let mut valid = AppSettings::default();
+        valid.language = "zh-CN".into();
+        valid.translation = "en-US".into();
+        valid.live_captions = true;
+        valid.microphone_id = Some("microphone-1".into());
+        valid.asr_profiles.insert(
+            "silicon_flow".into(),
+            AsrProfile {
+                endpoint: "https://api.siliconflow.cn/v1/audio/transcriptions".into(),
+                model: "FunAudioLLM/SenseVoiceSmall".into(),
+                language: "zh-CN".into(),
+            },
+        );
+        write_settings(directory.path(), &valid.sanitized()).unwrap();
+        let loaded = load_settings(directory.path());
+        assert_eq!(loaded.language, "zh-CN");
+        assert!(loaded.live_captions);
+        assert_eq!(
+            loaded.microphone_id.as_deref(),
+            Some("microphone-1")
+        );
+        assert_eq!(loaded.asr_profiles.len(), 1);
     }
 
     #[test]

@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { applyAudioDevices, applyView, formatElapsed, renderApp, renderTranscript } from "./components";
-import type { AiConfiguration, AiResponse, AsrConfiguration, AudioDeviceSnapshot, AudioLevels, LiveTranscript, RecorderViewState, RecordingListItem, SessionState, Transcript, TranscriptSegment } from "./types";
+import type { AiConfiguration, AiResponse, AppSettings, AsrConfiguration, AudioDeviceSnapshot, AudioLevels, LiveTranscript, RecorderViewState, RecordingListItem, SessionState, Transcript, TranscriptSegment } from "./types";
 import "./styles.css";
 
 const appElement = document.querySelector<HTMLElement>("#app");
@@ -18,6 +18,67 @@ let livePollHandle: number | undefined;
 let livePollBusy = false;
 let liveSegments: TranscriptSegment[] = [];
 let liveError: string | undefined;
+let settings: AppSettings = {
+  microphoneId: null,
+  systemOutputId: null,
+  language: "auto",
+  translation: "none",
+  retainAudio: true,
+  liveCaptions: false,
+  asrProvider: "minimax",
+  asrProfiles: {},
+};
+
+function applySettings(next: AppSettings): void {
+  settings = next;
+  view.language = next.language;
+  view.translation = next.translation;
+  view.retainAudio = next.retainAudio;
+  liveDesired = next.liveCaptions;
+  const selects = app.querySelectorAll<HTMLSelectElement>("select[data-option]");
+  selects.forEach((select) => {
+    if (select.dataset.option === "language") select.value = next.language;
+    if (select.dataset.option === "translation") select.value = next.translation;
+    if (select.dataset.option === "audio") select.value = next.retainAudio ? "retain" : "discard";
+  });
+  setLiveIndicator(false);
+}
+
+async function persistSettings(): Promise<void> {
+  const microphone = app.querySelector<HTMLSelectElement>(".microphone-select");
+  const system = app.querySelector<HTMLSelectElement>(".system-output-select");
+  settings.microphoneId = microphone?.value || null;
+  settings.systemOutputId = system?.value || null;
+  settings.language = view.language;
+  settings.translation = view.translation;
+  settings.retainAudio = view.retainAudio;
+  settings.liveCaptions = liveDesired;
+  try {
+    settings = await invoke<AppSettings>("save_settings", { settings });
+  } catch (error) {
+    view.errorMessage = `无法保存设置：${error instanceof Error ? error.message : String(error)}`;
+    applyView(app, view);
+  }
+}
+
+function applySavedDevices(): void {
+  const microphone = app.querySelector<HTMLSelectElement>(".microphone-select");
+  const system = app.querySelector<HTMLSelectElement>(".system-output-select");
+  if (microphone && settings.microphoneId) {
+    const saved = Array.from(microphone.options).find((option) => option.value === settings.microphoneId);
+    if (saved) {
+      microphone.value = saved.value;
+      microphone.dispatchEvent(new Event("change"));
+    }
+  }
+  if (system && settings.systemOutputId) {
+    const saved = Array.from(system.options).find((option) => option.value === settings.systemOutputId);
+    if (saved) {
+      system.value = saved.value;
+      system.dispatchEvent(new Event("change"));
+    }
+  }
+}
 
 const liveButton = app.querySelector<HTMLButtonElement>(".live-caption")!;
 function setLiveIndicator(active: boolean): void {
@@ -85,8 +146,12 @@ function stopLivePolling(): void {
 
 async function beginLive(): Promise<void> {
   try {
+    const configurations = await invoke<AsrConfiguration[]>("get_asr_configurations");
+    const provider = configurations.find((item) => item.provider === "minimax" && item.configured)?.provider
+      ?? configurations.find((item) => item.configured)?.provider
+      ?? "minimax";
     const live = await invoke<LiveTranscript>("start_live_transcription", {
-      provider: "minimax",
+      provider,
       language: view.language,
     });
     liveSegments = live.segments;
@@ -111,10 +176,12 @@ liveButton.addEventListener("click", () => {
       liveDesired = true;
       void beginLive();
     }
+    void persistSettings();
     return;
   }
   liveDesired = !liveDesired;
   setLiveIndicator(false);
+  void persistSettings();
 });
 let view: RecorderViewState = { title: "新录音", status: "idle", elapsedMs: 0, language: "auto", translation: "none", retainAudio: true, volumeLevel: 0, sessionId: null, microphoneChunks: [], systemChunks: [] };
 
@@ -481,6 +548,8 @@ app.addEventListener("click", (event) => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>(".asr-settings");
   if (!button) return;
   asrResult.textContent = "";
+  asrDialogProvider.value = settings.asrProvider;
+  applyAsrDefaults();
   asrDialog.showModal();
   void refreshAsrConfiguration();
 });
@@ -498,6 +567,13 @@ app.querySelector<HTMLButtonElement>(".asr-save")!.addEventListener("click", asy
     asrKey.value = "";
     asrResult.className = "asr-result success";
     asrResult.textContent = `${configuration.model} 配置已保存`;
+    settings.asrProvider = configuration.provider;
+    settings.asrProfiles[configuration.provider] = {
+      endpoint: configuration.endpoint,
+      model: configuration.model,
+      language: configuration.language,
+    };
+    await persistSettings();
     await refreshAsrConfiguration();
   } catch (error) {
     asrResult.className = "asr-result failure";
@@ -663,7 +739,12 @@ app.querySelectorAll<HTMLSelectElement>("select[data-option]").forEach((select) 
   if (select.dataset.option === "language") view.language = select.value;
   if (select.dataset.option === "translation") view.translation = select.value;
   if (select.dataset.option === "audio") view.retainAudio = select.value === "retain";
+  void persistSettings();
 }));
+
+for (const selector of [".microphone-select", ".system-output-select"]) {
+  app.querySelector<HTMLSelectElement>(selector)!.addEventListener("change", () => void persistSettings());
+}
 
 document.addEventListener("keydown", (event) => {
   const target = event.target as HTMLElement;
@@ -680,5 +761,7 @@ document.addEventListener("keydown", (event) => {
 
 const recovered = await invoke<SessionState | null>("recover_latest_session");
 syncBackend(recovered ?? await invoke<SessionState>("get_session_state"));
+applySettings(await invoke<AppSettings>("get_settings"));
 await refreshAudioDevices();
+applySavedDevices();
 

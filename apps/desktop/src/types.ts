@@ -111,3 +111,20 @@ export interface LiveTranscript {
   error?: string;
 }
 
+export interface AsrProfile {
+  endpoint: string;
+  model: string;
+  language: string;
+}
+
+export interface AppSettings {
+  microphoneId: string | null;
+  systemOutputId: string | null;
+  language: string;
+  translation: string;
+  retainAudio: boolean;
+  liveCaptions: boolean;
+  asrProvider: "minimax" | "silicon_flow";
+  asrProfiles: Record<string, AsrProfile>;
+}
+
