@@ -30,6 +30,7 @@ struct SessionMarker {
 
 const RECORDING_MARKER: &str = "session-recording.json";
 const COMPLETED_MARKER: &str = "session-completed";
+const RECOVERED_MARKER: &str = "session-recovered";
 
 #[derive(Debug, Clone)]
 struct SessionState {
@@ -157,7 +158,10 @@ fn recover_latest_session(
     for entry in fs::read_dir(root).map_err(|error| error.to_string())? {
         let directory = entry.map_err(|error| error.to_string())?.path();
         let marker_path = directory.join(RECORDING_MARKER);
-        if !marker_path.is_file() || directory.join(COMPLETED_MARKER).exists() {
+        if !marker_path.is_file()
+            || directory.join(COMPLETED_MARKER).exists()
+            || directory.join(RECOVERED_MARKER).exists()
+        {
             continue;
         }
         let mut marker: SessionMarker = serde_json::from_reader(
@@ -176,6 +180,9 @@ fn recover_latest_session(
     else {
         return Ok(None);
     };
+    if let Some(directory) = marker.microphone_path.parent() {
+        write_new_file(&directory.join(RECOVERED_MARKER), b"recovered\n")?;
+    }
     let elapsed_ms = [&marker.microphone_path, &marker.system_path]
         .into_iter()
         .filter(|path| path.is_file())
