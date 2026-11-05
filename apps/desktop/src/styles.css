@@ -74,6 +74,8 @@ button:disabled, select:disabled { cursor: not-allowed; }
 .history-panel h2 { margin: 0; font-size: 21px; }
 .history-close { border: 0; background: transparent; color: #8f959e; font-size: 28px; }
 .history-list { display: grid; gap: 9px; max-height: 520px; margin-top: 22px; overflow-y: auto; }
+.history-search { width: 100%; margin-top: 20px; border: 1px solid #dfe2e7; border-radius: 9px; padding: 10px 12px; outline: none; }
+.history-search:focus { border-color: #3370ff; box-shadow: 0 0 0 3px #e8eeff; }
 .history-item { display: grid; gap: 4px; border: 1px solid #eceef2; border-radius: 10px; padding: 13px 14px; background: #fff; color: #1f2329; text-align: left; }
 .history-item:hover { border-color: #b9ccff; background: #f7f9ff; }
 .history-item span { color: #4e5969; font-size: 12px; }

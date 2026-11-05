@@ -16,7 +16,7 @@ let view: RecorderViewState = { title: "新录音", status: "idle", elapsedMs: 0
 
 function syncBackend(next: SessionState): void {
   backendState = next;
-  view = { ...view, status: next.status, elapsedMs: next.elapsedMs, sessionId: next.sessionId, microphonePath: next.microphonePath, systemPath: next.systemPath, droppedBlocks: next.droppedBlocks, recovered: next.recovered, errorMessage: undefined };
+  view = { ...view, title: next.title, status: next.status, elapsedMs: next.elapsedMs, sessionId: next.sessionId, microphonePath: next.microphonePath, systemPath: next.systemPath, droppedBlocks: next.droppedBlocks, recovered: next.recovered, errorMessage: undefined };
   restartClock();
   applyView(app, view);
 }
@@ -64,7 +64,7 @@ async function startRecording(): Promise<void> {
   }
   pending = true;
   try {
-    syncBackend(await invoke<SessionState>("start_session", { microphoneId, systemOutputId }));
+    syncBackend(await invoke<SessionState>("start_session", { microphoneId, systemOutputId, title: view.title }));
     startLevelPolling();
   } catch (error) {
     view.errorMessage = `无法启动音频监测：${error instanceof Error ? error.message : String(error)}`;
@@ -116,6 +116,7 @@ app.querySelector<HTMLButtonElement>(".refresh-devices")!.addEventListener("clic
 
 const historyDialog = app.querySelector<HTMLDialogElement>(".history-dialog")!;
 const historyList = app.querySelector<HTMLElement>(".history-list")!;
+const historySearch = app.querySelector<HTMLInputElement>(".history-search")!;
 async function refreshHistory(): Promise<void> {
   historyList.replaceChildren();
   try {
@@ -133,10 +134,10 @@ async function refreshHistory(): Promise<void> {
       button.type = "button";
       button.dataset.sessionId = recording.sessionId;
       const title = document.createElement("strong");
-      title.textContent = new Date(recording.startedAtEpochMs).toLocaleString("zh-CN");
+      title.textContent = recording.title;
       const details = document.createElement("span");
       const status = recording.status === "completed" ? "已完成" : recording.status === "recovered" ? "已恢复" : "意外中断";
-      details.textContent = `${formatElapsed(recording.durationMs)} · ${status}`;
+      details.textContent = `${new Date(recording.startedAtEpochMs).toLocaleString("zh-CN")} · ${formatElapsed(recording.durationMs)} · ${status}`;
       const id = document.createElement("small");
       id.textContent = recording.sessionId;
       button.append(title, details, id);
@@ -150,8 +151,15 @@ async function refreshHistory(): Promise<void> {
   }
 }
 app.querySelector<HTMLButtonElement>(".history-button")!.addEventListener("click", () => {
+  historySearch.value = "";
   historyDialog.showModal();
   void refreshHistory();
+});
+historySearch.addEventListener("input", () => {
+  const query = historySearch.value.trim().toLocaleLowerCase("zh-CN");
+  historyList.querySelectorAll<HTMLElement>(".history-item").forEach((item) => {
+    item.hidden = query.length > 0 && !item.textContent?.toLocaleLowerCase("zh-CN").includes(query);
+  });
 });
 app.querySelector<HTMLButtonElement>(".history-close")!.addEventListener("click", () => historyDialog.close());
 historyList.addEventListener("click", async (event) => {
@@ -242,6 +250,14 @@ function finishTitleEdit(cancel = false): void {
   titleInput.hidden = true;
   titleDisplay.hidden = false;
   applyView(app, view);
+  if (!cancel && view.sessionId) {
+    void invoke<SessionState>("set_session_title", { title: view.title })
+      .then(syncBackend)
+      .catch((error) => {
+        view.errorMessage = `无法保存标题：${error instanceof Error ? error.message : String(error)}`;
+        applyView(app, view);
+      });
+  }
 }
 titleDisplay.addEventListener("click", () => {
   originalTitle = view.title;

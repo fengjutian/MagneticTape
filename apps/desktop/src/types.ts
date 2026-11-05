@@ -11,6 +11,7 @@ export interface SessionState {
   systemPath: string | null;
   droppedBlocks: number;
   recovered: boolean;
+  title: string;
 }
 
 export interface RecorderViewState {
@@ -57,6 +58,7 @@ export interface AiResponse {
 
 export interface RecordingListItem {
   sessionId: string;
+  title: string;
   startedAtEpochMs: number;
   durationMs: number;
   status: "completed" | "recovered" | "interrupted";

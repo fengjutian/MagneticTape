@@ -77,6 +77,7 @@ export function renderApp(): string {
     <dialog class="history-dialog" aria-labelledby="history-dialog-title">
       <section class="history-panel">
         <header><div><p class="section-kicker">RECORDING LIBRARY</p><h2 id="history-dialog-title">历史录音</h2></div><button class="history-close" type="button" aria-label="关闭">×</button></header>
+        <input class="history-search" type="search" placeholder="搜索标题或会话编号" aria-label="搜索历史录音" />
         <div class="history-list"><p class="history-empty">正在读取录音…</p></div>
       </section>
     </dialog>

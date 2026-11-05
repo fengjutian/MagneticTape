@@ -27,6 +27,8 @@ enum RecorderStatus {
 struct SessionMarker {
     session_id: String,
     started_at_epoch_ms: u64,
+    #[serde(default = "default_session_title")]
+    title: String,
     microphone_path: PathBuf,
     system_path: PathBuf,
 }
@@ -34,6 +36,11 @@ struct SessionMarker {
 const RECORDING_MARKER: &str = "session-recording.json";
 const COMPLETED_MARKER: &str = "session-completed";
 const RECOVERED_MARKER: &str = "session-recovered";
+const TITLE_FILE: &str = "session-title.txt";
+
+fn default_session_title() -> String {
+    "新录音".into()
+}
 
 #[derive(Debug, Clone)]
 struct SessionState {
@@ -44,6 +51,7 @@ struct SessionState {
     accumulated_ms: u64,
     recording: Option<RecordingResult>,
     recovered: bool,
+    title: String,
 }
 
 impl Default for SessionState {
@@ -56,6 +64,8 @@ impl Default for SessionState {
             accumulated_ms: 0,
             recording: None,
             recovered: false,
+            title: default_session_title(),
+            title: default_session_title(),
         }
     }
 }
@@ -73,12 +83,14 @@ struct SessionView {
     system_path: Option<PathBuf>,
     dropped_blocks: u64,
     recovered: bool,
+    title: String,
 }
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct RecordingListItem {
     session_id: String,
+    title: String,
     started_at_epoch_ms: u64,
     duration_ms: u64,
     status: &'static str,
@@ -108,6 +120,7 @@ impl SessionState {
             system_path: self.recording.as_ref().map(|r| r.system_path.clone()),
             dropped_blocks: self.recording.as_ref().map_or(0, |r| r.dropped_blocks),
             recovered: self.recovered,
+            title: self.title.clone(),
         }
     }
 
@@ -153,6 +166,26 @@ fn write_new_file(path: &Path, bytes: &[u8]) -> Result<(), String> {
 fn write_session_marker(directory: &Path, marker: &SessionMarker) -> Result<(), String> {
     let bytes = serde_json::to_vec_pretty(marker).map_err(|error| error.to_string())?;
     write_new_file(&directory.join(RECORDING_MARKER), &bytes)
+}
+
+fn session_title(directory: &Path, marker: &SessionMarker) -> String {
+    fs::read_to_string(directory.join(TITLE_FILE))
+        .ok()
+        .map(|title| title.trim().to_owned())
+        .filter(|title| !title.is_empty())
+        .unwrap_or_else(|| marker.title.clone())
+}
+
+fn write_session_title(directory: &Path, title: &str) -> Result<(), String> {
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(directory.join(TITLE_FILE))
+        .map_err(|error| error.to_string())?;
+    file.write_all(title.as_bytes())
+        .map_err(|error| error.to_string())?;
+    file.sync_all().map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -203,6 +236,10 @@ fn recover_latest_session(
         .filter_map(|path| magnetic_tape_audio::wav_duration_ms(path).ok())
         .max()
         .unwrap_or(0);
+    let title = marker
+        .microphone_path
+        .parent()
+        .map_or_else(default_session_title, |directory| session_title(directory, &marker));
     let mut state = state.lock().expect("session state poisoned");
     *state = SessionState {
         status: RecorderStatus::Finished,
@@ -216,6 +253,7 @@ fn recover_latest_session(
             dropped_blocks: 0,
         }),
         recovered: true,
+        title,
     };
     Ok(Some(state.view(epoch_ms())))
 }
@@ -284,8 +322,10 @@ fn list_recordings(app: tauri::AppHandle) -> Result<Vec<RecordingListItem>, Stri
         } else {
             "interrupted"
         };
+        let title = session_title(&directory, &marker);
         recordings.push(RecordingListItem {
             session_id: marker.session_id,
+            title,
             started_at_epoch_ms: marker.started_at_epoch_ms,
             duration_ms: recording_duration(&microphone, &system),
             status,
@@ -333,6 +373,7 @@ fn open_recording(
         write_new_file(&directory.join(RECOVERED_MARKER), b"recovered\n")?;
     }
     let now_ms = epoch_ms();
+    let title = session_title(&directory, &marker);
     let mut state = state.lock().expect("session state poisoned");
     if matches!(
         state.status,
@@ -352,6 +393,7 @@ fn open_recording(
             dropped_blocks: 0,
         }),
         recovered,
+        title,
     };
     Ok(state.view(now_ms))
 }
@@ -390,6 +432,7 @@ fn reveal_in_file_manager(_path: &Path) -> Result<(), String> {
 fn start_session(
     microphone_id: String,
     system_output_id: String,
+    title: String,
     app: tauri::AppHandle,
     state: tauri::State<'_, Mutex<SessionState>>,
     recorder: tauri::State<'_, Mutex<Option<AudioRecording>>>,
@@ -413,6 +456,14 @@ fn start_session(
     let marker = SessionMarker {
         session_id: session_id.clone(),
         started_at_epoch_ms: now_ms,
+        title: {
+            let title = title.trim().chars().take(80).collect::<String>();
+            if title.is_empty() {
+                default_session_title()
+            } else {
+                title
+            }
+        },
         microphone_path: output.join("microphone.wav"),
         system_path: output.join("system.wav"),
     };
@@ -428,8 +479,37 @@ fn start_session(
         accumulated_ms: 0,
         recording: None,
         recovered: false,
+        title: marker.title.clone(),
     };
     Ok(state.view(now_ms))
+}
+
+#[tauri::command]
+fn set_session_title(
+    title: String,
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Mutex<SessionState>>,
+) -> Result<SessionView, String> {
+    let title = title.trim().chars().take(80).collect::<String>();
+    let title = if title.is_empty() {
+        default_session_title()
+    } else {
+        title
+    };
+    let mut state = state.lock().expect("session state poisoned");
+    let session_id = state
+        .session_id
+        .as_ref()
+        .ok_or_else(|| "当前没有可命名的录音会话".to_owned())?;
+    let directory = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| error.to_string())?
+        .join("recordings")
+        .join(session_id);
+    write_session_title(&directory, &title)?;
+    state.title = title;
+    Ok(state.view(epoch_ms()))
 }
 
 #[tauri::command]
@@ -524,6 +604,7 @@ pub fn run() {
             recover_latest_session,
             reveal_recording,
             start_session,
+            set_session_title,
             pause_session,
             resume_session,
             stop_session,
