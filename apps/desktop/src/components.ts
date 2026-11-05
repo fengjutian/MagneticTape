@@ -36,7 +36,7 @@ export function renderApp(): string {
         <section class="status-area" aria-live="polite">
           <div class="status-mark"><span></span></div>
           <h2 class="status-title">等待开始录音</h2>
-          <p class="status-copy">实时转写功能尚未接入，录音功能仍在开发中。</p>
+          <p class="status-copy">麦克风与系统声音将分别保存在本地。</p>
           <button class="start-button" type="button">开始录音</button>
         </section>
 
@@ -105,12 +105,12 @@ export function formatElapsed(milliseconds: number): string {
 
 function statusText(status: RecorderStatus): { title: string; copy: string; badge: string } {
   switch (status) {
-    case "recording": return { title: "正在录音", copy: "正在建立本地会话；音频采集尚未接入。", badge: "录音中" };
+    case "recording": return { title: "正在录音", copy: "麦克风与系统声音正在分别写入本地 WAV 文件。", badge: "录音中" };
     case "paused": return { title: "录音已暂停", copy: "计时与模拟波形已暂停，点击继续恢复会话。", badge: "已暂停" };
     case "stopping": return { title: "正在结束", copy: "正在安全结束会话，请稍候。", badge: "保存中" };
-    case "finished": return { title: "会话已结束", copy: "会话状态已保存；当前版本尚未产生音频文件。", badge: "已完成" };
+    case "finished": return { title: "录音已保存", copy: "两路音频文件已安全封口，可在右侧查看保存位置。", badge: "已完成" };
     case "error": return { title: "操作失败", copy: "请查看错误信息后重试。", badge: "错误" };
-    default: return { title: "等待开始录音", copy: "实时转写功能尚未接入，录音功能仍在开发中。", badge: "待机" };
+    default: return { title: "等待开始录音", copy: "选择设备后，麦克风与系统声音将分别保存在本地。", badge: "待机" };
   }
 }
 
@@ -141,18 +141,24 @@ export function applyView(root: HTMLElement, state: RecorderViewState): void {
   error.hidden = !state.errorMessage;
   error.textContent = state.errorMessage ?? "";
   if (statusChanged) {
-    root.querySelector<HTMLElement>(".content-body")!.innerHTML = contentForStatus(state.status, state.sessionId);
+    root.querySelector<HTMLElement>(".content-body")!.innerHTML = contentForStatus(state);
   }
 }
 
-function contentForStatus(status: RecorderStatus, sessionId: string | null): string {
+function contentForStatus(state: RecorderViewState): string {
+  const { status, sessionId } = state;
   if (status === "recording" || status === "paused") {
     return `<div class="transcript-placeholder"><span class="pulse-dot"></span><h3>${status === "paused" ? "字幕已暂停" : "等待实时字幕"}</h3><p>ASR 尚未接入，因此不会生成虚构的转写内容。</p><div class="skeleton"><i></i><i></i><i></i></div></div>`;
   }
   if (status === "stopping") return `<div class="saving"><span class="spinner" aria-hidden="true"></span><h3>正在安全结束会话</h3><p>请勿重复提交停止操作。</p></div>`;
   if (status === "finished") {
-    return `<div class="finished-card"><span class="check">✓</span><h3>会话状态已保存</h3><p>会话编号：${sessionId?.slice(0, 12) ?? "—"}</p><dl><div><dt>音频文件</dt><dd>尚未接入</dd></div><div><dt>转写内容</dt><dd>尚未接入</dd></div><div><dt>摘要</dt><dd>等待后续版本</dd></div></dl></div>`;
+    return `<div class="finished-card"><span class="check">✓</span><h3>录音已保存</h3><p>会话编号：${sessionId?.slice(0, 12) ?? "—"}</p><dl><div><dt>麦克风</dt><dd title="${escapeHtml(state.microphonePath ?? "")}">${escapeHtml(state.microphonePath ?? "未生成")}</dd></div><div><dt>系统声音</dt><dd title="${escapeHtml(state.systemPath ?? "")}">${escapeHtml(state.systemPath ?? "未生成")}</dd></div><div><dt>丢弃缓冲块</dt><dd>${state.droppedBlocks ?? 0}</dd></div></dl></div>`;
   }
   return `<div class="empty-content"><div class="cassette-mini" aria-hidden="true"><i></i><i></i></div><h3>内容将在这里出现</h3><p>开始录音后，这里将承载实时字幕。停止后可继续生成摘要、章节和待办。</p></div>`;
+}
+
+function escapeHtml(value: string): string {
+  const replacements: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+  return value.replace(/[&<>"']/g, (character) => replacements[character]);
 }
 

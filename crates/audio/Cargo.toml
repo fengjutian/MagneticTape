@@ -9,6 +9,7 @@ repository.workspace = true
 
 [dependencies]
 cpal = "0.18.2"
+hound = "3.5.1"
 serde.workspace = true
 thiserror.workspace = true
 

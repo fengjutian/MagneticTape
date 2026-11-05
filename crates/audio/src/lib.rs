@@ -5,8 +5,10 @@ use serde::Serialize;
 use thiserror::Error;
 
 mod monitor;
+mod recording;
 
 pub use monitor::{AudioLevelMonitor, AudioLevels, MonitorError};
+pub use recording::{AudioRecording, RecordingError, RecordingResult};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]

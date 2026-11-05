@@ -16,7 +16,7 @@ let view: RecorderViewState = { title: "新录音", status: "idle", elapsedMs: 0
 
 function syncBackend(next: SessionState): void {
   backendState = next;
-  view = { ...view, status: next.status, elapsedMs: next.elapsedMs, sessionId: next.sessionId, errorMessage: undefined };
+  view = { ...view, status: next.status, elapsedMs: next.elapsedMs, sessionId: next.sessionId, microphonePath: next.microphonePath, systemPath: next.systemPath, droppedBlocks: next.droppedBlocks, errorMessage: undefined };
   restartClock();
   applyView(app, view);
 }
@@ -43,10 +43,7 @@ async function command(name: "start_session" | "pause_session" | "resume_session
   }
   try {
     syncBackend(await invoke<SessionState>(name));
-    if (name === "stop_session") {
-      await invoke("stop_audio_monitor");
-      stopLevelPolling();
-    }
+    if (name === "stop_session") stopLevelPolling();
   } catch (error) {
     view.status = backendState?.status ?? "error";
     view.errorMessage = error instanceof Error ? error.message : String(error);
@@ -67,11 +64,9 @@ async function startRecording(): Promise<void> {
   }
   pending = true;
   try {
-    await invoke<AudioLevels>("start_audio_monitor", { microphoneId, systemOutputId });
-    syncBackend(await invoke<SessionState>("start_session"));
+    syncBackend(await invoke<SessionState>("start_session", { microphoneId, systemOutputId }));
     startLevelPolling();
   } catch (error) {
-    await invoke("stop_audio_monitor").catch(() => undefined);
     view.errorMessage = `无法启动音频监测：${error instanceof Error ? error.message : String(error)}`;
     applyView(app, view);
   } finally {
