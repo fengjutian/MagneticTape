@@ -129,19 +129,27 @@ async function refreshHistory(): Promise<void> {
       return;
     }
     for (const recording of recordings) {
+      const item = document.createElement("article");
+      item.className = "history-item";
+      item.dataset.sessionId = recording.sessionId;
       const button = document.createElement("button");
-      button.className = "history-item";
+      button.className = "history-open";
       button.type = "button";
-      button.dataset.sessionId = recording.sessionId;
       const title = document.createElement("strong");
       title.textContent = recording.title;
       const details = document.createElement("span");
       const status = recording.status === "completed" ? "已完成" : recording.status === "recovered" ? "已恢复" : "意外中断";
-      details.textContent = `${new Date(recording.startedAtEpochMs).toLocaleString("zh-CN")} · ${formatElapsed(recording.durationMs)} · ${status}`;
+      details.textContent = `${new Date(recording.startedAtEpochMs).toLocaleString("zh-CN")} · ${formatElapsed(recording.durationMs)} · ${formatBytes(recording.sizeBytes)} · ${status}`;
       const id = document.createElement("small");
       id.textContent = recording.sessionId;
       button.append(title, details, id);
-      historyList.append(button);
+      const remove = document.createElement("button");
+      remove.className = "history-delete";
+      remove.type = "button";
+      remove.title = "移入 Windows 回收站";
+      remove.textContent = "删除";
+      item.append(button, remove);
+      historyList.append(item);
     }
   } catch (error) {
     const failure = document.createElement("p");
@@ -149,6 +157,12 @@ async function refreshHistory(): Promise<void> {
     failure.textContent = `无法读取历史录音：${error instanceof Error ? error.message : String(error)}`;
     historyList.append(failure);
   }
+}
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+  return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
 }
 app.querySelector<HTMLButtonElement>(".history-button")!.addEventListener("click", () => {
   historySearch.value = "";
@@ -163,14 +177,33 @@ historySearch.addEventListener("input", () => {
 });
 app.querySelector<HTMLButtonElement>(".history-close")!.addEventListener("click", () => historyDialog.close());
 historyList.addEventListener("click", async (event) => {
-  const button = (event.target as HTMLElement).closest<HTMLButtonElement>(".history-item");
-  if (!button?.dataset.sessionId) return;
+  const button = (event.target as HTMLElement).closest<HTMLButtonElement>(".history-open");
+  const item = button?.closest<HTMLElement>(".history-item");
+  if (!button || !item?.dataset.sessionId) return;
   button.disabled = true;
   try {
-    syncBackend(await invoke<SessionState>("open_recording", { sessionId: button.dataset.sessionId }));
+    syncBackend(await invoke<SessionState>("open_recording", { sessionId: item.dataset.sessionId }));
     historyDialog.close();
   } catch (error) {
     view.errorMessage = `无法打开历史录音：${error instanceof Error ? error.message : String(error)}`;
+    applyView(app, view);
+  } finally {
+    button.disabled = false;
+  }
+});
+historyList.addEventListener("click", async (event) => {
+  const button = (event.target as HTMLElement).closest<HTMLButtonElement>(".history-delete");
+  const item = button?.closest<HTMLElement>(".history-item");
+  if (!button || !item?.dataset.sessionId) return;
+  const title = item.querySelector("strong")?.textContent ?? "这条录音";
+  if (!window.confirm(`确定将“${title}”移入 Windows 回收站吗？`)) return;
+  button.disabled = true;
+  try {
+    await invoke("trash_recording", { sessionId: item.dataset.sessionId });
+    syncBackend(await invoke<SessionState>("get_session_state"));
+    await refreshHistory();
+  } catch (error) {
+    view.errorMessage = `无法删除录音：${error instanceof Error ? error.message : String(error)}`;
     applyView(app, view);
   } finally {
     button.disabled = false;

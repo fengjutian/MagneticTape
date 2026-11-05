@@ -95,6 +95,7 @@ struct RecordingListItem {
     status: &'static str,
     microphone_path: Option<PathBuf>,
     system_path: Option<PathBuf>,
+    size_bytes: u64,
 }
 
 impl SessionState {
@@ -290,6 +291,17 @@ fn recording_duration(microphone: &Path, system: &Path) -> u64 {
         .unwrap_or(0)
 }
 
+fn directory_size(directory: &Path) -> u64 {
+    fs::read_dir(directory)
+        .into_iter()
+        .flatten()
+        .filter_map(Result::ok)
+        .filter_map(|entry| entry.metadata().ok())
+        .filter(|metadata| metadata.is_file())
+        .map(|metadata| metadata.len())
+        .sum()
+}
+
 #[tauri::command]
 fn list_recordings(app: tauri::AppHandle) -> Result<Vec<RecordingListItem>, String> {
     let root = app
@@ -332,10 +344,56 @@ fn list_recordings(app: tauri::AppHandle) -> Result<Vec<RecordingListItem>, Stri
             status,
             microphone_path: microphone.is_file().then_some(microphone),
             system_path: system.is_file().then_some(system),
+            size_bytes: directory_size(&directory),
         });
     }
     recordings.sort_by_key(|item| std::cmp::Reverse(item.started_at_epoch_ms));
     Ok(recordings)
+}
+
+#[tauri::command]
+fn trash_recording(
+    session_id: String,
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Mutex<SessionState>>,
+) -> Result<(), String> {
+    if session_id.is_empty() || !session_id.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err("无效的录音会话编号".into());
+    }
+    {
+        let state = state.lock().expect("session state poisoned");
+        if state.session_id.as_deref() == Some(&session_id)
+            && matches!(
+                state.status,
+                RecorderStatus::Recording | RecorderStatus::Paused
+            )
+        {
+            return Err("录音进行中，不能删除当前会话".into());
+        }
+    }
+    let root = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| error.to_string())?
+        .join("recordings")
+        .canonicalize()
+        .map_err(|error| error.to_string())?;
+    let directory = root
+        .join(&session_id)
+        .canonicalize()
+        .map_err(|error| error.to_string())?;
+    if !directory.is_dir()
+        || !directory.starts_with(&root)
+        || !directory.join(RECORDING_MARKER).is_file()
+    {
+        return Err("只能删除 MagneticTape 资料库中的录音".into());
+    }
+    trash::delete(&directory).map_err(|error| format!("无法移入回收站：{error}"))?;
+    let mut state = state.lock().expect("session state poisoned");
+    if state.session_id.as_deref() == Some(&session_id) {
+        *state = SessionState::default();
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -602,6 +660,7 @@ pub fn run() {
             get_session_state,
             list_recordings,
             open_recording,
+            trash_recording,
             recover_latest_session,
             reveal_recording,
             start_session,

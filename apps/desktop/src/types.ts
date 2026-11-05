@@ -64,5 +64,6 @@ export interface RecordingListItem {
   status: "completed" | "recovered" | "interrupted";
   microphonePath: string | null;
   systemPath: string | null;
+  sizeBytes: number;
 }
 
