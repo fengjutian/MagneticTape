@@ -77,4 +77,3 @@ mod tests {
         assert!(!state.system_audio_ready);
     }
 }
-
