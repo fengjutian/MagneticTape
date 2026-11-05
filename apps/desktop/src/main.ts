@@ -113,6 +113,19 @@ app.querySelector<HTMLButtonElement>(".start-button")!.addEventListener("click",
 app.querySelector<HTMLButtonElement>(".pause-button")!.addEventListener("click", () => void command(view.status === "paused" ? "resume_session" : "pause_session"));
 app.querySelector<HTMLButtonElement>(".stop-button")!.addEventListener("click", () => void command("stop_session"));
 app.querySelector<HTMLButtonElement>(".refresh-devices")!.addEventListener("click", () => void refreshAudioDevices());
+app.addEventListener("click", async (event) => {
+  const button = (event.target as HTMLElement).closest<HTMLButtonElement>(".reveal-recording");
+  if (!button?.dataset.path) return;
+  button.disabled = true;
+  try {
+    await invoke("reveal_recording", { path: button.dataset.path });
+  } catch (error) {
+    view.errorMessage = `无法定位录音文件：${error instanceof Error ? error.message : String(error)}`;
+    applyView(app, view);
+  } finally {
+    button.disabled = false;
+  }
+});
 
 const titleDisplay = app.querySelector<HTMLButtonElement>(".title-display")!;
 const titleInput = app.querySelector<HTMLInputElement>(".title-input")!;

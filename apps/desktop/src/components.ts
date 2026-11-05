@@ -23,7 +23,7 @@ export function renderApp(): string {
           <div class="options" aria-label="录音选项">
             <label class="option"><span>转写语言</span><select data-option="language" aria-label="转写语言"><option value="auto">自动识别</option><option value="zh-CN">中文</option><option value="en-US">English</option></select></label>
             <label class="option"><span>翻译</span><select data-option="translation" aria-label="翻译语言"><option value="none">不翻译</option><option value="zh-CN">翻译为中文</option><option value="en-US">Translate to English</option></select></label>
-            <label class="option"><span>音频</span><select data-option="audio" aria-label="音频保留策略"><option value="retain">保留音频</option><option value="discard">完成后删除</option></select></label>
+            <label class="option"><span>音频</span><select data-option="audio" aria-label="音频保留策略"><option value="retain">保留音频</option><option value="discard" disabled>完成后删除（即将支持）</option></select></label>
             <button class="option coming-soon" type="button" disabled title="AI 同传尚未接入">${icon("sparkles")}<span>AI 同传</span><small>即将支持</small></button>
           </div>
           <div class="device-strip" aria-label="音频设备">
@@ -152,7 +152,8 @@ function contentForStatus(state: RecorderViewState): string {
   }
   if (status === "stopping") return `<div class="saving"><span class="spinner" aria-hidden="true"></span><h3>正在安全结束会话</h3><p>请勿重复提交停止操作。</p></div>`;
   if (status === "finished") {
-    return `<div class="finished-card"><span class="check">✓</span><h3>录音已保存</h3><p>会话编号：${sessionId?.slice(0, 12) ?? "—"}</p><dl><div><dt>麦克风</dt><dd title="${escapeHtml(state.microphonePath ?? "")}">${escapeHtml(state.microphonePath ?? "未生成")}</dd></div><div><dt>系统声音</dt><dd title="${escapeHtml(state.systemPath ?? "")}">${escapeHtml(state.systemPath ?? "未生成")}</dd></div><div><dt>丢弃缓冲块</dt><dd>${state.droppedBlocks ?? 0}</dd></div></dl></div>`;
+    const revealPath = state.microphonePath ?? state.systemPath;
+    return `<div class="finished-card"><span class="check">✓</span><h3>录音已保存</h3><p>会话编号：${sessionId?.slice(0, 12) ?? "—"}</p><dl><div><dt>麦克风</dt><dd title="${escapeHtml(state.microphonePath ?? "")}">${escapeHtml(state.microphonePath ?? "未生成")}</dd></div><div><dt>系统声音</dt><dd title="${escapeHtml(state.systemPath ?? "")}">${escapeHtml(state.systemPath ?? "未生成")}</dd></div><div><dt>丢弃缓冲块</dt><dd>${state.droppedBlocks ?? 0}</dd></div></dl>${revealPath ? `<button class="reveal-recording" type="button" data-path="${escapeHtml(revealPath)}">在资源管理器中查看</button>` : ""}</div>`;
   }
   return `<div class="empty-content"><div class="cassette-mini" aria-hidden="true"><i></i><i></i></div><h3>内容将在这里出现</h3><p>开始录音后，这里将承载实时字幕。停止后可继续生成摘要、章节和待办。</p></div>`;
 }

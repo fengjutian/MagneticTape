@@ -1,7 +1,8 @@
 use magnetic_tape_audio::{AudioLevels, AudioRecording, RecordingResult};
 use serde::Serialize;
 use std::{
-    path::PathBuf,
+    path::{Path, PathBuf},
+    process::Command,
     sync::Mutex,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -129,6 +130,36 @@ fn get_session_state(state: tauri::State<'_, Mutex<SessionState>>) -> SessionVie
 }
 
 #[tauri::command]
+fn reveal_recording(path: PathBuf, app: tauri::AppHandle) -> Result<(), String> {
+    let recordings_root = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| error.to_string())?
+        .join("recordings")
+        .canonicalize()
+        .map_err(|error| error.to_string())?;
+    let recording = path.canonicalize().map_err(|error| error.to_string())?;
+    if !recording.is_file() || !recording.starts_with(&recordings_root) {
+        return Err("只能定位 MagneticTape 录音目录中的文件".into());
+    }
+    reveal_in_file_manager(&recording)
+}
+
+#[cfg(target_os = "windows")]
+fn reveal_in_file_manager(path: &Path) -> Result<(), String> {
+    Command::new("explorer.exe")
+        .arg(format!("/select,{}", path.display()))
+        .spawn()
+        .map(|_| ())
+        .map_err(|error| format!("无法打开资源管理器：{error}"))
+}
+
+#[cfg(not(target_os = "windows"))]
+fn reveal_in_file_manager(_path: &Path) -> Result<(), String> {
+    Err("当前平台暂不支持在文件管理器中定位录音".into())
+}
+
+#[tauri::command]
 fn start_session(
     microphone_id: String,
     system_output_id: String,
@@ -241,6 +272,7 @@ pub fn run() {
             list_audio_devices,
             get_audio_levels,
             get_session_state,
+            reveal_recording,
             start_session,
             pause_session,
             resume_session,
