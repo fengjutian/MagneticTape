@@ -228,6 +228,7 @@ button:disabled, select:disabled { cursor: not-allowed; }
 .export-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 22px; }
 .export-session { border: 0; border-radius: 8px; padding: 10px 16px; background: #3370ff; color: #fff; font-weight: 600; }
 .export-session:disabled { opacity: .6; }
+.discard-audio { border: 0; border-radius: 8px; padding: 10px 14px; background: #fff0f0; color: #b42318; font-weight: 600; }
 .export-state { color: #4e5969; font-size: 11px; }
 .reveal-recording:hover { background: #dce6ff; }
 .reveal-recording:disabled { opacity: .6; }

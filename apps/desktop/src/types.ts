@@ -71,7 +71,7 @@ export interface RecordingListItem {
   title: string;
   startedAtEpochMs: number;
   durationMs: number;
-  status: "completed" | "recovered" | "interrupted";
+  status: "completed" | "recovered" | "interrupted" | "transcript_only";
   microphonePath: string | null;
   systemPath: string | null;
   sizeBytes: number;

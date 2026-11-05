@@ -25,7 +25,7 @@ export function renderApp(): string {
           <div class="options" aria-label="录音选项">
             <label class="option"><span>转写语言</span><select data-option="language" aria-label="转写语言"><option value="auto">自动识别</option><option value="zh-CN">中文</option><option value="en-US">English</option></select></label>
             <label class="option"><span>翻译</span><select data-option="translation" aria-label="翻译语言"><option value="none">不翻译</option><option value="zh-CN">翻译为中文</option><option value="en-US">Translate to English</option></select></label>
-            <label class="option"><span>音频</span><select data-option="audio" aria-label="音频保留策略"><option value="retain">保留音频</option><option value="discard" disabled>完成后删除（即将支持）</option></select></label>
+            <label class="option"><span>音频</span><select data-option="audio" aria-label="音频保留策略"><option value="retain">保留音频</option><option value="discard">转写后删除音频</option></select></label>
             <button class="option ai-settings" type="button" title="配置 AI Provider">${icon("sparkles")}<span>AI 助手</span><small>MiniMax / DeepSeek</small></button>
             <button class="option live-caption" type="button" title="录音时每 15 秒生成实时字幕"><span>实时字幕</span><small class="live-state">关</small></button>
           </div>
@@ -158,7 +158,11 @@ export function applyView(root: HTMLElement, state: RecorderViewState): void {
     : statusText(state.status);
   const statusChanged = root.dataset.status !== state.status;
   const sessionChanged = root.dataset.session !== (state.sessionId ?? "");
+  const audioKey = `${state.microphoneChunks?.length ?? 0}/${state.systemChunks?.length ?? 0}`;
+  const audioChanged = root.dataset.audio !== audioKey;
   root.dataset.status = state.status;
+  root.dataset.session = state.sessionId ?? "";
+  root.dataset.audio = audioKey;
   root.dataset.session = state.sessionId ?? "";
   root.querySelector<HTMLElement>(".status-title")!.textContent = text.title;
   root.querySelector<HTMLElement>(".status-copy")!.textContent = text.copy;
@@ -182,7 +186,7 @@ export function applyView(root: HTMLElement, state: RecorderViewState): void {
   const error = root.querySelector<HTMLElement>(".error-banner")!;
   error.hidden = !state.errorMessage;
   error.textContent = state.errorMessage ?? "";
-  if (statusChanged || sessionChanged) {
+  if (statusChanged || sessionChanged || audioChanged) {
     root.querySelector<HTMLElement>(".content-body")!.innerHTML = contentForStatus(state);
     wireChunkPlayback(root);
   }
@@ -198,7 +202,7 @@ function contentForStatus(state: RecorderViewState): string {
     const revealPath = state.microphonePath ?? state.systemPath;
     const microphonePlayer = audioPlayer("麦克风声轨", state.microphoneChunks);
     const systemPlayer = audioPlayer("系统声音声轨", state.systemChunks);
-    return `<div class="finished-card"><span class="check">✓</span><h3>${state.recovered ? "已恢复上次录音" : "录音已保存"}</h3><p>会话编号：${sessionId?.slice(0, 12) ?? "—"}</p><div class="audio-players">${microphonePlayer}${systemPlayer}</div><section class="transcript-panel"><header><strong>转写文本</strong><span class="transcript-state"></span></header><div class="transcript-body"><p class="transcript-empty">尚未转写。配置 ASR 服务后可从录音生成带时间戳与说话人的文本。</p></div><div class="transcript-actions"><select class="asr-provider" aria-label="转写服务商"><option value="minimax">MiniMax</option><option value="silicon_flow">SiliconFlow</option></select><button class="transcribe" type="button">开始转写</button><button class="asr-settings" type="button">转写设置</button><select class="translate-target" aria-label="翻译语言"><option value="zh">中文</option><option value="en">English</option></select><button class="translate-transcript" type="button">AI 翻译</button></div></section><section class="notes-editor"><header><strong>会议笔记</strong><span class="notes-state"></span></header><textarea class="meeting-notes" rows="9" placeholder="输入会议笔记，或直接使用转写文本生成纪要…"></textarea><div class="notes-actions"><select class="notes-provider" aria-label="AI 服务商"><option value="minimax">MiniMax</option><option value="deep_seek">DeepSeek</option></select><button class="save-notes" type="button">保存笔记</button><button class="summarize-notes" type="button">AI 生成纪要</button></div></section><dl><div><dt>麦克风</dt><dd title="${escapeHtml(state.microphonePath ?? "")}">${escapeHtml(state.microphonePath ?? "未生成")}</dd></div><div><dt>系统声音</dt><dd title="${escapeHtml(state.systemPath ?? "")}">${escapeHtml(state.systemPath ?? "未生成")}</dd></div><div><dt>音频分片</dt><dd>${(state.microphoneChunks?.length ?? 0) + (state.systemChunks?.length ?? 0)}</dd></div><div><dt>丢弃缓冲块</dt><dd>${state.droppedBlocks ?? 0}</dd></div></dl><div class="export-row"><button class="export-session" type="button">导出会议资料</button><span class="export-state"></span></div>${revealPath ? `<button class="reveal-recording" type="button" data-path="${escapeHtml(revealPath)}">在资源管理器中查看</button>` : ""}</div>`;
+    return `<div class="finished-card"><span class="check">✓</span><h3>${state.recovered ? "已恢复上次录音" : "录音已保存"}</h3><p>会话编号：${sessionId?.slice(0, 12) ?? "—"}</p><div class="audio-players">${microphonePlayer}${systemPlayer}</div><section class="transcript-panel"><header><strong>转写文本</strong><span class="transcript-state"></span></header><div class="transcript-body"><p class="transcript-empty">尚未转写。配置 ASR 服务后可从录音生成带时间戳与说话人的文本。</p></div><div class="transcript-actions"><select class="asr-provider" aria-label="转写服务商"><option value="minimax">MiniMax</option><option value="silicon_flow">SiliconFlow</option></select><button class="transcribe" type="button">开始转写</button><button class="asr-settings" type="button">转写设置</button><select class="translate-target" aria-label="翻译语言"><option value="zh">中文</option><option value="en">English</option></select><button class="translate-transcript" type="button">AI 翻译</button></div></section><section class="notes-editor"><header><strong>会议笔记</strong><span class="notes-state"></span></header><textarea class="meeting-notes" rows="9" placeholder="输入会议笔记，或直接使用转写文本生成纪要…"></textarea><div class="notes-actions"><select class="notes-provider" aria-label="AI 服务商"><option value="minimax">MiniMax</option><option value="deep_seek">DeepSeek</option></select><button class="save-notes" type="button">保存笔记</button><button class="summarize-notes" type="button">AI 生成纪要</button></div></section><dl><div><dt>麦克风</dt><dd title="${escapeHtml(state.microphonePath ?? "")}">${escapeHtml(state.microphonePath ?? "未生成")}</dd></div><div><dt>系统声音</dt><dd title="${escapeHtml(state.systemPath ?? "")}">${escapeHtml(state.systemPath ?? "未生成")}</dd></div><div><dt>音频分片</dt><dd>${(state.microphoneChunks?.length ?? 0) + (state.systemChunks?.length ?? 0)}</dd></div><div><dt>丢弃缓冲块</dt><dd>${state.droppedBlocks ?? 0}</dd></div></dl><div class="export-row"><button class="export-session" type="button">导出会议资料</button><button class="discard-audio" type="button" title="删除分片音频，保留转写与笔记">删除音频</button><span class="export-state"></span></div>${revealPath ? `<button class="reveal-recording" type="button" data-path="${escapeHtml(revealPath)}">在资源管理器中查看</button>` : ""}</div>`;
   }
   return `<div class="empty-content"><div class="cassette-mini" aria-hidden="true"><i></i><i></i></div><h3>内容将在这里出现</h3><p>开始录音后，这里将承载实时字幕。停止后可继续生成摘要、章节和待办。</p></div>`;
 }

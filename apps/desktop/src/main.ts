@@ -395,7 +395,7 @@ async function refreshHistory(): Promise<void> {
       const title = document.createElement("strong");
       title.textContent = recording.title;
       const details = document.createElement("span");
-      const status = recording.status === "completed" ? "已完成" : recording.status === "recovered" ? "已恢复" : "意外中断";
+      const status = recording.status === "completed" ? "已完成" : recording.status === "recovered" ? "已恢复" : recording.status === "transcript_only" ? "仅转写" : "意外中断";
       details.textContent = `${new Date(recording.startedAtEpochMs).toLocaleString("zh-CN")} · ${formatElapsed(recording.durationMs)} · ${formatBytes(recording.sizeBytes)} · ${status}`;
       const id = document.createElement("small");
       id.textContent = recording.sessionId;
@@ -705,6 +705,20 @@ app.addEventListener("click", async (event) => {
     }
   } catch (error) {
     if (status) status.textContent = `导出失败：${error instanceof Error ? error.message : String(error)}`;
+  } finally {
+    button.disabled = false;
+  }
+});
+app.addEventListener("click", async (event) => {
+  const button = (event.target as HTMLElement).closest<HTMLButtonElement>(".discard-audio");
+  if (!button) return;
+  if (!window.confirm("删除后音频不可恢复，转写和会议笔记会保留。确定删除音频吗？")) return;
+  button.disabled = true;
+  try {
+    syncBackend(await invoke<SessionState>("discard_session_audio"));
+  } catch (error) {
+    view.errorMessage = `无法删除音频：${error instanceof Error ? error.message : String(error)}`;
+    applyView(app, view);
   } finally {
     button.disabled = false;
   }

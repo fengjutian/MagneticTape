@@ -44,6 +44,7 @@ const TITLE_FILE: &str = "session-title.txt";
 const NOTES_FILE: &str = "meeting-notes.md";
 const TRANSCRIPT_FILE: &str = "transcript.json";
 const TRANSCRIPT_MARKDOWN: &str = "transcript.md";
+const AUDIO_DISCARDED: &str = "audio-discarded";
 const SETTINGS_FILE: &str = "settings.json";
 
 /// Non-secret preferences persisted between launches. API keys never enter
@@ -676,7 +677,8 @@ fn load_session(directory: &Path) -> Option<LoadedSession> {
         .as_ref()
         .and_then(|manifest| recorded_from_manifest(directory, manifest))
         .or_else(|| recorded_from_sidecars(directory))
-        .or_else(|| recorded_from_wav(directory))?;
+        .or_else(|| recorded_from_wav(directory))
+        .or_else(|| transcript_only_session(directory))?;
     let started_at_epoch_ms = manifest
         .as_ref()
         .map(|manifest| manifest.started_at_epoch_ms)
@@ -940,15 +942,14 @@ fn list_recordings(app: tauri::AppHandle) -> Result<Vec<RecordingListItem>, Stri
         let Some(loaded) = load_session(&directory) else {
             continue;
         };
-        if loaded.recorded.is_empty() {
-            continue;
-        }
         let session_id = directory
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
             .unwrap_or_default();
         let title = session_title(&directory, &session_id);
-        let status = if directory.join(COMPLETED_MARKER).is_file() {
+        let status = if directory.join(AUDIO_DISCARDED).is_file() {
+            "transcript_only"
+        } else if directory.join(COMPLETED_MARKER).is_file() {
             "completed"
         } else if directory.join(RECOVERED_MARKER).is_file() {
             "recovered"
@@ -1220,6 +1221,7 @@ fn stop_session(
     state: tauri::State<'_, Mutex<SessionState>>,
     recorder: tauri::State<'_, RecorderState>,
     live: tauri::State<'_, Mutex<LiveTranscriptionState>>,
+    settings: tauri::State<'_, Mutex<AppSettings>>,
 ) -> Result<SessionView, String> {
     let now_ms = epoch_ms();
     {
@@ -1251,10 +1253,21 @@ fn stop_session(
         .clone()
         .ok_or_else(|| "当前没有录音会话".to_owned())?;
     let directory = recordings_root(&app)?.join(&session_id);
-    let recorded = finalize_session(&directory, &mut state, &snapshot);
+    let mut recorded = finalize_session(&directory, &mut state, &snapshot);
     {
         let mut live = live.lock().expect("live transcription state poisoned");
         finish_live_transcription(&directory, &mut live);
+    }
+    let discard_audio = !settings
+        .lock()
+        .expect("settings state poisoned")
+        .retain_audio;
+    if discard_audio && directory.join(TRANSCRIPT_FILE).is_file() {
+        discard_audio_files(&directory)?;
+        recorded = RecordedSession {
+            duration_ms: recorded.duration_ms,
+            ..RecordedSession::default()
+        };
     }
     write_new_file(&directory.join(COMPLETED_MARKER), b"completed\n")?;
     state.resumed_at_epoch_ms = None;
@@ -1329,6 +1342,40 @@ fn read_transcript(directory: &Path) -> Option<asr::Transcript> {
         .and_then(|bytes| serde_json::from_slice(&bytes).ok())
 }
 
+/// Deletes all Ogg Opus chunks and their sidecars, keeping transcript, notes,
+/// title and the recovery manifests. Returns the number of bytes freed.
+fn discard_audio_files(directory: &Path) -> Result<u64, String> {
+    let mut freed = 0_u64;
+    for entry in fs::read_dir(directory).map_err(|error| error.to_string())? {
+        let entry = entry.map_err(|error| error.to_string())?;
+        let path = entry.path();
+        let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        if !(name.starts_with("mic-") || name.starts_with("sys-"))
+            || !matches!(
+                path.extension().and_then(|extension| extension.to_str()),
+                Some("ogg" | "json")
+            )
+        {
+            continue;
+        }
+        let size = entry.metadata().map(|metadata| metadata.len()).unwrap_or(0);
+        fs::remove_file(&path).map_err(|error| error.to_string())?;
+        freed += size;
+    }
+    write_new_file(&directory.join(AUDIO_DISCARDED), b"discarded\n")?;
+    Ok(freed)
+}
+
+fn transcript_only_session(directory: &Path) -> Option<RecordedSession> {
+    let transcript = read_transcript(directory)?;
+    Some(RecordedSession {
+        duration_ms: transcript.duration_ms,
+        ..RecordedSession::default()
+    })
+}
+
 fn audio_chunks(directory: &Path) -> Result<Vec<asr::AudioChunkRef>, String> {
     let mut chunks = Vec::new();
     for entry in fs::read_dir(directory).map_err(|error| error.to_string())? {
@@ -1375,6 +1422,7 @@ async fn transcribe_session(
     app: tauri::AppHandle,
     state: tauri::State<'_, Mutex<SessionState>>,
     asr_state: tauri::State<'_, AsrState>,
+    settings: tauri::State<'_, Mutex<AppSettings>>,
 ) -> Result<asr::Transcript, String> {
     let (directory, session_id) = {
         let state = state.lock().expect("session state poisoned");
@@ -1398,6 +1446,20 @@ async fn transcribe_session(
     }
     let transcript = asr::transcribe_chunks(&chunks, &config, &session_id).await?;
     write_transcript(&directory, &transcript)?;
+    if !settings
+        .lock()
+        .expect("settings state poisoned")
+        .retain_audio
+    {
+        discard_audio_files(&directory)?;
+        let mut state = state.lock().expect("session state poisoned");
+        if state.session_id.as_deref() == Some(session_id.as_str()) {
+            state.recorded = Some(RecordedSession {
+                duration_ms: transcript.duration_ms,
+                ..RecordedSession::default()
+            });
+        }
+    }
     Ok(transcript)
 }
 
@@ -1408,6 +1470,37 @@ fn get_transcript(
 ) -> Result<Option<asr::Transcript>, String> {
     let directory = current_session_directory(&app, &state)?;
     Ok(read_transcript(&directory))
+}
+
+#[tauri::command]
+fn discard_session_audio(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Mutex<SessionState>>,
+) -> Result<SessionView, String> {
+    let now_ms = epoch_ms();
+    let mut state = state.lock().expect("session state poisoned");
+    if state.status != RecorderStatus::Finished {
+        return Err("只有已结束的录音可以删除音频".into());
+    }
+    let session_id = state
+        .session_id
+        .clone()
+        .ok_or_else(|| "当前没有录音会话".to_owned())?;
+    let directory = recordings_root(&app)?.join(&session_id);
+    if read_transcript(&directory).is_none() {
+        return Err("请先完成转写，再删除音频；转写是保留内容的唯一副本".into());
+    }
+    if !directory.join(AUDIO_DISCARDED).is_file() {
+        discard_audio_files(&directory)?;
+    }
+    let duration_ms = read_transcript(&directory)
+        .map(|transcript| transcript.duration_ms)
+        .unwrap_or(state.accumulated_ms);
+    state.recorded = Some(RecordedSession {
+        duration_ms,
+        ..RecordedSession::default()
+    });
+    Ok(state.view(now_ms))
 }
 
 #[tauri::command]
@@ -1782,7 +1875,8 @@ pub fn run() {
             get_settings,
             save_settings,
             export_session,
-            reveal_export
+            reveal_export,
+            discard_session_audio
         ])
         .run(tauri::generate_context!())
         .expect("error while running MagneticTape desktop application");
