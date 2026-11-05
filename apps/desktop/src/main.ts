@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { applyAudioDevices, applyView, renderApp } from "./components";
-import type { AudioDeviceSnapshot, AudioLevels, RecorderViewState, SessionState } from "./types";
+import type { AiResponse, AudioDeviceSnapshot, AudioLevels, RecorderViewState, SessionState } from "./types";
 import "./styles.css";
 
 const appElement = document.querySelector<HTMLElement>("#app");
@@ -113,6 +113,36 @@ app.querySelector<HTMLButtonElement>(".start-button")!.addEventListener("click",
 app.querySelector<HTMLButtonElement>(".pause-button")!.addEventListener("click", () => void command(view.status === "paused" ? "resume_session" : "pause_session"));
 app.querySelector<HTMLButtonElement>(".stop-button")!.addEventListener("click", () => void command("stop_session"));
 app.querySelector<HTMLButtonElement>(".refresh-devices")!.addEventListener("click", () => void refreshAudioDevices());
+
+const aiDialog = app.querySelector<HTMLDialogElement>(".ai-dialog")!;
+const aiProvider = app.querySelector<HTMLSelectElement>(".ai-provider")!;
+const aiModel = app.querySelector<HTMLInputElement>(".ai-model")!;
+const aiKey = app.querySelector<HTMLInputElement>(".ai-key")!;
+const aiResult = app.querySelector<HTMLOutputElement>(".ai-result")!;
+app.querySelector<HTMLButtonElement>(".ai-settings")!.addEventListener("click", () => aiDialog.showModal());
+aiProvider.addEventListener("change", () => {
+  aiModel.value = aiProvider.value === "minimax" ? "MiniMax-M3.1-Flash" : "deepseek-flash";
+  aiResult.textContent = "";
+});
+app.querySelector<HTMLButtonElement>(".ai-test")!.addEventListener("click", async (event) => {
+  const button = event.currentTarget as HTMLButtonElement;
+  button.disabled = true;
+  aiResult.className = "ai-result pending";
+  aiResult.textContent = "正在连接…";
+  try {
+    const provider = aiProvider.value;
+    await invoke("configure_ai", { provider, apiKey: aiKey.value, model: aiModel.value });
+    const response = await invoke<AiResponse>("test_ai", { provider });
+    aiKey.value = "";
+    aiResult.className = "ai-result success";
+    aiResult.textContent = `${response.model}：${response.content}`;
+  } catch (error) {
+    aiResult.className = "ai-result failure";
+    aiResult.textContent = error instanceof Error ? error.message : String(error);
+  } finally {
+    button.disabled = false;
+  }
+});
 app.addEventListener("click", async (event) => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>(".reveal-recording");
   if (!button?.dataset.path) return;

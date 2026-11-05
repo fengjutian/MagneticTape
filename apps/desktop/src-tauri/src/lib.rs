@@ -10,6 +10,9 @@ use std::{
 };
 use tauri::Manager;
 
+mod ai;
+use ai::AiState;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 enum RecorderStatus {
@@ -379,6 +382,14 @@ pub fn run() {
     tauri::Builder::default()
         .manage(Mutex::new(SessionState::default()))
         .manage(Mutex::new(None::<AudioRecording>))
+        .manage(AiState::default())
+        .setup(|app| {
+            let recordings = app.path().app_data_dir()?.join("recordings");
+            fs::create_dir_all(&recordings)?;
+            app.asset_protocol_scope()
+                .allow_directory(&recordings, true)?;
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             list_audio_devices,
             get_audio_levels,
@@ -388,7 +399,10 @@ pub fn run() {
             start_session,
             pause_session,
             resume_session,
-            stop_session
+            stop_session,
+            ai::configure_ai,
+            ai::test_ai,
+            ai::generate_ai
         ])
         .run(tauri::generate_context!())
         .expect("error while running MagneticTape desktop application");

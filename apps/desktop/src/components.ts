@@ -1,3 +1,4 @@
+import { convertFileSrc } from "@tauri-apps/api/core";
 import type { AudioDeviceInfo, AudioDeviceSnapshot, RecorderStatus, RecorderViewState } from "./types";
 
 function icon(name: "pause" | "play" | "stop" | "sparkles"): string {
@@ -24,7 +25,7 @@ export function renderApp(): string {
             <label class="option"><span>转写语言</span><select data-option="language" aria-label="转写语言"><option value="auto">自动识别</option><option value="zh-CN">中文</option><option value="en-US">English</option></select></label>
             <label class="option"><span>翻译</span><select data-option="translation" aria-label="翻译语言"><option value="none">不翻译</option><option value="zh-CN">翻译为中文</option><option value="en-US">Translate to English</option></select></label>
             <label class="option"><span>音频</span><select data-option="audio" aria-label="音频保留策略"><option value="retain">保留音频</option><option value="discard" disabled>完成后删除（即将支持）</option></select></label>
-            <button class="option coming-soon" type="button" disabled title="AI 同传尚未接入">${icon("sparkles")}<span>AI 同传</span><small>即将支持</small></button>
+            <button class="option ai-settings" type="button" title="配置 AI Provider">${icon("sparkles")}<span>AI 助手</span><small>MiniMax / DeepSeek</small></button>
           </div>
           <div class="device-strip" aria-label="音频设备">
             <label><span class="device-kind">麦克风</span><select class="microphone-select" aria-label="麦克风设备"><option>正在检测…</option></select><small class="microphone-detail"></small></label>
@@ -60,6 +61,17 @@ export function renderApp(): string {
         <div class="error-banner" role="alert" hidden></div>
       </aside>
     </main>
+    <dialog class="ai-dialog" aria-labelledby="ai-dialog-title">
+      <form method="dialog" class="ai-form">
+        <header><div><p class="section-kicker">AI PROVIDER</p><h2 id="ai-dialog-title">配置 AI 助手</h2></div><button class="dialog-close" value="cancel" aria-label="关闭">×</button></header>
+        <label><span>服务商</span><select class="ai-provider"><option value="minimax">MiniMax</option><option value="deep_seek">DeepSeek</option></select></label>
+        <label><span>模型</span><input class="ai-model" value="MiniMax-M3.1-Flash" autocomplete="off" /></label>
+        <label><span>API Key</span><input class="ai-key" type="password" placeholder="仅保存在本次应用运行期间" autocomplete="off" /></label>
+        <p class="ai-privacy">密钥只发送到所选服务商，不会进入前端日志或录音文件。</p>
+        <output class="ai-result" aria-live="polite"></output>
+        <footer><button class="ai-cancel" value="cancel">取消</button><button class="ai-test" type="button">保存并测试连接</button></footer>
+      </form>
+    </dialog>
   `;
 }
 
@@ -155,9 +167,17 @@ function contentForStatus(state: RecorderViewState): string {
   if (status === "stopping") return `<div class="saving"><span class="spinner" aria-hidden="true"></span><h3>正在安全结束会话</h3><p>请勿重复提交停止操作。</p></div>`;
   if (status === "finished") {
     const revealPath = state.microphonePath ?? state.systemPath;
-    return `<div class="finished-card"><span class="check">✓</span><h3>${state.recovered ? "已恢复上次录音" : "录音已保存"}</h3><p>会话编号：${sessionId?.slice(0, 12) ?? "—"}</p><dl><div><dt>麦克风</dt><dd title="${escapeHtml(state.microphonePath ?? "")}">${escapeHtml(state.microphonePath ?? "未生成")}</dd></div><div><dt>系统声音</dt><dd title="${escapeHtml(state.systemPath ?? "")}">${escapeHtml(state.systemPath ?? "未生成")}</dd></div><div><dt>丢弃缓冲块</dt><dd>${state.droppedBlocks ?? 0}</dd></div></dl>${revealPath ? `<button class="reveal-recording" type="button" data-path="${escapeHtml(revealPath)}">在资源管理器中查看</button>` : ""}</div>`;
+    const microphonePlayer = audioPlayer("麦克风声轨", state.microphonePath);
+    const systemPlayer = audioPlayer("系统声音声轨", state.systemPath);
+    return `<div class="finished-card"><span class="check">✓</span><h3>${state.recovered ? "已恢复上次录音" : "录音已保存"}</h3><p>会话编号：${sessionId?.slice(0, 12) ?? "—"}</p><div class="audio-players">${microphonePlayer}${systemPlayer}</div><dl><div><dt>麦克风</dt><dd title="${escapeHtml(state.microphonePath ?? "")}">${escapeHtml(state.microphonePath ?? "未生成")}</dd></div><div><dt>系统声音</dt><dd title="${escapeHtml(state.systemPath ?? "")}">${escapeHtml(state.systemPath ?? "未生成")}</dd></div><div><dt>丢弃缓冲块</dt><dd>${state.droppedBlocks ?? 0}</dd></div></dl>${revealPath ? `<button class="reveal-recording" type="button" data-path="${escapeHtml(revealPath)}">在资源管理器中查看</button>` : ""}</div>`;
   }
   return `<div class="empty-content"><div class="cassette-mini" aria-hidden="true"><i></i><i></i></div><h3>内容将在这里出现</h3><p>开始录音后，这里将承载实时字幕。停止后可继续生成摘要、章节和待办。</p></div>`;
+}
+
+function audioPlayer(label: string, path: string | null | undefined): string {
+  if (!path) return "";
+  const source = escapeHtml(convertFileSrc(path));
+  return `<label class="audio-player"><span>${label}</span><audio controls preload="metadata" src="${source}"></audio></label>`;
 }
 
 function escapeHtml(value: string): string {

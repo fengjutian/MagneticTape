@@ -49,3 +49,9 @@ export interface AudioLevels {
   system: number;
 }
 
+export interface AiResponse {
+  provider: "minimax" | "deep_seek";
+  model: string;
+  content: string;
+}
+
