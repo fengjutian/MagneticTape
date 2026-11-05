@@ -142,3 +142,15 @@ export interface ExportResult {
   files: string[];
 }
 
+export interface LibraryStats {
+  sessionCount: number;
+  totalBytes: number;
+  audioBytes: number;
+  transcriptOnlyCount: number;
+}
+
+export interface CleanupResult {
+  sessions: number;
+  bytesFreed: number;
+}
+

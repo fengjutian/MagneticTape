@@ -930,6 +930,128 @@ fn directory_size(directory: &Path) -> u64 {
         .sum()
 }
 
+fn audio_bytes(directory: &Path) -> u64 {
+    fs::read_dir(directory)
+        .into_iter()
+        .flatten()
+        .filter_map(Result::ok)
+        .filter(|entry| entry.path().extension().is_some_and(|ext| ext == "ogg"))
+        .filter_map(|entry| entry.metadata().ok())
+        .map(|metadata| metadata.len())
+        .sum()
+}
+
+fn has_audio_files(directory: &Path) -> bool {
+    fs::read_dir(directory)
+        .into_iter()
+        .flatten()
+        .filter_map(Result::ok)
+        .any(|entry| entry.path().extension().is_some_and(|ext| ext == "ogg"))
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LibraryStats {
+    session_count: usize,
+    total_bytes: u64,
+    audio_bytes: u64,
+    transcript_only_count: usize,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CleanupResult {
+    sessions: usize,
+    bytes_freed: u64,
+}
+
+fn library_stats(root: &Path) -> Result<LibraryStats, String> {
+    let mut stats = LibraryStats {
+        session_count: 0,
+        total_bytes: 0,
+        audio_bytes: 0,
+        transcript_only_count: 0,
+    };
+    if !root.exists() {
+        return Ok(stats);
+    }
+    for entry in fs::read_dir(root).map_err(|error| error.to_string())? {
+        let directory = entry.map_err(|error| error.to_string())?.path();
+        if load_session(&directory).is_none() {
+            continue;
+        }
+        stats.session_count += 1;
+        stats.total_bytes += directory_size(&directory);
+        stats.audio_bytes += audio_bytes(&directory);
+        if directory.join(AUDIO_DISCARDED).is_file() {
+            stats.transcript_only_count += 1;
+        }
+    }
+    Ok(stats)
+}
+
+fn cleanup_old_audio(
+    root: &Path,
+    cutoff_epoch_ms: u64,
+    active_session: Option<&str>,
+) -> Result<CleanupResult, String> {
+    let mut result = CleanupResult {
+        sessions: 0,
+        bytes_freed: 0,
+    };
+    if !root.exists() {
+        return Ok(result);
+    }
+    for entry in fs::read_dir(root).map_err(|error| error.to_string())? {
+        let directory = entry.map_err(|error| error.to_string())?.path();
+        let Some(session_id) = directory.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        if active_session == Some(session_id)
+            || directory.join(AUDIO_DISCARDED).is_file()
+            || !directory.join(TRANSCRIPT_FILE).is_file()
+            || !has_audio_files(&directory)
+        {
+            continue;
+        }
+        let Some(started_at) = load_session(&directory)
+            .map(|session| session.started_at_epoch_ms)
+            .filter(|started_at| *started_at > 0)
+        else {
+            continue;
+        };
+        if started_at >= cutoff_epoch_ms {
+            continue;
+        }
+        result.bytes_freed += discard_audio_files(&directory)?;
+        result.sessions += 1;
+    }
+    Ok(result)
+}
+
+#[tauri::command]
+fn get_library_stats(app: tauri::AppHandle) -> Result<LibraryStats, String> {
+    library_stats(&recordings_root(&app)?)
+}
+
+#[tauri::command]
+fn cleanup_audio_older_than(
+    days: u32,
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Mutex<SessionState>>,
+) -> Result<CleanupResult, String> {
+    if days == 0 {
+        return Err("清理天数必须大于 0".into());
+    }
+    let cutoff = epoch_ms().saturating_sub(u64::from(days) * 86_400_000);
+    let active_session = state
+        .lock()
+        .expect("session state poisoned")
+        .session_id
+        .clone();
+    cleanup_old_audio(&recordings_root(&app)?, cutoff, active_session.as_deref())
+}
+
 #[tauri::command]
 fn list_recordings(app: tauri::AppHandle) -> Result<Vec<RecordingListItem>, String> {
     let root = recordings_root(&app)?;
@@ -1876,7 +1998,9 @@ pub fn run() {
             save_settings,
             export_session,
             reveal_export,
-            discard_session_audio
+            discard_session_audio,
+            get_library_stats,
+            cleanup_audio_older_than
         ])
         .run(tauri::generate_context!())
         .expect("error while running MagneticTape desktop application");
@@ -2039,6 +2163,126 @@ mod tests {
         assert!(loaded.live_captions);
         assert_eq!(loaded.microphone_id.as_deref(), Some("microphone-1"));
         assert_eq!(loaded.asr_profiles.len(), 1);
+    }
+
+    #[test]
+    fn discarding_audio_keeps_transcript_and_recovery_metadata() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(directory.path().join("mic-00000.ogg"), b"OggS-audio").unwrap();
+        fs::write(directory.path().join("mic-00000.json"), b"{}").unwrap();
+        fs::write(directory.path().join("sys-00000.ogg"), b"OggS-audio").unwrap();
+        fs::write(directory.path().join("sys-00000.json"), b"{}").unwrap();
+        fs::write(
+            directory
+                .path()
+                .join("checkpoint-00000000000000000001.json"),
+            b"{}",
+        )
+        .unwrap();
+        fs::write(directory.path().join(TITLE_FILE), b"meeting").unwrap();
+        fs::write(directory.path().join(NOTES_FILE), b"notes").unwrap();
+        let transcript = asr::Transcript {
+            provider: "minimax".into(),
+            model: "asr-1.0".into(),
+            language: "zh-CN".into(),
+            duration_ms: 5_000,
+            text: "hello".into(),
+            segments: Vec::new(),
+            created_at_epoch_ms: 0,
+        };
+        fs::write(
+            directory.path().join(TRANSCRIPT_FILE),
+            serde_json::to_vec(&transcript).unwrap(),
+        )
+        .unwrap();
+
+        let freed = discard_audio_files(directory.path()).unwrap();
+        assert!(freed > 0);
+        assert!(!directory.path().join("mic-00000.ogg").exists());
+        assert!(!directory.path().join("sys-00000.json").exists());
+        assert!(directory.path().join(TRANSCRIPT_FILE).exists());
+        assert!(directory.path().join(NOTES_FILE).exists());
+        assert!(directory.path().join(TITLE_FILE).exists());
+        assert!(
+            directory
+                .path()
+                .join("checkpoint-00000000000000000001.json")
+                .exists()
+        );
+        assert!(directory.path().join(AUDIO_DISCARDED).exists());
+
+        let loaded = load_session(directory.path()).unwrap();
+        assert!(loaded.recorded.is_empty());
+        assert_eq!(loaded.recorded.duration_ms, 5_000);
+    }
+
+    #[test]
+    fn cleanup_only_discards_old_sessions_with_a_transcript() {
+        let root = tempfile::tempdir().unwrap();
+        let transcript = serde_json::to_vec(&asr::Transcript {
+            provider: "minimax".into(),
+            model: "asr-1.0".into(),
+            language: "zh-CN".into(),
+            duration_ms: 5_000,
+            text: "hello".into(),
+            segments: Vec::new(),
+            created_at_epoch_ms: 0,
+        })
+        .unwrap();
+
+        for (name, started_at, with_transcript) in [
+            ("0000000000000001", 1_000_u64, true),
+            ("0000000000000002", epoch_ms(), true),
+            ("0000000000000003", 1_000_u64, false),
+        ] {
+            let directory = root.path().join(name);
+            fs::create_dir_all(&directory).unwrap();
+            fs::write(
+                directory.join(LEGACY_MARKER),
+                format!(r#"{{"startedAtEpochMs":{started_at},"title":"{name}"}}"#),
+            )
+            .unwrap();
+            fs::write(directory.join("mic-00000.ogg"), b"OggS-audio").unwrap();
+            fs::write(directory.join("mic-00000.json"), b"{}").unwrap();
+            if with_transcript {
+                fs::write(directory.join(TRANSCRIPT_FILE), &transcript).unwrap();
+            }
+        }
+
+        let result = cleanup_old_audio(root.path(), 10_000, None).unwrap();
+        assert_eq!(result.sessions, 1);
+        assert!(result.bytes_freed > 0);
+        assert!(
+            !root
+                .path()
+                .join("0000000000000001")
+                .join("mic-00000.ogg")
+                .exists()
+        );
+        assert!(
+            root.path()
+                .join("0000000000000001")
+                .join(TRANSCRIPT_FILE)
+                .exists()
+        );
+        assert!(
+            root.path()
+                .join("0000000000000002")
+                .join("mic-00000.ogg")
+                .exists()
+        );
+        assert!(
+            root.path()
+                .join("0000000000000003")
+                .join("mic-00000.ogg")
+                .exists(),
+            "sessions without a transcript must keep their audio"
+        );
+
+        let stats = library_stats(root.path()).unwrap();
+        assert_eq!(stats.session_count, 2);
+        assert_eq!(stats.transcript_only_count, 1);
+        assert!(stats.audio_bytes > 0);
     }
 
     #[test]

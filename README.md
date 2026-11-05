@@ -44,6 +44,7 @@ MagneticTape 是一个面向 Windows 的本地优先会议录音与转写工具�
 - 设备与界面偏好持久化：麦克风/系统输出、转写语言、实时字幕开关、ASR 端点与模型。
 - 音频流 watchdog：设备掉线、休眠唤醒或音频服务重启后自动重建采集流，并在页面提示重连状态。
 - 一键导出：混音 WAV、TXT/SRT/VTT 字幕、Markdown 纪要与会话元数据。
+- 音频保留策略：可选“转写后删除音频”，转写成功或停止时已有实时字幕才会删除分片；也可在完成页手动删除，转写、笔记与恢复清单元数据保留。
 - NSIS 安装包配置、`scripts/build.ps1` 与 GitHub Release 工作流。
 - 可交互的双栏桌面录音页面。
 
@@ -134,6 +135,8 @@ cargo test --workspace --all-targets
 - `transcript.txt` / `transcript.srt` / `transcript.vtt`（有转写时）
 - `audio.wav`：双轨混音后的 48 kHz 单声道 WAV
 - `notes.md`、`session.json`
+
+音频删除后历史库仍保留该会话（标记“仅转写”），可继续查看/导出转写与笔记。
 
 ## 设计资料
 

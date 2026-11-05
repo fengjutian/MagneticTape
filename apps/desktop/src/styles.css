@@ -89,6 +89,12 @@ button:disabled, select:disabled { cursor: not-allowed; }
 .history-delete { margin-right: 10px; border: 0; border-radius: 7px; padding: 7px 9px; background: transparent; color: #b42318; font-size: 11px; }
 .history-delete:hover { background: #fff0f0; }
 .history-empty { padding: 40px 0; color: #8f959e; text-align: center; }
+.history-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px solid #eceef2; }
+.library-stats { color: #8f959e; font-size: 11px; }
+.cleanup-row { display: flex; gap: 8px; }
+.cleanup-row select, .cleanup-row button { border: 0; border-radius: 7px; padding: 7px 9px; font-size: 11px; }
+.cleanup-row select { background: #f0f2f5; color: #4e5969; }
+.cleanup-audio { background: #fff0f0; color: #b42318; }
 .ai-form { display: grid; gap: 17px; padding: 26px; }
 .ai-form header, .ai-form footer { display: flex; align-items: center; justify-content: space-between; }
 .ai-form h2 { margin: 0; font-size: 21px; }

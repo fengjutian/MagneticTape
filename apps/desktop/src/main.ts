@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { applyAudioDevices, applyView, formatElapsed, renderApp, renderTranscript } from "./components";
-import type { AiConfiguration, AiResponse, AppSettings, AsrConfiguration, AudioDeviceSnapshot, AudioHealth, AudioLevels, ExportResult, LiveTranscript, RecorderViewState, RecordingListItem, SessionState, Transcript, TranscriptSegment } from "./types";
+import type { AiConfiguration, AiResponse, AppSettings, AsrConfiguration, AudioDeviceSnapshot, AudioHealth, AudioLevels, CleanupResult, ExportResult, LibraryStats, LiveTranscript, RecorderViewState, RecordingListItem, SessionState, Transcript, TranscriptSegment } from "./types";
 import "./styles.css";
 
 const appElement = document.querySelector<HTMLElement>("#app");
@@ -421,10 +421,39 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
   return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
 }
+const libraryStats = app.querySelector<HTMLElement>(".library-stats")!;
+async function refreshLibraryStats(): Promise<void> {
+  try {
+    const stats = await invoke<LibraryStats>("get_library_stats");
+    const transcriptOnly = stats.transcriptOnlyCount > 0 ? ` · 仅转写 ${stats.transcriptOnlyCount} 条` : "";
+    libraryStats.textContent = `${stats.sessionCount} 条录音 · 音频 ${formatBytes(stats.audioBytes)} · 总计 ${formatBytes(stats.totalBytes)}${transcriptOnly}`;
+  } catch (error) {
+    libraryStats.textContent = `无法统计占用：${error instanceof Error ? error.message : String(error)}`;
+  }
+}
 app.querySelector<HTMLButtonElement>(".history-button")!.addEventListener("click", () => {
   historySearch.value = "";
   historyDialog.showModal();
   void refreshHistory();
+  void refreshLibraryStats();
+});
+app.querySelector<HTMLButtonElement>(".cleanup-audio")!.addEventListener("click", async () => {
+  const days = Number(app.querySelector<HTMLSelectElement>(".cleanup-days")!.value);
+  if (!window.confirm(`将删除 ${days} 天前、且已有转写的录音音频，转写与笔记会保留。确定继续吗？`)) return;
+  const button = app.querySelector<HTMLButtonElement>(".cleanup-audio")!;
+  button.disabled = true;
+  libraryStats.textContent = "正在清理…";
+  try {
+    const result = await invoke<CleanupResult>("cleanup_audio_older_than", { days });
+    libraryStats.textContent = `已清理 ${result.sessions} 条录音的音频，释放 ${formatBytes(result.bytesFreed)}`;
+    await refreshHistory();
+    syncBackend(await invoke<SessionState>("get_session_state"));
+    await refreshLibraryStats();
+  } catch (error) {
+    libraryStats.textContent = `清理失败：${error instanceof Error ? error.message : String(error)}`;
+  } finally {
+    button.disabled = false;
+  }
 });
 historySearch.addEventListener("input", () => {
   const query = historySearch.value.trim().toLocaleLowerCase("zh-CN");
@@ -647,6 +676,8 @@ app.addEventListener("click", async (event) => {
     currentTranscript = transcript;
     renderTranscript(body, transcript);
     status.textContent = `${transcript.model} · ${transcript.segments.length} 段`;
+    // The retention policy may have deleted the audio after transcription.
+    syncBackend(await invoke<SessionState>("get_session_state"));
   } catch (error) {
     status.textContent = "转写失败";
     view.errorMessage = `转写失败：${error instanceof Error ? error.message : String(error)}`;

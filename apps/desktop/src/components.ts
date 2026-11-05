@@ -96,6 +96,17 @@ export function renderApp(): string {
         <header><div><p class="section-kicker">RECORDING LIBRARY</p><h2 id="history-dialog-title">历史录音</h2></div><button class="history-close" type="button" aria-label="关闭">×</button></header>
         <input class="history-search" type="search" placeholder="搜索标题或会话编号" aria-label="搜索历史录音" />
         <div class="history-list"><p class="history-empty">正在读取录音…</p></div>
+        <footer class="history-footer">
+          <span class="library-stats">正在统计占用…</span>
+          <div class="cleanup-row">
+            <select class="cleanup-days" aria-label="清理多少天前的音频">
+              <option value="30">30 天前</option>
+              <option value="90">90 天前</option>
+              <option value="180">180 天前</option>
+            </select>
+            <button class="cleanup-audio" type="button">清理旧音频</button>
+          </div>
+        </footer>
       </section>
     </dialog>
   `;
