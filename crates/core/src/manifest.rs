@@ -1,4 +1,7 @@
-use crate::{INTERNAL_SAMPLE_RATE, timeline::CaptureTimeline};
+use crate::{
+    INTERNAL_SAMPLE_RATE,
+    timeline::{AudioSource, CaptureTimeline},
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use thiserror::Error;
@@ -13,6 +16,10 @@ pub struct ChunkMetadata {
     pub duration_ms: u64,
     pub packet_count: u64,
     pub start_epoch_ms: u64,
+    /// Capture track the chunk belongs to. Defaults to the microphone so
+    /// manifests written before multi-track metadata still parse.
+    #[serde(default)]
+    pub track: AudioSource,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -29,6 +36,8 @@ pub struct RecoveryManifest {
     pub schema_version: u32,
     pub checkpoint_sequence: u64,
     pub session_id: String,
+    #[serde(default)]
+    pub started_at_epoch_ms: u64,
     pub sample_rate: u32,
     pub committed_timeline_frames: u64,
     pub status: SessionStatus,
@@ -60,6 +69,7 @@ impl RecoveryManifest {
             schema_version: Self::SCHEMA_VERSION,
             checkpoint_sequence: 0,
             session_id: session_id.into(),
+            started_at_epoch_ms: 0,
             sample_rate: INTERNAL_SAMPLE_RATE,
             committed_timeline_frames: 0,
             status: SessionStatus::Recording,
@@ -84,7 +94,7 @@ impl RecoveryManifest {
 
         let mut indices = HashSet::new();
         for chunk in &self.chunks {
-            if !indices.insert(chunk.index) {
+            if !indices.insert((chunk.track, chunk.index)) {
                 return Err(ManifestError::DuplicateChunk(chunk.index));
             }
             if chunk.uuid.is_empty()

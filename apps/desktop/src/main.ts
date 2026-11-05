@@ -12,13 +12,25 @@ let backendState: SessionState;
 let pending = false;
 let tickHandle: number | undefined;
 let levelHandle: number | undefined;
-let view: RecorderViewState = { title: "新录音", status: "idle", elapsedMs: 0, language: "auto", translation: "none", retainAudio: true, volumeLevel: 0, sessionId: null };
+let view: RecorderViewState = { title: "新录音", status: "idle", elapsedMs: 0, language: "auto", translation: "none", retainAudio: true, volumeLevel: 0, sessionId: null, microphoneChunks: [], systemChunks: [] };
 
 function syncBackend(next: SessionState): void {
   backendState = next;
-  view = { ...view, title: next.title, status: next.status, elapsedMs: next.elapsedMs, sessionId: next.sessionId, microphonePath: next.microphonePath, systemPath: next.systemPath, droppedBlocks: next.droppedBlocks, recovered: next.recovered, errorMessage: undefined };
+  view = { ...view, title: next.title, status: next.status, elapsedMs: next.elapsedMs, sessionId: next.sessionId, microphonePath: next.microphonePath, systemPath: next.systemPath, microphoneChunks: next.microphoneChunks, systemChunks: next.systemChunks, droppedBlocks: next.droppedBlocks, recovered: next.recovered, errorMessage: undefined };
   restartClock();
   applyView(app, view);
+  if (next.status === "finished") void loadSessionNotes();
+}
+
+async function loadSessionNotes(): Promise<void> {
+  const editor = app.querySelector<HTMLTextAreaElement>(".meeting-notes");
+  if (!editor) return;
+  try {
+    editor.value = await invoke<string>("get_session_notes");
+  } catch (error) {
+    const status = app.querySelector<HTMLElement>(".notes-state");
+    if (status) status.textContent = `读取失败：${error instanceof Error ? error.message : String(error)}`;
+  }
 }
 
 function restartClock(): void {
@@ -302,6 +314,46 @@ app.addEventListener("click", async (event) => {
   } catch (error) {
     view.errorMessage = `无法定位录音文件：${error instanceof Error ? error.message : String(error)}`;
     applyView(app, view);
+  } finally {
+    button.disabled = false;
+  }
+});
+app.addEventListener("click", async (event) => {
+  const button = (event.target as HTMLElement).closest<HTMLButtonElement>(".save-notes");
+  if (!button) return;
+  const editor = app.querySelector<HTMLTextAreaElement>(".meeting-notes")!;
+  const status = app.querySelector<HTMLElement>(".notes-state")!;
+  button.disabled = true;
+  status.textContent = "保存中…";
+  try {
+    await invoke("save_session_notes", { content: editor.value });
+    status.textContent = "已保存";
+  } catch (error) {
+    status.textContent = `保存失败：${error instanceof Error ? error.message : String(error)}`;
+  } finally {
+    button.disabled = false;
+  }
+});
+app.addEventListener("click", async (event) => {
+  const button = (event.target as HTMLElement).closest<HTMLButtonElement>(".summarize-notes");
+  if (!button) return;
+  const editor = app.querySelector<HTMLTextAreaElement>(".meeting-notes")!;
+  const provider = app.querySelector<HTMLSelectElement>(".notes-provider")!.value;
+  const status = app.querySelector<HTMLElement>(".notes-state")!;
+  if (!editor.value.trim()) {
+    status.textContent = "请先输入笔记或粘贴转写文本";
+    return;
+  }
+  button.disabled = true;
+  status.textContent = "AI 正在整理…";
+  const prompt = `请将以下会议文本整理为 Markdown 会议纪要。必须包含：核心结论、讨论要点、待办事项（负责人和截止时间未知时明确写“待确认”）、风险与未决问题。不要编造原文没有的信息。\n\n${editor.value}`;
+  try {
+    const response = await invoke<AiResponse>("generate_ai", { provider, prompt });
+    editor.value = response.content;
+    await invoke("save_session_notes", { content: response.content });
+    status.textContent = `已由 ${response.model} 生成并保存`;
+  } catch (error) {
+    status.textContent = `生成失败：${error instanceof Error ? error.message : String(error)}`;
   } finally {
     button.disabled = false;
   }

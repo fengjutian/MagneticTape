@@ -127,10 +127,10 @@ export function formatElapsed(milliseconds: number): string {
 
 function statusText(status: RecorderStatus): { title: string; copy: string; badge: string } {
   switch (status) {
-    case "recording": return { title: "正在录音", copy: "麦克风与系统声音正在分别写入本地 WAV 文件。", badge: "录音中" };
-    case "paused": return { title: "录音已暂停", copy: "计时与模拟波形已暂停，点击继续恢复会话。", badge: "已暂停" };
+    case "recording": return { title: "正在录音", copy: "麦克风与系统声音正在分别写入本地 Opus 分片。", badge: "录音中" };
+    case "paused": return { title: "录音已暂停", copy: "计时与波形已暂停，点击继续恢复会话。", badge: "已暂停" };
     case "stopping": return { title: "正在结束", copy: "正在安全结束会话，请稍候。", badge: "保存中" };
-    case "finished": return { title: "录音已保存", copy: "两路音频文件已安全封口，可在右侧查看保存位置。", badge: "已完成" };
+    case "finished": return { title: "录音已保存", copy: "两路音频分片已安全封口，可在右侧查看保存位置。", badge: "已完成" };
     case "error": return { title: "操作失败", copy: "请查看错误信息后重试。", badge: "错误" };
     default: return { title: "等待开始录音", copy: "选择设备后，麦克风与系统声音将分别保存在本地。", badge: "待机" };
   }
@@ -141,7 +141,9 @@ export function applyView(root: HTMLElement, state: RecorderViewState): void {
     ? { title: "已恢复上次录音", copy: "应用上次未正常退出，已载入最近一次安全提交的音频。", badge: "已恢复" }
     : statusText(state.status);
   const statusChanged = root.dataset.status !== state.status;
+  const sessionChanged = root.dataset.session !== (state.sessionId ?? "");
   root.dataset.status = state.status;
+  root.dataset.session = state.sessionId ?? "";
   root.querySelector<HTMLElement>(".status-title")!.textContent = text.title;
   root.querySelector<HTMLElement>(".status-copy")!.textContent = text.copy;
   root.querySelector<HTMLElement>(".content-status")!.textContent = text.badge;
@@ -164,8 +166,9 @@ export function applyView(root: HTMLElement, state: RecorderViewState): void {
   const error = root.querySelector<HTMLElement>(".error-banner")!;
   error.hidden = !state.errorMessage;
   error.textContent = state.errorMessage ?? "";
-  if (statusChanged) {
+  if (statusChanged || sessionChanged) {
     root.querySelector<HTMLElement>(".content-body")!.innerHTML = contentForStatus(state);
+    wireChunkPlayback(root);
   }
 }
 
@@ -177,17 +180,32 @@ function contentForStatus(state: RecorderViewState): string {
   if (status === "stopping") return `<div class="saving"><span class="spinner" aria-hidden="true"></span><h3>正在安全结束会话</h3><p>请勿重复提交停止操作。</p></div>`;
   if (status === "finished") {
     const revealPath = state.microphonePath ?? state.systemPath;
-    const microphonePlayer = audioPlayer("麦克风声轨", state.microphonePath);
-    const systemPlayer = audioPlayer("系统声音声轨", state.systemPath);
-    return `<div class="finished-card"><span class="check">✓</span><h3>${state.recovered ? "已恢复上次录音" : "录音已保存"}</h3><p>会话编号：${sessionId?.slice(0, 12) ?? "—"}</p><div class="audio-players">${microphonePlayer}${systemPlayer}</div><dl><div><dt>麦克风</dt><dd title="${escapeHtml(state.microphonePath ?? "")}">${escapeHtml(state.microphonePath ?? "未生成")}</dd></div><div><dt>系统声音</dt><dd title="${escapeHtml(state.systemPath ?? "")}">${escapeHtml(state.systemPath ?? "未生成")}</dd></div><div><dt>丢弃缓冲块</dt><dd>${state.droppedBlocks ?? 0}</dd></div></dl>${revealPath ? `<button class="reveal-recording" type="button" data-path="${escapeHtml(revealPath)}">在资源管理器中查看</button>` : ""}</div>`;
+    const microphonePlayer = audioPlayer("麦克风声轨", state.microphoneChunks);
+    const systemPlayer = audioPlayer("系统声音声轨", state.systemChunks);
+    return `<div class="finished-card"><span class="check">✓</span><h3>${state.recovered ? "已恢复上次录音" : "录音已保存"}</h3><p>会话编号：${sessionId?.slice(0, 12) ?? "—"}</p><div class="audio-players">${microphonePlayer}${systemPlayer}</div><section class="notes-editor"><header><strong>会议笔记</strong><span class="notes-state"></span></header><textarea class="meeting-notes" rows="9" placeholder="输入会议笔记，或粘贴转写文本后使用 AI 生成纪要…"></textarea><div class="notes-actions"><select class="notes-provider" aria-label="AI 服务商"><option value="minimax">MiniMax</option><option value="deep_seek">DeepSeek</option></select><button class="save-notes" type="button">保存笔记</button><button class="summarize-notes" type="button">AI 生成纪要</button></div></section><dl><div><dt>麦克风</dt><dd title="${escapeHtml(state.microphonePath ?? "")}">${escapeHtml(state.microphonePath ?? "未生成")}</dd></div><div><dt>系统声音</dt><dd title="${escapeHtml(state.systemPath ?? "")}">${escapeHtml(state.systemPath ?? "未生成")}</dd></div><div><dt>音频分片</dt><dd>${(state.microphoneChunks?.length ?? 0) + (state.systemChunks?.length ?? 0)}</dd></div><div><dt>丢弃缓冲块</dt><dd>${state.droppedBlocks ?? 0}</dd></div></dl>${revealPath ? `<button class="reveal-recording" type="button" data-path="${escapeHtml(revealPath)}">在资源管理器中查看</button>` : ""}</div>`;
   }
   return `<div class="empty-content"><div class="cassette-mini" aria-hidden="true"><i></i><i></i></div><h3>内容将在这里出现</h3><p>开始录音后，这里将承载实时字幕。停止后可继续生成摘要、章节和待办。</p></div>`;
 }
 
-function audioPlayer(label: string, path: string | null | undefined): string {
-  if (!path) return "";
-  const source = escapeHtml(convertFileSrc(path));
-  return `<label class="audio-player"><span>${label}</span><audio controls preload="metadata" src="${source}"></audio></label>`;
+function audioPlayer(label: string, chunks: string[] | undefined): string {
+  if (!chunks || chunks.length === 0) return "";
+  const sources = chunks.map((path) => escapeHtml(convertFileSrc(path)));
+  const count = chunks.length > 1 ? ` · ${chunks.length} 个分片` : "";
+  return `<label class="audio-player"><span>${label}${count}</span><audio controls preload="metadata" src="${sources[0]}" data-chunks="${sources.slice(1).join("|")}"></audio></label>`;
+}
+
+/// Plays chunked recordings in order: each `<audio>` loads the next chunk when
+/// the current one ends, so a session stays seekable per 15 second chunk.
+function wireChunkPlayback(root: HTMLElement): void {
+  root.querySelectorAll<HTMLAudioElement>(".audio-player audio[data-chunks]").forEach((audio) => {
+    const playlist = (audio.dataset.chunks ?? "").split("|").filter(Boolean);
+    let next = 0;
+    audio.addEventListener("ended", () => {
+      if (next >= playlist.length) return;
+      audio.src = playlist[next++];
+      void audio.play();
+    });
+  });
 }
 
 function escapeHtml(value: string): string {

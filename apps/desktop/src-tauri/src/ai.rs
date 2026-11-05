@@ -5,6 +5,7 @@ use std::{collections::HashMap, sync::Mutex, time::Duration};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AiProvider {
+    #[serde(rename = "minimax")]
     MiniMax,
     DeepSeek,
 }
@@ -178,6 +179,9 @@ pub async fn generate_ai(
     if prompt.trim().is_empty() {
         return Err("提示词不能为空".into());
     }
+    if prompt.len() > 200_000 {
+        return Err("发送给 AI 的文本不能超过 200 KB".into());
+    }
     generate(provider, prompt.trim(), &state).await
 }
 
@@ -259,5 +263,21 @@ mod tests {
         assert_eq!(AiProvider::MiniMax.default_model(), "MiniMax-M3.1-Flash");
         assert_eq!(AiProvider::DeepSeek.default_model(), "deepseek-flash");
         assert!(AiProvider::DeepSeek.endpoint().starts_with("https://"));
+    }
+
+    #[test]
+    fn provider_wire_names_match_the_frontend_contract() {
+        assert_eq!(
+            serde_json::from_str::<AiProvider>("\"minimax\"").unwrap(),
+            AiProvider::MiniMax
+        );
+        assert_eq!(
+            serde_json::to_string(&AiProvider::MiniMax).unwrap(),
+            "\"minimax\""
+        );
+        assert_eq!(
+            serde_json::from_str::<AiProvider>("\"deep_seek\"").unwrap(),
+            AiProvider::DeepSeek
+        );
     }
 }

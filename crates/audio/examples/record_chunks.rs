@@ -27,8 +27,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let recording = AudioRecording::start(&microphone.id, &system.id, &output)?;
     thread::sleep(Duration::from_secs(duration_seconds));
     let result = recording.finish()?;
-    println!("{}", result.microphone_path.display());
-    println!("{}", result.system_path.display());
+    for chunk in &result.chunks {
+        println!(
+            "{:?} {} {} ms",
+            chunk.track,
+            chunk.path.display(),
+            chunk.duration_ms
+        );
+    }
     println!("dropped blocks: {}", result.dropped_blocks);
     Ok(())
 }

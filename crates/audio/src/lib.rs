@@ -5,10 +5,12 @@ use serde::Serialize;
 use thiserror::Error;
 
 mod monitor;
+mod opus;
 mod recording;
 
 pub use monitor::{AudioLevelMonitor, AudioLevels, MonitorError};
-pub use recording::{AudioRecording, RecordingError, RecordingResult, wav_duration_ms};
+pub use opus::{ChunkInfo, OPUS_SAMPLE_RATE, Track};
+pub use recording::{AudioRecording, RecordingError, RecordingSnapshot, wav_duration_ms};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]

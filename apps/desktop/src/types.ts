@@ -9,6 +9,8 @@ export interface SessionState {
   systemAudioReady: boolean;
   microphonePath: string | null;
   systemPath: string | null;
+  microphoneChunks: string[];
+  systemChunks: string[];
   droppedBlocks: number;
   recovered: boolean;
   title: string;
@@ -25,6 +27,8 @@ export interface RecorderViewState {
   sessionId: string | null;
   microphonePath?: string | null;
   systemPath?: string | null;
+  microphoneChunks?: string[];
+  systemChunks?: string[];
   droppedBlocks?: number;
   recovered?: boolean;
   errorMessage?: string;

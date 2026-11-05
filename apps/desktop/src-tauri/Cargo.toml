@@ -23,3 +23,6 @@ keyring = "4.2"
 tauri = { version = "2.9", features = ["protocol-asset"] }
 trash = "5.2"
 
+[dev-dependencies]
+tempfile = "3.13"
+
