@@ -3,7 +3,7 @@
 MagneticTape 是一个面向 Windows 的本地优先会议录音与转写工具。项目计划使用 Rust 构建可靠的麦克风与系统声音采集核心，并通过 Tauri 提供轻量桌面界面。
 
 > [!WARNING]
-> 项目目前处于早期开发阶段。双路录音、分片恢复、转写、实时字幕和设备自动重连已经可用，但正式发行打包尚未完成，请勿将其作为重要会议的唯一录音工具。
+> 项目目前处于早期开发阶段。双路录音、分片恢复、转写、实时字幕、设备自动重连和 NSIS 安装包已经可用，但签名与自动更新尚未完成，请勿将其作为重要会议的唯一录音工具。
 
 ## 设计目标
 
@@ -43,13 +43,15 @@ MagneticTape 是一个面向 Windows 的本地优先会议录音与转写工具�
 - 基于转写文本的 AI 翻译，以及与转写联动的结构化会议纪要生成。
 - 设备与界面偏好持久化：麦克风/系统输出、转写语言、实时字幕开关、ASR 端点与模型。
 - 音频流 watchdog：设备掉线、休眠唤醒或音频服务重启后自动重建采集流，并在页面提示重连状态。
+- 一键导出：混音 WAV、TXT/SRT/VTT 字幕、Markdown 纪要与会话元数据。
+- NSIS 安装包配置、`scripts/build.ps1` 与 GitHub Release 工作流。
 - 可交互的双栏桌面录音页面。
 
 尚未实现：
 
 - 本地 Whisper 引擎（当前转写需要配置 MiniMax 或 SiliconFlow）。
-- 安装包、代码签名、自动更新与正式发布流程。
-- 音频/SRT/Markdown 导出与批量清理。
+- 代码签名、自动更新与崩溃上报。
+- 批量清理与存储配额策略。
 
 ## 项目结构
 
@@ -113,6 +115,25 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace --all-targets
 ```
+
+## 构建安装包
+
+```powershell
+./scripts/build.ps1
+```
+
+产物位于 `target/release/bundle/nsis/MagneticTape_<version>_x64-setup.exe`。也可以用 `npm run tauri build -- --debug` 快速验证打包流程（debug 安装包）。
+
+当前安装包未做代码签名，Windows SmartScreen 会显示未知发布者提示；自动更新也尚未接入。`.github/workflows/release.yml` 会在推送 `v*` 标签时构建并上传安装包。
+
+## 导出
+
+录音完成页的“导出会议资料”会在 `文档/MagneticTape/<标题>-<会话编号>/` 生成：
+
+- `meeting.md`：标题、时长、转写与笔记
+- `transcript.txt` / `transcript.srt` / `transcript.vtt`（有转写时）
+- `audio.wav`：双轨混音后的 48 kHz 单声道 WAV
+- `notes.md`、`session.json`
 
 ## 设计资料
 
