@@ -119,6 +119,7 @@ const aiProvider = app.querySelector<HTMLSelectElement>(".ai-provider")!;
 const aiModel = app.querySelector<HTMLInputElement>(".ai-model")!;
 const aiKey = app.querySelector<HTMLInputElement>(".ai-key")!;
 const aiResult = app.querySelector<HTMLOutputElement>(".ai-result")!;
+const aiPrompt = app.querySelector<HTMLTextAreaElement>(".ai-prompt")!;
 app.querySelector<HTMLButtonElement>(".ai-settings")!.addEventListener("click", () => aiDialog.showModal());
 aiProvider.addEventListener("change", () => {
   aiModel.value = aiProvider.value === "minimax" ? "MiniMax-M3.1-Flash" : "deepseek-flash";
@@ -136,6 +137,27 @@ app.querySelector<HTMLButtonElement>(".ai-test")!.addEventListener("click", asyn
     aiKey.value = "";
     aiResult.className = "ai-result success";
     aiResult.textContent = `${response.model}：${response.content}`;
+  } catch (error) {
+    aiResult.className = "ai-result failure";
+    aiResult.textContent = error instanceof Error ? error.message : String(error);
+  } finally {
+    button.disabled = false;
+  }
+});
+app.querySelector<HTMLButtonElement>(".ai-generate")!.addEventListener("click", async (event) => {
+  const button = event.currentTarget as HTMLButtonElement;
+  if (!aiPrompt.value.trim()) {
+    aiResult.className = "ai-result failure";
+    aiResult.textContent = "请先输入问题。";
+    return;
+  }
+  button.disabled = true;
+  aiResult.className = "ai-result pending";
+  aiResult.textContent = "AI 正在生成…";
+  try {
+    const response = await invoke<AiResponse>("generate_ai", { provider: aiProvider.value, prompt: aiPrompt.value });
+    aiResult.className = "ai-result success";
+    aiResult.textContent = response.content;
   } catch (error) {
     aiResult.className = "ai-result failure";
     aiResult.textContent = error instanceof Error ? error.message : String(error);

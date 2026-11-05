@@ -68,8 +68,9 @@ export function renderApp(): string {
         <label><span>模型</span><input class="ai-model" value="MiniMax-M3.1-Flash" autocomplete="off" /></label>
         <label><span>API Key</span><input class="ai-key" type="password" placeholder="仅保存在本次应用运行期间" autocomplete="off" /></label>
         <p class="ai-privacy">密钥只发送到所选服务商，不会进入前端日志或录音文件。</p>
+        <label><span>向 AI 提问</span><textarea class="ai-prompt" rows="3" placeholder="例如：给我一个中文会议纪要模板"></textarea></label>
         <output class="ai-result" aria-live="polite"></output>
-        <footer><button class="ai-cancel" value="cancel">取消</button><button class="ai-test" type="button">保存并测试连接</button></footer>
+        <footer><button class="ai-cancel" value="cancel">取消</button><button class="ai-generate" type="button">发送</button><button class="ai-test" type="button">保存并测试连接</button></footer>
       </form>
     </dialog>
   `;

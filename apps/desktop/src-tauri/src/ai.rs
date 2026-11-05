@@ -38,7 +38,10 @@ pub struct AiResponse {
 struct ChatRequest<'a> {
     model: &'a str,
     messages: [ChatMessage<'a>; 2],
-    max_completion_tokens: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_tokens: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_completion_tokens: Option<u32>,
 }
 
 #[derive(Serialize)]
@@ -150,7 +153,8 @@ async fn generate(
                 content: prompt,
             },
         ],
-        max_completion_tokens: 1_024,
+        max_tokens: (provider == AiProvider::DeepSeek).then_some(1_024),
+        max_completion_tokens: (provider == AiProvider::MiniMax).then_some(1_024),
     };
     let response = Client::builder()
         .timeout(Duration::from_secs(60))

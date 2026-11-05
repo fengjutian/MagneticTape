@@ -75,6 +75,17 @@ struct SessionView {
     recovered: bool,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RecordingListItem {
+    session_id: String,
+    started_at_epoch_ms: u64,
+    duration_ms: u64,
+    status: &'static str,
+    microphone_path: Option<PathBuf>,
+    system_path: Option<PathBuf>,
+}
+
 impl SessionState {
     fn view(&self, now_ms: u64) -> SessionView {
         let active_ms = if self.status == RecorderStatus::Recording {
@@ -229,6 +240,117 @@ fn get_session_state(state: tauri::State<'_, Mutex<SessionState>>) -> SessionVie
         .lock()
         .expect("session state poisoned")
         .view(epoch_ms())
+}
+
+fn recording_duration(microphone: &Path, system: &Path) -> u64 {
+    [microphone, system]
+        .into_iter()
+        .filter(|path| path.is_file())
+        .filter_map(|path| magnetic_tape_audio::wav_duration_ms(path).ok())
+        .max()
+        .unwrap_or(0)
+}
+
+#[tauri::command]
+fn list_recordings(app: tauri::AppHandle) -> Result<Vec<RecordingListItem>, String> {
+    let root = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| error.to_string())?
+        .join("recordings");
+    if !root.exists() {
+        return Ok(Vec::new());
+    }
+    let mut recordings = Vec::new();
+    for entry in fs::read_dir(root).map_err(|error| error.to_string())? {
+        let directory = entry.map_err(|error| error.to_string())?.path();
+        let marker_path = directory.join(RECORDING_MARKER);
+        if !marker_path.is_file() {
+            continue;
+        }
+        let marker: SessionMarker = match fs::File::open(marker_path)
+            .map_err(|error| error.to_string())
+            .and_then(|file| serde_json::from_reader(file).map_err(|error| error.to_string()))
+        {
+            Ok(marker) => marker,
+            Err(_) => continue,
+        };
+        let microphone = directory.join("microphone.wav");
+        let system = directory.join("system.wav");
+        let status = if directory.join(COMPLETED_MARKER).is_file() {
+            "completed"
+        } else if directory.join(RECOVERED_MARKER).is_file() {
+            "recovered"
+        } else {
+            "interrupted"
+        };
+        recordings.push(RecordingListItem {
+            session_id: marker.session_id,
+            started_at_epoch_ms: marker.started_at_epoch_ms,
+            duration_ms: recording_duration(&microphone, &system),
+            status,
+            microphone_path: microphone.is_file().then_some(microphone),
+            system_path: system.is_file().then_some(system),
+        });
+    }
+    recordings.sort_by_key(|item| std::cmp::Reverse(item.started_at_epoch_ms));
+    Ok(recordings)
+}
+
+#[tauri::command]
+fn open_recording(
+    session_id: String,
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Mutex<SessionState>>,
+) -> Result<SessionView, String> {
+    if session_id.is_empty()
+        || !session_id
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() || byte == b'-')
+    {
+        return Err("无效的录音会话编号".into());
+    }
+    let directory = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| error.to_string())?
+        .join("recordings")
+        .join(&session_id);
+    let marker: SessionMarker = serde_json::from_reader(
+        fs::File::open(directory.join(RECORDING_MARKER)).map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| error.to_string())?;
+    if marker.session_id != session_id {
+        return Err("录音会话清单不匹配".into());
+    }
+    let microphone = directory.join("microphone.wav");
+    let system = directory.join("system.wav");
+    if !microphone.is_file() && !system.is_file() {
+        return Err("录音文件不存在".into());
+    }
+    let recovered = !directory.join(COMPLETED_MARKER).is_file();
+    if recovered && !directory.join(RECOVERED_MARKER).exists() {
+        write_new_file(&directory.join(RECOVERED_MARKER), b"recovered\n")?;
+    }
+    let now_ms = epoch_ms();
+    let mut state = state.lock().expect("session state poisoned");
+    if matches!(state.status, RecorderStatus::Recording | RecorderStatus::Paused) {
+        return Err("录音进行中，无法打开历史会话".into());
+    }
+    *state = SessionState {
+        status: RecorderStatus::Finished,
+        session_id: Some(session_id),
+        started_at_epoch_ms: Some(marker.started_at_epoch_ms),
+        resumed_at_epoch_ms: None,
+        accumulated_ms: recording_duration(&microphone, &system),
+        recording: Some(RecordingResult {
+            microphone_path: microphone,
+            system_path: system,
+            dropped_blocks: 0,
+        }),
+        recovered,
+    };
+    Ok(state.view(now_ms))
 }
 
 #[tauri::command]
@@ -394,6 +516,8 @@ pub fn run() {
             list_audio_devices,
             get_audio_levels,
             get_session_state,
+            list_recordings,
+            open_recording,
             recover_latest_session,
             reveal_recording,
             start_session,
