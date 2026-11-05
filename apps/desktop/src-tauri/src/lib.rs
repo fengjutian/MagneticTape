@@ -65,7 +65,6 @@ impl Default for SessionState {
             recording: None,
             recovered: false,
             title: default_session_title(),
-            title: default_session_title(),
         }
     }
 }
@@ -239,7 +238,9 @@ fn recover_latest_session(
     let title = marker
         .microphone_path
         .parent()
-        .map_or_else(default_session_title, |directory| session_title(directory, &marker));
+        .map_or_else(default_session_title, |directory| {
+            session_title(directory, &marker)
+        });
     let mut state = state.lock().expect("session state poisoned");
     *state = SessionState {
         status: RecorderStatus::Finished,
@@ -629,6 +630,7 @@ mod tests {
             accumulated_ms: 0,
             recording: None,
             recovered: false,
+            title: default_session_title(),
         };
         state.pause(4_000).unwrap();
         assert_eq!(state.view(10_000).elapsed_ms, 3_000);
