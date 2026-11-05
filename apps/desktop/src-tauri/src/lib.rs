@@ -1,6 +1,8 @@
 use magnetic_tape_audio::{AudioLevels, AudioRecording, RecordingResult};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{
+    fs::{self, OpenOptions},
+    io::Write,
     path::{Path, PathBuf},
     process::Command,
     sync::Mutex,
@@ -17,6 +19,18 @@ enum RecorderStatus {
     Finished,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SessionMarker {
+    session_id: String,
+    started_at_epoch_ms: u64,
+    microphone_path: PathBuf,
+    system_path: PathBuf,
+}
+
+const RECORDING_MARKER: &str = "session-recording.json";
+const COMPLETED_MARKER: &str = "session-completed";
+
 #[derive(Debug, Clone)]
 struct SessionState {
     status: RecorderStatus,
@@ -25,6 +39,7 @@ struct SessionState {
     resumed_at_epoch_ms: Option<u64>,
     accumulated_ms: u64,
     recording: Option<RecordingResult>,
+    recovered: bool,
 }
 
 impl Default for SessionState {
@@ -36,6 +51,7 @@ impl Default for SessionState {
             resumed_at_epoch_ms: None,
             accumulated_ms: 0,
             recording: None,
+            recovered: false,
         }
     }
 }
@@ -52,6 +68,7 @@ struct SessionView {
     microphone_path: Option<PathBuf>,
     system_path: Option<PathBuf>,
     dropped_blocks: u64,
+    recovered: bool,
 }
 
 impl SessionState {
@@ -75,6 +92,7 @@ impl SessionState {
             microphone_path: self.recording.as_ref().map(|r| r.microphone_path.clone()),
             system_path: self.recording.as_ref().map(|r| r.system_path.clone()),
             dropped_blocks: self.recording.as_ref().map_or(0, |r| r.dropped_blocks),
+            recovered: self.recovered,
         }
     }
 
@@ -105,6 +123,80 @@ fn epoch_ms() -> u64 {
         .as_millis()
         .try_into()
         .unwrap_or(u64::MAX)
+}
+
+fn write_new_file(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+        .map_err(|error| error.to_string())?;
+    file.write_all(bytes).map_err(|error| error.to_string())?;
+    file.sync_all().map_err(|error| error.to_string())
+}
+
+fn write_session_marker(directory: &Path, marker: &SessionMarker) -> Result<(), String> {
+    let bytes = serde_json::to_vec_pretty(marker).map_err(|error| error.to_string())?;
+    write_new_file(&directory.join(RECORDING_MARKER), &bytes)
+}
+
+#[tauri::command]
+fn recover_latest_session(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Mutex<SessionState>>,
+) -> Result<Option<SessionView>, String> {
+    let root = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| error.to_string())?
+        .join("recordings");
+    if !root.exists() {
+        return Ok(None);
+    }
+    let mut candidates = Vec::new();
+    for entry in fs::read_dir(root).map_err(|error| error.to_string())? {
+        let directory = entry.map_err(|error| error.to_string())?.path();
+        let marker_path = directory.join(RECORDING_MARKER);
+        if !marker_path.is_file() || directory.join(COMPLETED_MARKER).exists() {
+            continue;
+        }
+        let mut marker: SessionMarker = serde_json::from_reader(
+            fs::File::open(marker_path).map_err(|error| error.to_string())?,
+        )
+        .map_err(|error| error.to_string())?;
+        marker.microphone_path = directory.join("microphone.wav");
+        marker.system_path = directory.join("system.wav");
+        if marker.microphone_path.is_file() || marker.system_path.is_file() {
+            candidates.push(marker);
+        }
+    }
+    let Some(marker) = candidates
+        .into_iter()
+        .max_by_key(|marker| marker.started_at_epoch_ms)
+    else {
+        return Ok(None);
+    };
+    let elapsed_ms = [&marker.microphone_path, &marker.system_path]
+        .into_iter()
+        .filter(|path| path.is_file())
+        .filter_map(|path| magnetic_tape_audio::wav_duration_ms(path).ok())
+        .max()
+        .unwrap_or(0);
+    let mut state = state.lock().expect("session state poisoned");
+    *state = SessionState {
+        status: RecorderStatus::Finished,
+        session_id: Some(marker.session_id),
+        started_at_epoch_ms: Some(marker.started_at_epoch_ms),
+        resumed_at_epoch_ms: None,
+        accumulated_ms: elapsed_ms,
+        recording: Some(RecordingResult {
+            microphone_path: marker.microphone_path,
+            system_path: marker.system_path,
+            dropped_blocks: 0,
+        }),
+        recovered: true,
+    };
+    Ok(Some(state.view(epoch_ms())))
 }
 
 #[tauri::command]
@@ -182,7 +274,15 @@ fn start_session(
         .map_err(|e| e.to_string())?
         .join("recordings")
         .join(&session_id);
-    let next = AudioRecording::start(&microphone_id, &system_output_id, output)
+    fs::create_dir_all(&output).map_err(|error| error.to_string())?;
+    let marker = SessionMarker {
+        session_id: session_id.clone(),
+        started_at_epoch_ms: now_ms,
+        microphone_path: output.join("microphone.wav"),
+        system_path: output.join("system.wav"),
+    };
+    write_session_marker(&output, &marker)?;
+    let next = AudioRecording::start(&microphone_id, &system_output_id, &output)
         .map_err(|e| e.to_string())?;
     *recorder.lock().expect("audio recorder state poisoned") = Some(next);
     *state = SessionState {
@@ -192,6 +292,7 @@ fn start_session(
         resumed_at_epoch_ms: Some(now_ms),
         accumulated_ms: 0,
         recording: None,
+        recovered: false,
     };
     Ok(state.view(now_ms))
 }
@@ -253,6 +354,9 @@ fn stop_session(
         .take()
         .ok_or_else(|| "录音器未运行".to_owned())?;
     let result = active.finish().map_err(|e| e.to_string())?;
+    if let Some(directory) = result.microphone_path.parent() {
+        write_new_file(&directory.join(COMPLETED_MARKER), b"completed\n")?;
+    }
     let mut state = state.lock().expect("session state poisoned");
     if state.status == RecorderStatus::Recording {
         state.accumulated_ms = state.view(now_ms).elapsed_ms;
@@ -272,6 +376,7 @@ pub fn run() {
             list_audio_devices,
             get_audio_levels,
             get_session_state,
+            recover_latest_session,
             reveal_recording,
             start_session,
             pause_session,
@@ -294,6 +399,7 @@ mod tests {
             resumed_at_epoch_ms: Some(1_000),
             accumulated_ms: 0,
             recording: None,
+            recovered: false,
         };
         state.pause(4_000).unwrap();
         assert_eq!(state.view(10_000).elapsed_ms, 3_000);

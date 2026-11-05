@@ -44,6 +44,14 @@ pub struct RecordingResult {
     pub dropped_blocks: u64,
 }
 
+pub fn wav_duration_ms(path: impl AsRef<Path>) -> Result<u64, RecordingError> {
+    let reader = hound::WavReader::open(path)?;
+    Ok(u64::from(reader.duration())
+        .saturating_mul(1_000)
+        .checked_div(u64::from(reader.spec().sample_rate))
+        .unwrap_or(0))
+}
+
 #[derive(Clone, Copy)]
 enum Source {
     Microphone,

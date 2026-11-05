@@ -115,7 +115,9 @@ function statusText(status: RecorderStatus): { title: string; copy: string; badg
 }
 
 export function applyView(root: HTMLElement, state: RecorderViewState): void {
-  const text = statusText(state.status);
+  const text = state.status === "finished" && state.recovered
+    ? { title: "已恢复上次录音", copy: "应用上次未正常退出，已载入最近一次安全提交的音频。", badge: "已恢复" }
+    : statusText(state.status);
   const statusChanged = root.dataset.status !== state.status;
   root.dataset.status = state.status;
   root.querySelector<HTMLElement>(".status-title")!.textContent = text.title;
@@ -153,7 +155,7 @@ function contentForStatus(state: RecorderViewState): string {
   if (status === "stopping") return `<div class="saving"><span class="spinner" aria-hidden="true"></span><h3>正在安全结束会话</h3><p>请勿重复提交停止操作。</p></div>`;
   if (status === "finished") {
     const revealPath = state.microphonePath ?? state.systemPath;
-    return `<div class="finished-card"><span class="check">✓</span><h3>录音已保存</h3><p>会话编号：${sessionId?.slice(0, 12) ?? "—"}</p><dl><div><dt>麦克风</dt><dd title="${escapeHtml(state.microphonePath ?? "")}">${escapeHtml(state.microphonePath ?? "未生成")}</dd></div><div><dt>系统声音</dt><dd title="${escapeHtml(state.systemPath ?? "")}">${escapeHtml(state.systemPath ?? "未生成")}</dd></div><div><dt>丢弃缓冲块</dt><dd>${state.droppedBlocks ?? 0}</dd></div></dl>${revealPath ? `<button class="reveal-recording" type="button" data-path="${escapeHtml(revealPath)}">在资源管理器中查看</button>` : ""}</div>`;
+    return `<div class="finished-card"><span class="check">✓</span><h3>${state.recovered ? "已恢复上次录音" : "录音已保存"}</h3><p>会话编号：${sessionId?.slice(0, 12) ?? "—"}</p><dl><div><dt>麦克风</dt><dd title="${escapeHtml(state.microphonePath ?? "")}">${escapeHtml(state.microphonePath ?? "未生成")}</dd></div><div><dt>系统声音</dt><dd title="${escapeHtml(state.systemPath ?? "")}">${escapeHtml(state.systemPath ?? "未生成")}</dd></div><div><dt>丢弃缓冲块</dt><dd>${state.droppedBlocks ?? 0}</dd></div></dl>${revealPath ? `<button class="reveal-recording" type="button" data-path="${escapeHtml(revealPath)}">在资源管理器中查看</button>` : ""}</div>`;
   }
   return `<div class="empty-content"><div class="cassette-mini" aria-hidden="true"><i></i><i></i></div><h3>内容将在这里出现</h3><p>开始录音后，这里将承载实时字幕。停止后可继续生成摘要、章节和待办。</p></div>`;
 }

@@ -1877,6 +1877,7 @@ dependencies = [
  "magnetic-tape-audio",
  "magnetic-tape-core",
  "serde",
+ "serde_json",
  "tauri",
  "tauri-build",
 ]

@@ -8,7 +8,7 @@ mod monitor;
 mod recording;
 
 pub use monitor::{AudioLevelMonitor, AudioLevels, MonitorError};
-pub use recording::{AudioRecording, RecordingError, RecordingResult};
+pub use recording::{AudioRecording, RecordingError, RecordingResult, wav_duration_ms};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]

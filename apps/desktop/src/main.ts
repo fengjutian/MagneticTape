@@ -16,7 +16,7 @@ let view: RecorderViewState = { title: "新录音", status: "idle", elapsedMs: 0
 
 function syncBackend(next: SessionState): void {
   backendState = next;
-  view = { ...view, status: next.status, elapsedMs: next.elapsedMs, sessionId: next.sessionId, microphonePath: next.microphonePath, systemPath: next.systemPath, droppedBlocks: next.droppedBlocks, errorMessage: undefined };
+  view = { ...view, status: next.status, elapsedMs: next.elapsedMs, sessionId: next.sessionId, microphonePath: next.microphonePath, systemPath: next.systemPath, droppedBlocks: next.droppedBlocks, recovered: next.recovered, errorMessage: undefined };
   restartClock();
   applyView(app, view);
 }
@@ -171,6 +171,7 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
-syncBackend(await invoke<SessionState>("get_session_state"));
+const recovered = await invoke<SessionState | null>("recover_latest_session");
+syncBackend(recovered ?? await invoke<SessionState>("get_session_state"));
 await refreshAudioDevices();
 

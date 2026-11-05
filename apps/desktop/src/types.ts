@@ -10,6 +10,7 @@ export interface SessionState {
   microphonePath: string | null;
   systemPath: string | null;
   droppedBlocks: number;
+  recovered: boolean;
 }
 
 export interface RecorderViewState {
@@ -24,6 +25,7 @@ export interface RecorderViewState {
   microphonePath?: string | null;
   systemPath?: string | null;
   droppedBlocks?: number;
+  recovered?: boolean;
   errorMessage?: string;
 }
 
