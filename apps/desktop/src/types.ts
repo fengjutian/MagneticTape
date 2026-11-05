@@ -21,3 +21,18 @@ export interface RecorderViewState {
   errorMessage?: string;
 }
 
+export interface AudioDeviceInfo {
+  id: string;
+  name: string;
+  kind: "microphone" | "system_output";
+  isDefault: boolean;
+  channels: number;
+  sampleRate: number;
+  sampleFormat: string;
+}
+
+export interface AudioDeviceSnapshot {
+  microphones: AudioDeviceInfo[];
+  systemOutputs: AudioDeviceInfo[];
+}
+

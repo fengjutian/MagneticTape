@@ -92,6 +92,11 @@ fn epoch_ms() -> u64 {
 }
 
 #[tauri::command]
+fn list_audio_devices() -> Result<magnetic_tape_audio::AudioDeviceSnapshot, String> {
+    magnetic_tape_audio::enumerate_audio_devices().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 fn get_session_state(state: tauri::State<'_, Mutex<SessionState>>) -> SessionView {
     state
         .lock()
@@ -158,6 +163,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(Mutex::new(SessionState::default()))
         .invoke_handler(tauri::generate_handler![
+            list_audio_devices,
             get_session_state,
             start_session,
             pause_session,

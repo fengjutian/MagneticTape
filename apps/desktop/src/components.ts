@@ -1,4 +1,4 @@
-import type { RecorderStatus, RecorderViewState } from "./types";
+import type { AudioDeviceInfo, AudioDeviceSnapshot, RecorderStatus, RecorderViewState } from "./types";
 
 function icon(name: "pause" | "play" | "stop" | "sparkles"): string {
   const paths = {
@@ -25,6 +25,11 @@ export function renderApp(): string {
             <label class="option"><span>翻译</span><select data-option="translation" aria-label="翻译语言"><option value="none">不翻译</option><option value="zh-CN">翻译为中文</option><option value="en-US">Translate to English</option></select></label>
             <label class="option"><span>音频</span><select data-option="audio" aria-label="音频保留策略"><option value="retain">保留音频</option><option value="discard">完成后删除</option></select></label>
             <button class="option coming-soon" type="button" disabled title="AI 同传尚未接入">${icon("sparkles")}<span>AI 同传</span><small>即将支持</small></button>
+          </div>
+          <div class="device-strip" aria-label="音频设备">
+            <label><span class="device-kind">麦克风</span><select class="microphone-select" aria-label="麦克风设备"><option>正在检测…</option></select><small class="microphone-detail"></small></label>
+            <label><span class="device-kind">系统声音</span><select class="system-output-select" aria-label="系统输出设备"><option>正在检测…</option></select><small class="system-output-detail"></small></label>
+            <button class="refresh-devices" type="button" title="重新检测音频设备">重新检测</button>
           </div>
         </header>
 
@@ -56,6 +61,38 @@ export function renderApp(): string {
       </aside>
     </main>
   `;
+}
+
+export function applyAudioDevices(root: HTMLElement, snapshot: AudioDeviceSnapshot): void {
+  updateDeviceSelect(root, ".microphone-select", ".microphone-detail", snapshot.microphones, "未检测到麦克风");
+  updateDeviceSelect(root, ".system-output-select", ".system-output-detail", snapshot.systemOutputs, "未检测到系统输出");
+}
+
+function updateDeviceSelect(
+  root: HTMLElement,
+  selectQuery: string,
+  detailQuery: string,
+  devices: AudioDeviceInfo[],
+  emptyText: string,
+): void {
+  const select = root.querySelector<HTMLSelectElement>(selectQuery)!;
+  select.replaceChildren();
+  if (devices.length === 0) {
+    select.add(new Option(emptyText, ""));
+    select.disabled = true;
+    root.querySelector<HTMLElement>(detailQuery)!.textContent = "请检查 Windows 声音设置";
+    return;
+  }
+  select.disabled = false;
+  for (const device of devices) {
+    select.add(new Option(`${device.name}${device.isDefault ? "（默认）" : ""}`, device.id, device.isDefault, device.isDefault));
+  }
+  const selected = devices.find((device) => device.id === select.value) ?? devices[0];
+  root.querySelector<HTMLElement>(detailQuery)!.textContent = `${selected.sampleRate / 1000} kHz · ${selected.channels} 声道 · ${selected.sampleFormat}`;
+  select.onchange = () => {
+    const device = devices.find((item) => item.id === select.value);
+    if (device) root.querySelector<HTMLElement>(detailQuery)!.textContent = `${device.sampleRate / 1000} kHz · ${device.channels} 声道 · ${device.sampleFormat}`;
+  };
 }
 
 export function formatElapsed(milliseconds: number): string {

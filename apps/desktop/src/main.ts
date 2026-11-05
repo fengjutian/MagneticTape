@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
-import { applyView, renderApp } from "./components";
-import type { RecorderViewState, SessionState } from "./types";
+import { applyAudioDevices, applyView, renderApp } from "./components";
+import type { AudioDeviceSnapshot, RecorderViewState, SessionState } from "./types";
 import "./styles.css";
 
 const appElement = document.querySelector<HTMLElement>("#app");
@@ -51,9 +51,25 @@ async function command(name: "start_session" | "pause_session" | "resume_session
   }
 }
 
+async function refreshAudioDevices(): Promise<void> {
+  const button = app.querySelector<HTMLButtonElement>(".refresh-devices")!;
+  button.disabled = true;
+  button.textContent = "检测中…";
+  try {
+    applyAudioDevices(app, await invoke<AudioDeviceSnapshot>("list_audio_devices"));
+  } catch (error) {
+    view.errorMessage = `无法检测音频设备：${error instanceof Error ? error.message : String(error)}`;
+    applyView(app, view);
+  } finally {
+    button.disabled = false;
+    button.textContent = "重新检测";
+  }
+}
+
 app.querySelector<HTMLButtonElement>(".start-button")!.addEventListener("click", () => void command("start_session"));
 app.querySelector<HTMLButtonElement>(".pause-button")!.addEventListener("click", () => void command(view.status === "paused" ? "resume_session" : "pause_session"));
 app.querySelector<HTMLButtonElement>(".stop-button")!.addEventListener("click", () => void command("stop_session"));
+app.querySelector<HTMLButtonElement>(".refresh-devices")!.addEventListener("click", () => void refreshAudioDevices());
 
 const titleDisplay = app.querySelector<HTMLButtonElement>(".title-display")!;
 const titleInput = app.querySelector<HTMLInputElement>(".title-input")!;
@@ -100,4 +116,5 @@ document.addEventListener("keydown", (event) => {
 });
 
 syncBackend(await invoke<SessionState>("get_session_state"));
+await refreshAudioDevices();
 
