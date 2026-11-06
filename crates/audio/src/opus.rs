@@ -23,7 +23,7 @@ pub const OPUS_SAMPLE_RATE: u32 = 48_000;
 /// 60 ms frames keep Ogg page overhead low while staying inside the Opus limits.
 pub const FRAME_SAMPLES: usize = 2_880;
 /// Target duration of one independently decodable chunk.
-pub const CHUNK_DURATION_MS: u64 = 15_000;
+pub const CHUNK_DURATION_MS: u64 = 5_000;
 const CHUNK_FRAMES: u64 = CHUNK_DURATION_MS * OPUS_SAMPLE_RATE as u64 / 1_000;
 const FRAMES_PER_PAGE: usize = 16;
 const MAX_PACKET_BYTES: usize = 4_000;
@@ -200,7 +200,7 @@ fn write_new_atomic(path: &Path, bytes: &[u8]) -> Result<(), std::io::Error> {
     fs::rename(&temporary, path)
 }
 
-/// Encodes one track into 15 second Ogg Opus chunks inside `directory`.
+/// Encodes one track into five-second Ogg Opus chunks inside `directory`.
 pub struct OpusTrackWriter {
     directory: PathBuf,
     track: Track,
@@ -501,27 +501,27 @@ mod tests {
             chunks.clone(),
         )
         .unwrap();
-        writer.push_interleaved(&tone(48_000 * 31, 48_000)).unwrap();
+        writer.push_interleaved(&tone(48_000 * 11, 48_000)).unwrap();
         writer.finish().unwrap();
 
         let chunks = chunks.lock().unwrap();
         assert_eq!(chunks.len(), 3);
-        assert_eq!(chunks[0].frames, 720_000);
-        assert_eq!(chunks[1].frames, 720_000);
+        assert_eq!(chunks[0].frames, 240_000);
+        assert_eq!(chunks[1].frames, 240_000);
         assert_eq!(chunks[2].frames, 48_000);
         assert_eq!(
             chunks
                 .iter()
                 .map(|chunk| chunk.start_frame)
                 .collect::<Vec<_>>(),
-            vec![0, 720_000, 1_440_000]
+            vec![0, 240_000, 480_000]
         );
         assert_eq!(
             chunks
                 .iter()
                 .map(|chunk| chunk.duration_ms)
                 .collect::<Vec<_>>(),
-            vec![15_000, 15_000, 1_000]
+            vec![5_000, 5_000, 1_000]
         );
     }
 

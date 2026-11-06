@@ -1,6 +1,6 @@
 //! Speech-to-text through OpenAI-compatible and MiniMax ASR APIs.
 //!
-//! The recording pipeline stores 15 second Ogg Opus chunks. Before upload the
+//! The recording pipeline stores five-second Ogg Opus chunks. Before upload the
 //! chunks are decoded, mixed into one mono track, resampled to 16 kHz and
 //! packed into WAV segments that stay below the providers' 500 second / 50 MB
 //! limits.
@@ -536,7 +536,7 @@ pub async fn transcribe_chunks(
     transcribe_refs(chunks, config, session_id, WAV_SEGMENT_SECONDS).await
 }
 
-/// Transcribes the newest 15 second chunk pair for live subtitles.
+/// Transcribes the newest five-second chunk pair for live subtitles.
 pub async fn transcribe_pair(
     microphone: Option<AudioChunkRef>,
     system: Option<AudioChunkRef>,

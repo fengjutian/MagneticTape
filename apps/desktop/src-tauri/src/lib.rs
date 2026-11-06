@@ -1816,7 +1816,7 @@ async fn poll_live_inner(
                 let stale = live
                     .first_seen
                     .get(slot)
-                    .is_some_and(|seen| seen.elapsed() >= Duration::from_secs(3));
+                    .is_some_and(|seen| seen.elapsed() >= Duration::from_secs(1));
                 complete || superseded || stale
             })
             .map(|(slot, entry)| (*slot, entry.0.clone(), entry.1.clone()));

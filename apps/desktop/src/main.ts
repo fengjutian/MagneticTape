@@ -213,7 +213,7 @@ async function pollLive(): Promise<void> {
 function startLivePolling(): void {
   if (livePollHandle !== undefined) return;
   void pollLive();
-  livePollHandle = window.setInterval(() => void pollLive(), 3_000);
+  livePollHandle = window.setInterval(() => void pollLive(), 1_000);
 }
 
 function stopLivePolling(): void {
