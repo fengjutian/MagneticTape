@@ -574,24 +574,25 @@ fn submit(
             .sqrt()
     };
     let now = epoch_ms();
+    const LIVE_BUFFER_SAMPLES: usize = 1_000_000;
+    let append_live = |buffer: &Mutex<Vec<f32>>| {
+        let mut buffer = buffer.lock().expect("live audio buffer poisoned");
+        buffer.extend_from_slice(&samples);
+        if buffer.len() > LIVE_BUFFER_SAMPLES {
+            let overflow = buffer.len() - LIVE_BUFFER_SAMPLES;
+            buffer.drain(..overflow);
+        }
+    };
     match source {
         Source::Microphone => {
-            shared
-                .live_microphone
-                .lock()
-                .expect("live microphone poisoned")
-                .extend_from_slice(&samples);
+            append_live(&shared.live_microphone);
             shared
                 .microphone_level
                 .store(rms.to_bits(), Ordering::Relaxed);
             shared.last_microphone_ms.store(now, Ordering::Relaxed);
         }
         Source::System => {
-            shared
-                .live_system
-                .lock()
-                .expect("live system poisoned")
-                .extend_from_slice(&samples);
+            append_live(&shared.live_system);
             shared.system_level.store(rms.to_bits(), Ordering::Relaxed);
             shared.last_system_ms.store(now, Ordering::Relaxed);
         }
