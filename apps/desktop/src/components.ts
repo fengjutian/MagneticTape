@@ -80,6 +80,10 @@ export function renderApp(): string {
 
         <section class="controls" aria-label="录音控制">
           <div class="waveform" aria-hidden="true">${Array.from({ length: 48 }, (_, index) => `<i style="--bar:${index}"></i>`).join("")}</div>
+          <div class="level-meters" aria-label="实时输入电平">
+            <div class="level-channel microphone-level"><span class="level-name">麦克风</span><div class="level-track" role="meter" aria-label="麦克风电平" aria-valuemin="-60" aria-valuemax="0" aria-valuenow="-60"><i></i><b class="clip-flag">CLIP</b></div><output class="level-readout">−60 dB</output></div>
+            <div class="level-channel system-level"><span class="level-name">系统声音</span><div class="level-track" role="meter" aria-label="系统声音电平" aria-valuemin="-60" aria-valuemax="0" aria-valuenow="-60"><i></i><b class="clip-flag">CLIP</b></div><output class="level-readout">−60 dB</output></div>
+          </div>
           <div class="control-row">
             <span class="elapsed-wrap">${iconNode(Clock3)}<time class="elapsed" datetime="PT0S">00:00</time></span>
             <button class="pause-button" type="button" disabled title="暂停录音">${icon("pause")}<span>暂停</span></button>

@@ -550,16 +550,35 @@ function startLevelPolling(): void {
       const levels = await invoke<AudioLevels>("get_audio_levels");
       const level = Math.max(levels.microphone, levels.system);
       app.style.setProperty("--audio-level", level.toFixed(3));
+      updateLevelMeter(".microphone-level", levels.microphone);
+      updateLevelMeter(".system-level", levels.system);
       app.querySelector<HTMLElement>(".waveform")!.title = `麦克风 ${Math.round(levels.microphone * 100)}% · 系统声音 ${Math.round(levels.system * 100)}%`;
     } catch {
       app.style.setProperty("--audio-level", "0");
+      updateLevelMeter(".microphone-level", 0);
+      updateLevelMeter(".system-level", 0);
     }
   }, 100);
+}
+
+function updateLevelMeter(selector: string, value: number): void {
+  const channel = app.querySelector<HTMLElement>(selector);
+  if (!channel) return;
+  const normalized = Math.min(1, Math.max(0, value));
+  const decibels = normalized > 0 ? Math.max(-60, 20 * Math.log10(normalized)) : -60;
+  channel.style.setProperty("--level", normalized.toFixed(3));
+  channel.classList.toggle("clipping", normalized >= .98);
+  const meter = channel.querySelector<HTMLElement>(".level-track");
+  meter?.setAttribute("aria-valuenow", decibels.toFixed(1));
+  const readout = channel.querySelector<HTMLOutputElement>(".level-readout");
+  if (readout) readout.value = `${decibels <= -59.5 ? "−60" : decibels.toFixed(1)} dB`;
 }
 
 function stopLevelPolling(): void {
   window.clearInterval(levelHandle);
   app.style.setProperty("--audio-level", "0");
+  updateLevelMeter(".microphone-level", 0);
+  updateLevelMeter(".system-level", 0);
 }
 
 function applyHealth(health: AudioHealth): void {

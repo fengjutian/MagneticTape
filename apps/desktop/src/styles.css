@@ -759,6 +759,30 @@ button:disabled, select:disabled { cursor: not-allowed; }
 }
 
 /* Focus mode while capturing: waveform, progress and one decisive finish action. */
+.level-meters { display: grid; gap: 7px; margin: 12px 2px 2px; }
+.level-channel { display: grid; grid-template-columns: 68px minmax(90px, 1fr) 58px; align-items: center; gap: 9px; }
+.level-name { color: var(--ui-muted); font-size: 11px; }
+.level-track { position: relative; height: 7px; overflow: visible; border-radius: 999px; background: #e7ebe9; }
+.level-track::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, transparent 0 72%, rgba(220, 151, 31, .25) 72% 90%, rgba(229, 72, 77, .25) 90%);
+  pointer-events: none;
+}
+.level-track > i { display: block; width: calc(var(--level, 0) * 100%); height: 100%; border-radius: inherit; background: var(--ui-primary); transition: width 80ms linear; }
+.system-level .level-track > i { background: #51a9ae; }
+.level-readout { color: #66706b; font: 10px "Cascadia Mono", Consolas, monospace; text-align: right; font-variant-numeric: tabular-nums; }
+.clip-flag { position: absolute; right: 0; bottom: 10px; display: none; color: #d1383d; font-size: 9px; letter-spacing: .04em; }
+.level-channel.clipping .clip-flag { display: block; }
+.level-channel.clipping .level-readout { color: #d1383d; font-weight: 700; }
+
+[data-status="idle"] .level-meters,
+[data-status="finished"] .level-meters,
+[data-status="stopping"] .level-meters,
+[data-status="error"] .level-meters { opacity: .5; }
+
 [data-status="recording"] .status-area,
 [data-status="paused"] .status-area {
   min-height: 150px;

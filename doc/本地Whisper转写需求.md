@@ -1,6 +1,6 @@
 # 本地 Whisper 转写需求
 
-> 状态：v1 开发中（本文档同时作为验收依据）
+> 状态：v1 已实现（2026-11-06，本文档同时作为验收依据）
 > 适用范围：`apps/desktop` Tauri 桌面端（Windows 10/11 x64）
 > 更新日期：2026-11-06
 
@@ -183,3 +183,21 @@ transcript.json / transcript.md（现有格式不变）
 - v2：GPU 加速包（CUDA 12.x / Vulkan）与自动探测。
 - v3：说话人分离（sherpa-onnx / pyannote 类模型）与标点、热词。
 - v3：内嵌 whisper.cpp 绑定，去掉子进程与外部二进制。
+
+## 12. 验证记录（v1）
+
+| 项 | 结果 |
+|---|---|
+| `cargo fmt --all --check` | 通过 |
+| `cargo clippy --workspace --all-targets -D warnings` | 通过 |
+| `cargo test --workspace --all-targets` | 30 个桌面端测试 + 11 个 crate 测试通过 |
+| `npm run build`（tsc + vite） | 通过 |
+| 真实引擎冒烟（`--ignored` 测试，`doc/chunk_00000.ogg`） | 通过：解码 → 混音 → 16 kHz 分段 → whisper-cli → JSON 解析，2.75 秒完成 3 秒音频 |
+
+真实引擎冒烟测试命令：
+
+```powershell
+$env:WHISPER_ENGINE_DIR = '<解压后的 whisper.cpp Release 目录>'
+$env:WHISPER_MODEL = '<ggml-tiny.bin 或 ggml-base.bin>'
+cargo test -p magnetic-tape-desktop transcribes_a_real_chunk_with_the_downloaded_engine -- --ignored
+```

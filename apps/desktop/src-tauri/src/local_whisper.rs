@@ -116,6 +116,15 @@ fn engine_exe(app_data: &Path) -> PathBuf {
     engine_dir(app_data).join(ENGINE_FILE)
 }
 
+/// The CLI is useless without its runtime DLLs, so treat a partial
+/// extraction as not installed.
+fn engine_ready(app_data: &Path) -> bool {
+    let directory = engine_dir(app_data);
+    directory.join(ENGINE_FILE).is_file()
+        && directory.join("whisper.dll").is_file()
+        && directory.join("ggml.dll").is_file()
+}
+
 fn models_dir(app_data: &Path) -> PathBuf {
     root(app_data).join(MODEL_DIR)
 }
@@ -170,7 +179,7 @@ fn status_for(app_data: &Path, selected: &str) -> LocalWhisperStatus {
         })
         .collect();
     LocalWhisperStatus {
-        engine_installed: engine_exe(app_data).is_file(),
+        engine_installed: engine_ready(app_data),
         engine_bytes: engine_bytes(app_data),
         engine_version: ENGINE_TAG,
         model_installed: model_path(app_data, &model).is_file(),
@@ -211,7 +220,7 @@ pub async fn download_local_whisper_engine(
     let _guard = begin_download(&state, "engine")?;
     let app_data = app_data_dir(&app)?;
     let engine = engine_dir(&app_data);
-    if engine_exe(&app_data).is_file() {
+    if engine_ready(&app_data) {
         return Ok(status_for(
             &app_data,
             &selected_model(&local_settings(&settings)),
@@ -458,7 +467,7 @@ pub fn transcribe(
     let spec = model_spec(model)
         .ok_or_else(|| "未知的本地 Whisper 模型，请在转写设置中重新选择".to_owned())?;
     let exe = engine_exe(app_data);
-    if !exe.is_file() {
+    if !engine_ready(app_data) {
         return Err("本地 Whisper 引擎未安装，请在转写设置中下载".into());
     }
     let model_file = model_path(app_data, spec.id);
@@ -713,6 +722,23 @@ mod tests {
         assert_eq!(lines.len(), 2);
         assert_eq!(lines[0], (0, 1_500, " 大家好。".into()));
         assert_eq!(lines[1].1, 3_200);
+    }
+
+    /// Manual smoke test for the pinned engine archive.
+    /// Run with `WHISPER_ARCHIVE` set to the downloaded zip, plus `--ignored`.
+    #[test]
+    #[ignore = "requires WHISPER_ARCHIVE pointing at whisper-bin-x64.zip"]
+    fn extracts_the_downloaded_engine_archive() {
+        let Ok(archive) = std::env::var("WHISPER_ARCHIVE") else {
+            return;
+        };
+        let directory = tempfile::tempdir().unwrap();
+        let engine = directory.path().join("engine");
+        extract_engine(Path::new(&archive), &engine).unwrap();
+        assert!(engine.join("whisper-cli.exe").is_file());
+        assert!(engine.join("whisper.dll").is_file());
+        assert!(engine.join("ggml.dll").is_file());
+        assert!(!engine.join("Release").exists());
     }
 
     /// Manual smoke test against a real downloaded engine and model.
