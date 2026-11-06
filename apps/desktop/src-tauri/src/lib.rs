@@ -11,7 +11,7 @@ use magnetic_tape_core::{
 };
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet, VecDeque},
     fs::{self, OpenOptions},
     io::Write,
     path::{Path, PathBuf},
@@ -33,8 +33,10 @@ use tokio_tungstenite::{
 mod ai;
 mod asr;
 mod export;
+mod local_whisper;
 use ai::AiState;
 use asr::AsrState;
+use local_whisper::LocalWhisperState;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -68,6 +70,7 @@ struct AppSettings {
     live_captions: bool,
     asr_provider: String,
     asr_profiles: HashMap<String, AsrProfile>,
+    local_whisper_model: String,
     auto_cleanup_days: u32,
     storage_quota_mb: u32,
 }
@@ -101,6 +104,7 @@ impl Default for AppSettings {
             live_captions: false,
             asr_provider: "minimax".into(),
             asr_profiles: HashMap::new(),
+            local_whisper_model: local_whisper::DEFAULT_MODEL.into(),
             auto_cleanup_days: 0,
             storage_quota_mb: 0,
         }
@@ -117,9 +121,12 @@ impl AppSettings {
         }
         if !matches!(
             self.asr_provider.as_str(),
-            "minimax" | "silicon_flow" | "openai_realtime"
+            "minimax" | "silicon_flow" | "openai_realtime" | "local_whisper"
         ) {
             self.asr_provider = "minimax".into();
+        }
+        if !local_whisper::is_known_model(&self.local_whisper_model) {
+            self.local_whisper_model = local_whisper::DEFAULT_MODEL.into();
         }
         if !matches!(self.auto_cleanup_days, 0 | 30 | 90 | 180) {
             self.auto_cleanup_days = 0;
@@ -1901,6 +1908,7 @@ fn save_settings(
 fn start_openai_realtime(
     app: tauri::AppHandle,
     config: asr::AsrCredential,
+    directory: PathBuf,
 ) -> Result<mpsc::UnboundedSender<Vec<i16>>, String> {
     let (tx, mut rx) = mpsc::unbounded_channel::<Vec<i16>>();
     tauri::async_runtime::spawn(async move {
@@ -1914,24 +1922,57 @@ fn start_openai_realtime(
                 "session": {"type":"transcription","audio":{"input":{"format":{"type":"audio/pcm","rate":24000},"transcription":{"model":config.model},"turn_detection":null}}}
             });
             writer.send(Message::Text(update.to_string().into())).await.map_err(|error| error.to_string())?;
-            let mut samples_since_commit = 0usize;
+            const SAMPLE_RATE: usize = 24_000;
+            const SILENCE_COMMIT_SAMPLES: usize = SAMPLE_RATE * 3 / 5;
+            const MAX_TURN_SAMPLES: usize = SAMPLE_RATE * 15;
+            const IDLE_CLEAR_SAMPLES: usize = SAMPLE_RATE * 5;
+            const SPEECH_RMS: f32 = 0.012;
+            let mut timeline_samples = 0usize;
+            let mut turn_start_samples = 0usize;
+            let mut turn_samples = 0usize;
+            let mut silence_samples = 0usize;
+            let mut in_speech = false;
+            let mut closing = false;
+            let mut pending_turns = VecDeque::<(u64, u64)>::new();
             loop {
                 tokio::select! {
-                    audio = rx.recv() => match audio {
+                    audio = rx.recv(), if !closing => match audio {
                         Some(samples) => {
+                            let rms = if samples.is_empty() { 0.0 } else {
+                                (samples.iter().map(|sample| { let value = f32::from(*sample) / f32::from(i16::MAX); value * value }).sum::<f32>() / samples.len() as f32).sqrt()
+                            };
                             let bytes: Vec<u8> = samples.iter().flat_map(|sample| sample.to_le_bytes()).collect();
                             let append = serde_json::json!({"type":"input_audio_buffer.append","audio":BASE64.encode(bytes)});
                             writer.send(Message::Text(append.to_string().into())).await.map_err(|error| error.to_string())?;
-                            samples_since_commit += samples.len();
-                            if samples_since_commit >= 48_000 {
+                            timeline_samples += samples.len();
+                            turn_samples += samples.len();
+                            if rms >= SPEECH_RMS {
+                                in_speech = true;
+                                silence_samples = 0;
+                            } else if in_speech {
+                                silence_samples += samples.len();
+                            }
+                            let should_commit = in_speech && (silence_samples >= SILENCE_COMMIT_SAMPLES || turn_samples >= MAX_TURN_SAMPLES);
+                            if should_commit {
                                 writer.send(Message::Text(r#"{"type":"input_audio_buffer.commit"}"#.into())).await.map_err(|error| error.to_string())?;
-                                samples_since_commit = 0;
+                                pending_turns.push_back(((turn_start_samples * 1_000 / SAMPLE_RATE) as u64, (timeline_samples * 1_000 / SAMPLE_RATE) as u64));
+                                turn_start_samples = timeline_samples;
+                                turn_samples = 0;
+                                silence_samples = 0;
+                                in_speech = false;
+                            } else if !in_speech && turn_samples >= IDLE_CLEAR_SAMPLES {
+                                writer.send(Message::Text(r#"{"type":"input_audio_buffer.clear"}"#.into())).await.map_err(|error| error.to_string())?;
+                                turn_start_samples = timeline_samples;
+                                turn_samples = 0;
                             }
                         }
                         None => {
-                            if samples_since_commit > 0 { let _ = writer.send(Message::Text(r#"{"type":"input_audio_buffer.commit"}"#.into())).await; }
-                            let _ = writer.close().await;
-                            break;
+                            if in_speech && turn_samples > 0 {
+                                writer.send(Message::Text(r#"{"type":"input_audio_buffer.commit"}"#.into())).await.map_err(|error| error.to_string())?;
+                                pending_turns.push_back(((turn_start_samples * 1_000 / SAMPLE_RATE) as u64, (timeline_samples * 1_000 / SAMPLE_RATE) as u64));
+                            }
+                            closing = true;
+                            if pending_turns.is_empty() { let _ = writer.close().await; break; }
                         }
                     },
                     message = reader.next() => {
@@ -1949,12 +1990,18 @@ fn start_openai_realtime(
                             }
                             "conversation.item.input_audio_transcription.completed" => {
                                 let text = event["transcript"].as_str().unwrap_or_default().trim().to_owned();
+                                let timing = pending_turns.pop_front();
                                 if !text.is_empty() {
-                                    let start_ms = live.segments.last().map(|segment| segment.end_ms).unwrap_or(0);
-                                    live.segments.push(asr::TranscriptSegment { start_ms, end_ms: start_ms + 2_000, speaker: None, text });
+                                    let (start_ms, end_ms) = timing.unwrap_or_else(|| {
+                                        let start = live.segments.last().map(|segment| segment.end_ms).unwrap_or(0);
+                                        (start, start)
+                                    });
+                                    live.segments.push(asr::TranscriptSegment { start_ms, end_ms, speaker: None, text });
+                                    persist_live_transcript(&directory, &live);
                                 }
                                 live.partial_text.clear();
                                 live.error = None;
+                                if closing && pending_turns.is_empty() { let _ = writer.close().await; break; }
                             }
                             "error" => live.error = Some(event["error"]["message"].as_str().unwrap_or("Realtime API 返回错误").to_owned()),
                             _ => {}
@@ -1995,7 +2042,8 @@ async fn start_live_transcription(
     };
     let config = asr_state.credential(provider)?;
     let stream_tx = if provider == asr::AsrProvider::OpenAiRealtime {
-        Some(start_openai_realtime(app, config.clone())?)
+        let directory = recordings_root(&app)?.join(&session_id);
+        Some(start_openai_realtime(app, config.clone(), directory)?)
     } else {
         None
     };

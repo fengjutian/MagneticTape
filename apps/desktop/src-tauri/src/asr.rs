@@ -41,6 +41,9 @@ pub enum AsrProvider {
     SiliconFlow,
     #[serde(rename = "openai_realtime")]
     OpenAiRealtime,
+    /// whisper.cpp running entirely on this machine. No credentials or network.
+    #[serde(rename = "local_whisper")]
+    LocalWhisper,
 }
 
 impl AsrProvider {
@@ -49,6 +52,7 @@ impl AsrProvider {
             Self::MiniMax => "minimax",
             Self::SiliconFlow => "siliconflow",
             Self::OpenAiRealtime => "openai-realtime",
+            Self::LocalWhisper => "local-whisper",
         }
     }
 
@@ -57,6 +61,7 @@ impl AsrProvider {
             Self::MiniMax => "https://api.minimax.cn/v1/speech_to_text",
             Self::SiliconFlow => "https://api.siliconflow.cn/v1/audio/transcriptions",
             Self::OpenAiRealtime => "wss://api.openai.com/v1/realtime?intent=transcription",
+            Self::LocalWhisper => "local://whisper.cpp",
         }
     }
 
@@ -65,6 +70,7 @@ impl AsrProvider {
             Self::MiniMax => "asr-1.0",
             Self::SiliconFlow => "FunAudioLLM/SenseVoiceSmall",
             Self::OpenAiRealtime => "gpt-live-transcribe",
+            Self::LocalWhisper => crate::local_whisper::DEFAULT_MODEL,
         }
     }
 
@@ -73,6 +79,7 @@ impl AsrProvider {
             Self::MiniMax => "minimax",
             Self::SiliconFlow => "siliconflow",
             Self::OpenAiRealtime => "openai_realtime",
+            Self::LocalWhisper => "local_whisper",
         }
     }
 }
@@ -147,6 +154,9 @@ impl AsrState {
     }
 
     pub fn credential(&self, provider: AsrProvider) -> Result<AsrCredential, String> {
+        if provider == AsrProvider::LocalWhisper {
+            return Err("本地 Whisper 不需要 API Key".into());
+        }
         let cached = self
             .0
             .lock()
@@ -347,10 +357,10 @@ struct ApiErrorDetail {
     message: String,
 }
 
-struct AudioSegment {
-    path: PathBuf,
-    start_ms: u64,
-    duration_ms: u64,
+pub(crate) struct AudioSegment {
+    pub path: PathBuf,
+    pub start_ms: u64,
+    pub duration_ms: u64,
 }
 
 fn language_header(language: &str) -> Option<&str> {
@@ -364,7 +374,7 @@ fn language_header(language: &str) -> Option<&str> {
 
 /// Decodes, mixes and downsamples committed chunks into WAV segments small
 /// enough for the transcription APIs.
-fn build_segments(
+pub(crate) fn build_segments(
     chunks: &[AudioChunkRef],
     directory: &Path,
     segment_seconds: u64,

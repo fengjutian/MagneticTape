@@ -18,13 +18,15 @@ magnetic-tape-audio = { path = "../../../crates/audio" }
 magnetic-tape-core = { path = "../../../crates/core" }
 serde.workspace = true
 serde_json.workspace = true
-reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "rustls-tls", "stream"] }
 keyring = "4.2"
 tauri = { version = "2.9", features = ["protocol-asset"] }
 trash = "5.2"
 base64 = "0.22"
 futures-util = "0.3"
-tokio = { version = "1", features = ["sync", "time", "macros"] }
+sha2 = "0.10"
+zip = "2.2"
+tokio = { version = "1", features = ["sync", "time", "macros", "fs", "io-util"] }
 tokio-tungstenite = { version = "0.28", features = ["rustls-tls-webpki-roots"] }
 
 [dev-dependencies]
