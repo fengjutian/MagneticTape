@@ -104,6 +104,8 @@ export interface AsrConfiguration {
 
 export interface LiveTranscript {
   active: boolean;
+  pendingChunks: number;
+  processedChunks: number;
   segments: TranscriptSegment[];
   provider?: "minimax" | "silicon_flow";
   model: string;

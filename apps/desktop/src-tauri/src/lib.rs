@@ -323,6 +323,8 @@ struct LiveTranscriptionState {
 #[serde(rename_all = "camelCase")]
 struct LiveTranscriptView {
     active: bool,
+    pending_chunks: usize,
+    processed_chunks: usize,
     segments: Vec<asr::TranscriptSegment>,
     provider: Option<asr::AsrProvider>,
     model: String,
@@ -333,6 +335,8 @@ struct LiveTranscriptView {
 fn live_view(state: &LiveTranscriptionState) -> LiveTranscriptView {
     LiveTranscriptView {
         active: state.active,
+        pending_chunks: state.inflight.len(),
+        processed_chunks: state.processed.len() / 2,
         segments: state.segments.clone(),
         provider: state.provider,
         model: state.model.clone(),
@@ -2056,7 +2060,13 @@ fn poll_live_inner(
                 Ok(transcript) => {
                     merge_live_transcript(&mut live, transcript);
                 }
-                Err(error) => live.error = Some(error),
+                Err(error) => {
+                    // A transient provider/network failure must not permanently
+                    // discard this audio window. The next poll can retry it.
+                    live.processed.remove(&(0, slot));
+                    live.processed.remove(&(1, slot));
+                    live.error = Some(error);
+                }
             }
             persist_live_transcript(&task_directory, &live);
             if !live.active && !live.segments.is_empty() {

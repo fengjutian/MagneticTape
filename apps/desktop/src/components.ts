@@ -1,7 +1,9 @@
 import type { AudioDeviceInfo, AudioDeviceSnapshot, RecorderStatus, RecorderViewState, Transcript } from "./types";
 import {
   Captions,
+  CassetteTape,
   Check,
+  Clock3,
   Download,
   FileText,
   FolderOpen,
@@ -9,10 +11,12 @@ import {
   History,
   Languages,
   Mic,
+  MessageSquareText,
   MonitorUp,
   Pause,
   Play,
   Radio,
+  ShieldCheck,
   RefreshCw,
   Sparkles,
   Square,
@@ -45,6 +49,7 @@ export function renderApp(): string {
       <section class="recorder-pane" aria-labelledby="recording-title">
         <header class="session-header">
           <div class="title-row">
+            <span class="brand-mark">${iconNode(CassetteTape)}</span>
             <button class="title-display" id="recording-title" type="button" aria-label="编辑录音标题">新录音</button>
             <input class="title-input" type="text" maxlength="80" aria-label="录音标题" hidden />
             <span class="local-badge">本地</span>
@@ -65,7 +70,8 @@ export function renderApp(): string {
         </header>
 
         <section class="status-area" aria-live="polite">
-          <div class="status-mark"><span></span></div>
+          <div class="status-orbit"><span class="status-mark">${iconNode(Mic)}</span><i></i><i></i><i></i></div>
+          <span class="status-eyebrow">${iconNode(ShieldCheck)}本地安全录制</span>
           <h2 class="status-title">等待开始录音</h2>
           <p class="status-copy">麦克风与系统声音将分别保存在本地。</p>
           <p class="device-warning" role="status" hidden></p>
@@ -75,7 +81,7 @@ export function renderApp(): string {
         <section class="controls" aria-label="录音控制">
           <div class="waveform" aria-hidden="true">${Array.from({ length: 48 }, (_, index) => `<i style="--bar:${index}"></i>`).join("")}</div>
           <div class="control-row">
-            <time class="elapsed" datetime="PT0S">00:00</time>
+            <span class="elapsed-wrap">${iconNode(Clock3)}<time class="elapsed" datetime="PT0S">00:00</time></span>
             <button class="pause-button" type="button" disabled title="暂停录音">${icon("pause")}<span>暂停</span></button>
             <button class="stop-button" type="button" disabled title="停止并保存">${icon("stop")}<span>停止</span></button>
           </div>
@@ -85,7 +91,7 @@ export function renderApp(): string {
 
       <aside class="content-pane" aria-labelledby="content-title">
         <header class="content-header">
-          <div><p class="section-kicker">MEETING NOTES</p><h2 id="content-title">实时内容</h2></div>
+          <div class="content-heading"><span class="content-heading-icon">${iconNode(MessageSquareText)}</span><div><p class="section-kicker">LIVE TRANSCRIPT</p><h2 id="content-title">实时内容</h2><p class="content-subtitle">实时捕捉对话，重要内容不错过</p></div></div>
           <span class="content-status">待机</span>
         </header>
         <div class="content-body"></div>
@@ -225,7 +231,7 @@ export function applyView(root: HTMLElement, state: RecorderViewState): void {
   root.querySelector<HTMLButtonElement>(".stop-button")!.disabled = !active || busy;
   const start = root.querySelector<HTMLButtonElement>(".start-button")!;
   start.hidden = active || busy;
-  start.textContent = state.status === "finished" ? "开始新录音" : "开始录音";
+  start.innerHTML = `${iconNode(Mic)}<span>${state.status === "finished" ? "开始新录音" : "开始录音"}</span>`;
 
   const error = root.querySelector<HTMLElement>(".error-banner")!;
   error.hidden = !state.errorMessage;
@@ -238,7 +244,7 @@ export function applyView(root: HTMLElement, state: RecorderViewState): void {
 function contentForStatus(state: RecorderViewState): string {
   const { status, sessionId } = state;
   if (status === "recording" || status === "paused") {
-    return `<div class="transcript-placeholder"><span class="pulse-dot"></span><h3>${status === "paused" ? "字幕已暂停" : "等待实时字幕"}</h3><p>开启实时字幕后，将按录音分片生成原文；选择 AI 同传语言后会同步显示译文。</p><div class="skeleton"><i></i><i></i><i></i></div></div>`;
+    return `<div class="transcript-placeholder"><span class="live-placeholder-icon">${iconNode(Captions)}</span><h3>${status === "paused" ? "字幕已暂停" : "正在聆听…"}</h3><p>实时字幕将在识别到语音后显示；开启 AI 同传可同步生成译文。</p><div class="skeleton"><i></i><i></i><i></i></div></div>`;
   }
   if (status === "stopping") return `<div class="saving"><span class="spinner" aria-hidden="true"></span><h3>正在安全结束会话</h3><p>请勿重复提交停止操作。</p></div>`;
   if (status === "finished") {
@@ -295,13 +301,19 @@ export function renderTranscript(
       line.tabIndex = 0;
       line.setAttribute("role", "button");
       line.title = "跳转到这段录音";
+      const marker = document.createElement("span");
+      marker.className = "transcript-marker";
+      marker.innerHTML = iconNode(MessageSquareText);
       const time = document.createElement("time");
       time.textContent = formatElapsed(segment.startMs);
       const speaker = document.createElement("strong");
       speaker.textContent = segment.speaker ? `${segment.speaker} ` : "";
       const text = document.createElement("span");
       text.textContent = segment.text;
-      line.append(time, speaker, text);
+      const content = document.createElement("span");
+      content.className = "transcript-content";
+      content.append(speaker, text);
+      line.append(marker, time, content);
       container.append(line);
     }
   }

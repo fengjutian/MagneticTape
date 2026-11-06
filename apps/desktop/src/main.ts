@@ -23,6 +23,8 @@ let activeTranscriptLine: HTMLElement | null = null;
 let liveDesired = false;
 let livePollHandle: number | undefined;
 let livePollBusy = false;
+let livePendingChunks = 0;
+let liveProcessedChunks = 0;
 let liveSegments: TranscriptSegment[] = [];
 let liveError: string | undefined;
 let liveTranslations: string[] = [];
@@ -122,6 +124,14 @@ function renderLive(): void {
       failure.className = "live-error";
       failure.textContent = `实时字幕暂不可用：${liveError}`;
       body.append(failure);
+    } else if (livePendingChunks > 0) {
+      const placeholder = body.querySelector<HTMLElement>(".transcript-placeholder");
+      if (placeholder) {
+        placeholder.querySelector("h3")!.textContent = `正在识别 ${livePendingChunks} 个音频分片`;
+        placeholder.querySelector("p")!.textContent = liveProcessedChunks > 0
+          ? `已完成 ${liveProcessedChunks} 个分片，正在等待最新结果。`
+          : "首段文字通常会在录音开始后数秒出现。";
+      }
     }
     return;
   }
@@ -208,6 +218,8 @@ async function pollLive(): Promise<void> {
   try {
     const live = await invoke<LiveTranscript>("poll_live_transcription");
     liveSegments = live.segments;
+    livePendingChunks = live.pendingChunks;
+    liveProcessedChunks = live.processedChunks;
     liveError = live.error;
     renderLive();
     void translateNewLiveSegments();
@@ -235,7 +247,7 @@ async function beginLive(): Promise<void> {
       invoke<AsrConfiguration[]>("get_asr_configurations"),
       invoke<AiConfiguration[]>("get_ai_configurations"),
     ]);
-    const provider = configurations.find((item) => item.provider === "minimax" && item.configured)?.provider
+    const provider = configurations.find((item) => item.provider === settings.asrProvider && item.configured)?.provider
       ?? configurations.find((item) => item.configured)?.provider
       ?? "minimax";
     liveAiProvider = aiConfigurations.find((item) => item.configured)?.provider ?? "minimax";
@@ -249,6 +261,8 @@ async function beginLive(): Promise<void> {
       language: view.language,
     });
     liveSegments = live.segments;
+    livePendingChunks = live.pendingChunks;
+    liveProcessedChunks = live.processedChunks;
     liveError = live.error;
     setLiveIndicator(true);
     startLivePolling();

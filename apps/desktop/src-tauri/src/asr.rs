@@ -26,6 +26,8 @@ use std::{
 const ASR_SERVICE: &str = "com.magnetictape.desktop.asr";
 const ASR_SAMPLE_RATE: u32 = 16_000;
 const WAV_SEGMENT_SECONDS: u64 = 480;
+const BATCH_REQUEST_TIMEOUT: Duration = Duration::from_secs(300);
+const LIVE_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 /// Returned when the user cancels a transcription run.
 pub const CANCELLED: &str = "已取消转写";
 static NEVER_CANCELLED: AtomicBool = AtomicBool::new(false);
@@ -546,6 +548,7 @@ pub async fn transcribe_chunks_with(
         config,
         session_id,
         WAV_SEGMENT_SECONDS,
+        BATCH_REQUEST_TIMEOUT,
         cancel,
         on_progress,
     )
@@ -560,7 +563,7 @@ pub async fn transcribe_pair(
     session_id: &str,
 ) -> Result<Transcript, String> {
     let chunks: Vec<AudioChunkRef> = microphone.into_iter().chain(system).collect();
-    transcribe_refs(&chunks, config, session_id, 60).await
+    transcribe_refs(&chunks, config, session_id, 60, LIVE_REQUEST_TIMEOUT).await
 }
 
 async fn transcribe_refs(
@@ -568,12 +571,14 @@ async fn transcribe_refs(
     config: &AsrCredential,
     session_id: &str,
     segment_seconds: u64,
+    request_timeout: Duration,
 ) -> Result<Transcript, String> {
     transcribe_refs_with(
         chunks,
         config,
         session_id,
         segment_seconds,
+        request_timeout,
         &NEVER_CANCELLED,
         &|_, _| {},
     )
@@ -585,6 +590,7 @@ async fn transcribe_refs_with(
     config: &AsrCredential,
     session_id: &str,
     segment_seconds: u64,
+    request_timeout: Duration,
     cancel: &AtomicBool,
     on_progress: &(dyn Fn(usize, usize) + Sync),
 ) -> Result<Transcript, String> {
@@ -596,7 +602,7 @@ async fn transcribe_refs_with(
         return Err("当前会话没有可转写的音频".into());
     }
     let client = Client::builder()
-        .timeout(Duration::from_secs(300))
+        .timeout(request_timeout)
         .build()
         .map_err(|error| error.to_string())?;
     let mut transcript = Transcript {
