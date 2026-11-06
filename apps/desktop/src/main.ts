@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { applyAudioDevices, applyView, formatElapsed, renderApp, renderTranscript } from "./components";
 import { TimelinePlayer } from "./player";
-import type { AiConfiguration, AiResponse, AppSettings, AsrConfiguration, AudioDeviceSnapshot, AudioHealth, AudioLevels, CleanupResult, ExportResult, JobProgress, LibraryStats, LiveTranscript, PlaybackTracks, RecorderViewState, RecordingListItem, SessionState, Transcript, TranscriptSegment } from "./types";
+import type { AiConfiguration, AiResponse, AppSettings, AsrConfiguration, AudioDeviceSnapshot, AudioHealth, AudioLevels, CleanupResult, ExportResult, JobProgress, LibraryStats, LiveTranscript, LocalWhisperStatus, PlaybackTracks, RecorderViewState, RecordingListItem, SessionState, Transcript, TranscriptSegment, WhisperDownloadProgress } from "./types";
 import "./styles.css";
 
 const appElement = document.querySelector<HTMLElement>("#app");
@@ -44,6 +44,7 @@ let settings: AppSettings = {
   liveCaptions: false,
   asrProvider: "minimax",
   asrProfiles: {},
+  localWhisperModel: "small",
   autoCleanupDays: 0,
   storageQuotaMb: 0,
 };
@@ -64,6 +65,10 @@ function applySettings(next: AppSettings): void {
   if (autoCleanup) autoCleanup.value = String(next.autoCleanupDays);
   const quota = app.querySelector<HTMLSelectElement>(".storage-quota");
   if (quota) quota.value = String(next.storageQuotaMb);
+  const asrProviderSelect = app.querySelector<HTMLSelectElement>(".asr-provider");
+  if (asrProviderSelect && Array.from(asrProviderSelect.options).some((option) => option.value === next.asrProvider)) {
+    asrProviderSelect.value = next.asrProvider;
+  }
   setLiveIndicator(false);
 }
 
@@ -244,6 +249,13 @@ function stopLivePolling(): void {
 }
 
 async function beginLive(): Promise<void> {
+  if (settings.asrProvider === "local_whisper") {
+    liveDesired = false;
+    setLiveIndicator(false);
+    view.errorMessage = "本地 Whisper 暂不支持实时字幕，请使用云端服务或录音后转写";
+    applyView(app, view);
+    return;
+  }
   try {
     const [configurations, aiConfigurations] = await Promise.all([
       invoke<AsrConfiguration[]>("get_asr_configurations"),
@@ -825,6 +837,7 @@ const asrDefaults: Record<string, { endpoint: string; model: string }> = {
 };
 function applyAsrDefaults(): void {
   const defaults = asrDefaults[asrDialogProvider.value];
+  if (!defaults) return;
   asrEndpoint.value = defaults.endpoint;
   asrModel.value = defaults.model;
 }
@@ -844,6 +857,7 @@ async function refreshAsrConfiguration(): Promise<void> {
   }
 }
 asrDialogProvider.addEventListener("change", () => {
+  syncAsrMode();
   applyAsrDefaults();
   void refreshAsrConfiguration();
 });
@@ -852,11 +866,28 @@ app.addEventListener("click", (event) => {
   if (!button) return;
   asrResult.textContent = "";
   asrDialogProvider.value = settings.asrProvider;
+  syncAsrMode();
   applyAsrDefaults();
   asrDialog.showModal();
   void refreshAsrConfiguration();
 });
 app.querySelector<HTMLButtonElement>(".asr-save")!.addEventListener("click", async () => {
+  if (asrDialogProvider.value === "local_whisper") {
+    asrResult.className = "asr-result pending";
+    asrResult.textContent = "正在保存…";
+    try {
+      settings.asrProvider = "local_whisper";
+      settings.localWhisperModel = localModelSelect.value || settings.localWhisperModel;
+      await persistSettings();
+      asrResult.className = "asr-result success";
+      asrResult.textContent = "本地 Whisper 配置已保存";
+      await refreshLocalWhisper();
+    } catch (error) {
+      asrResult.className = "asr-result failure";
+      asrResult.textContent = error instanceof Error ? error.message : String(error);
+    }
+    return;
+  }
   asrResult.className = "asr-result pending";
   asrResult.textContent = "正在保存…";
   try {
@@ -892,6 +923,125 @@ app.querySelector<HTMLButtonElement>(".asr-clear")!.addEventListener("click", as
   } catch (error) {
     asrResult.className = "asr-result failure";
     asrResult.textContent = error instanceof Error ? error.message : String(error);
+  }
+});
+const asrRemote = app.querySelector<HTMLElement>(".asr-remote")!;
+const localPanel = app.querySelector<HTMLElement>(".local-whisper")!;
+const localModelSelect = app.querySelector<HTMLSelectElement>(".local-model")!;
+const localStatus = app.querySelector<HTMLElement>(".local-whisper-status")!;
+const localDownloadEngine = app.querySelector<HTMLButtonElement>(".local-download-engine")!;
+const localDownloadModel = app.querySelector<HTMLButtonElement>(".local-download-model")!;
+const localDeleteModel = app.querySelector<HTMLButtonElement>(".local-delete-model")!;
+let localWhisperStatus: LocalWhisperStatus | null = null;
+let localWhisperBusy = false;
+
+function syncAsrMode(): void {
+  const local = asrDialogProvider.value === "local_whisper";
+  asrRemote.hidden = local;
+  localPanel.hidden = !local;
+  if (local) void refreshLocalWhisper();
+}
+
+function renderLocalWhisper(): void {
+  const status = localWhisperStatus;
+  if (!status) {
+    localStatus.textContent = "正在读取本地引擎状态…";
+    return;
+  }
+  if (localModelSelect.options.length !== status.models.length) {
+    localModelSelect.replaceChildren(
+      ...status.models.map(
+        (model) => new Option(`${model.label} · ${formatBytes(model.sizeBytes)}`, model.id),
+      ),
+    );
+  }
+  localModelSelect.value = status.model;
+  const current = status.models.find((model) => model.id === status.model);
+  localStatus.textContent = [
+    status.engineInstalled ? `引擎已安装（${formatBytes(status.engineBytes)}）` : "引擎未安装",
+    current ? `${current.label}：${current.installed ? "已下载" : "未下载"}` : "",
+    `本地占用 ${formatBytes(status.totalBytes)}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  localDownloadEngine.hidden = status.engineInstalled;
+  localDownloadEngine.disabled = localWhisperBusy;
+  localDownloadModel.hidden = !current || current.installed;
+  localDownloadModel.disabled = localWhisperBusy || !status.engineInstalled;
+  localDownloadModel.textContent = status.engineInstalled ? "下载模型" : "请先下载引擎";
+  localDeleteModel.hidden = !current?.installed;
+  localDeleteModel.disabled = localWhisperBusy;
+  localModelSelect.disabled = localWhisperBusy;
+}
+
+async function refreshLocalWhisper(): Promise<void> {
+  try {
+    localWhisperStatus = await invoke<LocalWhisperStatus>("get_local_whisper_status");
+    renderLocalWhisper();
+  } catch (error) {
+    localStatus.textContent = `无法读取本地引擎状态：${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+localModelSelect.addEventListener("change", () => {
+  settings.localWhisperModel = localModelSelect.value;
+  void persistSettings().then(() => refreshLocalWhisper());
+});
+
+localDownloadEngine.addEventListener("click", async () => {
+  localWhisperBusy = true;
+  localStatus.textContent = "正在下载本地引擎…";
+  renderLocalWhisper();
+  try {
+    localWhisperStatus = await invoke<LocalWhisperStatus>("download_local_whisper_engine");
+    asrResult.className = "asr-result success";
+    asrResult.textContent = "本地引擎已安装";
+  } catch (error) {
+    asrResult.className = "asr-result failure";
+    asrResult.textContent = `引擎下载失败：${error instanceof Error ? error.message : String(error)}`;
+  } finally {
+    localWhisperBusy = false;
+    if (localWhisperStatus) renderLocalWhisper();
+    else void refreshLocalWhisper();
+  }
+});
+
+localDownloadModel.addEventListener("click", async () => {
+  const model = localModelSelect.value;
+  localWhisperBusy = true;
+  localStatus.textContent = "正在下载本地模型…";
+  renderLocalWhisper();
+  try {
+    localWhisperStatus = await invoke<LocalWhisperStatus>("download_local_whisper_model", { model });
+    asrResult.className = "asr-result success";
+    asrResult.textContent = "本地模型已下载";
+  } catch (error) {
+    asrResult.className = "asr-result failure";
+    asrResult.textContent = `模型下载失败：${error instanceof Error ? error.message : String(error)}`;
+  } finally {
+    localWhisperBusy = false;
+    if (localWhisperStatus) renderLocalWhisper();
+    else void refreshLocalWhisper();
+  }
+});
+
+localDeleteModel.addEventListener("click", async () => {
+  if (!window.confirm("删除本地模型文件？已生成的转写不受影响，下次转写需要重新下载。")) return;
+  localWhisperBusy = true;
+  renderLocalWhisper();
+  try {
+    localWhisperStatus = await invoke<LocalWhisperStatus>("delete_local_whisper_model", {
+      model: localModelSelect.value,
+    });
+    asrResult.className = "asr-result success";
+    asrResult.textContent = "本地模型已删除";
+  } catch (error) {
+    asrResult.className = "asr-result failure";
+    asrResult.textContent = `删除失败：${error instanceof Error ? error.message : String(error)}`;
+  } finally {
+    localWhisperBusy = false;
+    if (localWhisperStatus) renderLocalWhisper();
+    else void refreshLocalWhisper();
   }
 });
 app.addEventListener("click", async (event) => {
@@ -1148,6 +1298,13 @@ document.addEventListener("keydown", (event) => {
 for (const eventName of ["transcription-progress", "translation-progress", "summarize-progress"] as const) {
   await listen<JobProgress>(eventName, (event) => applyJobProgress(event.payload));
 }
+await listen<WhisperDownloadProgress>("local-whisper-download", (event) => {
+  const { kind, downloaded, total } = event.payload;
+  if (localPanel.hidden) return;
+  const percent = total > 0 ? Math.min(100, Math.round((downloaded / total) * 100)) : 0;
+  const label = kind === "engine" ? "引擎" : "模型";
+  localStatus.textContent = `正在下载${label} ${percent}%（${formatBytes(downloaded)} / ${formatBytes(total)}）`;
+});
 
 const recovered = await invoke<SessionState | null>("recover_latest_session");
 syncBackend(recovered ?? await invoke<SessionState>("get_session_state"));

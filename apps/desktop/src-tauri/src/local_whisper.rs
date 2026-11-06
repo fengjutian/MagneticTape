@@ -5,12 +5,13 @@
 //! minute audio segment. Audio never leaves the machine.
 
 use crate::asr::{self, AudioChunkRef, Transcript, TranscriptSegment};
+use futures_util::StreamExt;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
     fs::{self, File},
-    io::{Read, Write},
+    io::Read,
     path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::{
@@ -211,7 +212,10 @@ pub async fn download_local_whisper_engine(
     let app_data = app_data_dir(&app)?;
     let engine = engine_dir(&app_data);
     if engine_exe(&app_data).is_file() {
-        return Ok(status_for(&app_data, &selected_model(&local_settings(&settings))));
+        return Ok(status_for(
+            &app_data,
+            &selected_model(&local_settings(&settings)),
+        ));
     }
     let archive = root(&app_data).join("whisper-bin-x64.zip");
     fs::create_dir_all(root(&app_data)).map_err(|error| error.to_string())?;
@@ -231,7 +235,10 @@ pub async fn download_local_whisper_engine(
     if !engine.join(ENGINE_FILE).is_file() {
         return Err(format!("解压后未找到 {ENGINE_FILE}"));
     }
-    Ok(status_for(&app_data, &selected_model(&local_settings(&settings))))
+    Ok(status_for(
+        &app_data,
+        &selected_model(&local_settings(&settings)),
+    ))
 }
 
 #[tauri::command]
@@ -278,7 +285,10 @@ pub fn delete_local_whisper_model(
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
         Err(error) => return Err(format!("无法删除模型：{error}")),
     }
-    Ok(status_for(&app_data, &selected_model(&local_settings(&settings))))
+    Ok(status_for(
+        &app_data,
+        &selected_model(&local_settings(&settings)),
+    ))
 }
 
 fn begin_download<'a>(
@@ -388,8 +398,8 @@ fn emit_progress(
 
 fn extract_engine(archive: &Path, engine: &Path) -> Result<(), String> {
     let file = File::open(archive).map_err(|error| format!("无法打开下载的引擎：{error}"))?;
-    let mut zip = zip::ZipArchive::new(file)
-        .map_err(|error| format!("无法解压本地引擎：{error}"))?;
+    let mut zip =
+        zip::ZipArchive::new(file).map_err(|error| format!("无法解压本地引擎：{error}"))?;
     fs::create_dir_all(engine).map_err(|error| error.to_string())?;
     for index in 0..zip.len() {
         let mut entry = zip
@@ -423,6 +433,17 @@ fn extract_engine(archive: &Path, engine: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// Everything one local transcription run needs besides the audio chunks.
+struct LocalJob<'a> {
+    working: &'a Path,
+    exe: &'a Path,
+    model_file: &'a Path,
+    spec: &'a ModelSpec,
+    language: &'a str,
+    cancel: &'a AtomicBool,
+    on_progress: &'a (dyn Fn(usize, usize) + Sync),
+}
+
 /// Transcribes all committed chunks with the local whisper.cpp CLI. Runs on a
 /// blocking thread; one 8 minute WAV segment per `whisper-cli` process.
 pub fn transcribe(
@@ -436,54 +457,52 @@ pub fn transcribe(
 ) -> Result<Transcript, String> {
     let spec = model_spec(model)
         .ok_or_else(|| "未知的本地 Whisper 模型，请在转写设置中重新选择".to_owned())?;
-    if !engine_exe(app_data).is_file() {
+    let exe = engine_exe(app_data);
+    if !exe.is_file() {
         return Err("本地 Whisper 引擎未安装，请在转写设置中下载".into());
     }
     let model_file = model_path(app_data, spec.id);
     if !model_file.is_file() {
         return Err(format!("本地 Whisper 模型未下载：{}", spec.label));
     }
-    let working = std::env::temp_dir().join(format!(
-        "magnetic-tape-whisper-{session_id}-{}",
-        epoch_ms()
-    ));
-    let result = transcribe_in(&working, app_data, chunks, spec, &model_file, language, cancel, on_progress);
+    let working =
+        std::env::temp_dir().join(format!("magnetic-tape-whisper-{session_id}-{}", epoch_ms()));
+    let job = LocalJob {
+        working: &working,
+        exe: &exe,
+        model_file: &model_file,
+        spec,
+        language,
+        cancel,
+        on_progress,
+    };
+    let result = transcribe_in(&job, chunks);
     let _ = fs::remove_dir_all(&working);
     result
 }
 
-fn transcribe_in(
-    working: &Path,
-    app_data: &Path,
-    chunks: &[AudioChunkRef],
-    spec: &ModelSpec,
-    model_file: &Path,
-    language: &str,
-    cancel: &AtomicBool,
-    on_progress: &(dyn Fn(usize, usize) + Sync),
-) -> Result<Transcript, String> {
-    let segments = asr::build_segments(chunks, working, WAV_SEGMENT_SECONDS)?;
+fn transcribe_in(job: &LocalJob<'_>, chunks: &[AudioChunkRef]) -> Result<Transcript, String> {
+    let segments = asr::build_segments(chunks, job.working, WAV_SEGMENT_SECONDS)?;
     if segments.is_empty() {
         return Err("当前会话没有可转写的音频".into());
     }
     let total = segments.len();
     let mut transcript = Transcript {
         provider: "local_whisper".into(),
-        model: spec.id.into(),
-        language: language.to_owned(),
+        model: job.spec.id.into(),
+        language: job.language.to_owned(),
         duration_ms: 0,
         text: String::new(),
         segments: Vec::new(),
         created_at_epoch_ms: epoch_ms(),
     };
     let mut failures = Vec::new();
-    let exe = engine_exe(app_data);
     for (index, segment) in segments.iter().enumerate() {
-        if cancel.load(Ordering::SeqCst) {
+        if job.cancel.load(Ordering::SeqCst) {
             return Err(asr::CANCELLED.into());
         }
-        let prefix = working.join(format!("result-{index:03}"));
-        match run_segment(&exe, model_file, segment, language, &prefix) {
+        let prefix = job.working.join(format!("result-{index:03}"));
+        match run_segment(job.exe, job.model_file, segment, job.language, &prefix) {
             Ok(lines) => {
                 transcript.duration_ms = transcript
                     .duration_ms
@@ -507,7 +526,7 @@ fn transcribe_in(
             }
             Err(error) => failures.push(format!("第 {} 段：{error}", index + 1)),
         }
-        on_progress(index + 1, total);
+        (job.on_progress)(index + 1, total);
     }
     transcript
         .segments
@@ -568,13 +587,12 @@ fn run_segment(
         }
         thread::sleep(Duration::from_millis(200));
     };
-    let stderr_text = stderr.and_then(|handle| handle.join().ok()).unwrap_or_default();
+    let stderr_text = stderr
+        .and_then(|handle| handle.join().ok())
+        .unwrap_or_default();
     if !status.success() {
         let detail: String = stderr_text.chars().take(500).collect();
-        return Err(format!(
-            "whisper-cli 退出码 {:?}：{detail}",
-            status.code()
-        ));
+        return Err(format!("whisper-cli 退出码 {:?}：{detail}", status.code()));
     }
     let json_path = prefix.with_extension("json");
     parse_output(&json_path)
@@ -695,5 +713,48 @@ mod tests {
         assert_eq!(lines.len(), 2);
         assert_eq!(lines[0], (0, 1_500, " 大家好。".into()));
         assert_eq!(lines[1].1, 3_200);
+    }
+
+    /// Manual smoke test against a real downloaded engine and model.
+    /// Run with `WHISPER_ENGINE_DIR` and `WHISPER_MODEL` set, plus `--ignored`.
+    #[test]
+    #[ignore = "requires WHISPER_ENGINE_DIR and WHISPER_MODEL"]
+    fn transcribes_a_real_chunk_with_the_downloaded_engine() {
+        let Ok(engine_source) = std::env::var("WHISPER_ENGINE_DIR") else {
+            return;
+        };
+        let Ok(model_source) = std::env::var("WHISPER_MODEL") else {
+            return;
+        };
+        let app_data = tempfile::tempdir().unwrap();
+        let engine = app_data.path().join("local-whisper/engine");
+        let models = app_data.path().join("local-whisper/models");
+        fs::create_dir_all(&engine).unwrap();
+        fs::create_dir_all(&models).unwrap();
+        for entry in fs::read_dir(&engine_source).unwrap() {
+            let entry = entry.unwrap();
+            if entry.path().is_file() {
+                fs::copy(entry.path(), engine.join(entry.file_name())).unwrap();
+            }
+        }
+        fs::copy(&model_source, models.join("ggml-base.bin")).unwrap();
+        let chunk = AudioChunkRef {
+            track: magnetic_tape_audio::Track::Microphone,
+            path: Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../doc/chunk_00000.ogg"),
+            start_frame: 0,
+            frames: 144_000,
+        };
+        let transcript = transcribe(
+            app_data.path(),
+            &[chunk],
+            "smoke",
+            "base",
+            "auto",
+            &AtomicBool::new(false),
+            &|_, _| {},
+        )
+        .unwrap();
+        assert!(!transcript.text.trim().is_empty());
+        assert!(!transcript.segments.is_empty());
     }
 }

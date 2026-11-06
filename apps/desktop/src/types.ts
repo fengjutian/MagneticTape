@@ -94,12 +94,38 @@ export interface Transcript {
   createdAtEpochMs: number;
 }
 
+export type AsrProviderId = "minimax" | "silicon_flow" | "openai_realtime" | "local_whisper";
+
 export interface AsrConfiguration {
-  provider: "minimax" | "silicon_flow" | "openai_realtime";
+  provider: AsrProviderId;
   endpoint: string;
   model: string;
   language: string;
   configured: boolean;
+}
+
+export interface WhisperModelStatus {
+  id: string;
+  label: string;
+  sizeBytes: number;
+  installed: boolean;
+}
+
+export interface LocalWhisperStatus {
+  engineInstalled: boolean;
+  engineBytes: number;
+  engineVersion: string;
+  model: string;
+  modelInstalled: boolean;
+  models: WhisperModelStatus[];
+  totalBytes: number;
+}
+
+export interface WhisperDownloadProgress {
+  kind: "engine" | "model";
+  model: string | null;
+  downloaded: number;
+  total: number;
 }
 
 export interface LiveTranscript {
@@ -127,8 +153,9 @@ export interface AppSettings {
   translation: string;
   retainAudio: boolean;
   liveCaptions: boolean;
-  asrProvider: "minimax" | "silicon_flow" | "openai_realtime";
+  asrProvider: AsrProviderId;
   asrProfiles: Record<string, AsrProfile>;
+  localWhisperModel: string;
   autoCleanupDays: number;
   storageQuotaMb: number;
 }

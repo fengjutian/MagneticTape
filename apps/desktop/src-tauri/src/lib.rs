@@ -1712,10 +1712,6 @@ async fn transcribe_session(
     if chunks.is_empty() {
         return Err("当前会话没有可转写的 Opus 分片".into());
     }
-    let mut config = asr_state.credential(provider)?;
-    if let Some(language) = language.filter(|value| !value.trim().is_empty()) {
-        config.language = language;
-    }
     let cancel = transcription.begin()?;
     let on_progress = |done: usize, total: usize| {
         let _ = app.emit(
@@ -1727,9 +1723,54 @@ async fn transcribe_session(
             },
         );
     };
-    let result =
+    let result = if provider == asr::AsrProvider::LocalWhisper {
+        let app_data = app
+            .path()
+            .app_data_dir()
+            .map_err(|error| format!("无法定位应用数据目录：{error}"))?;
+        let (model, settings_language) = {
+            let settings = settings.lock().expect("settings state poisoned");
+            (
+                settings.local_whisper_model.clone(),
+                settings.language.clone(),
+            )
+        };
+        let local_language = language
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or(settings_language);
+        let local_session = session_id.clone();
+        let cancel_flag = Arc::clone(&cancel);
+        let progress_app = app.clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            local_whisper::transcribe(
+                &app_data,
+                &chunks,
+                &local_session,
+                &model,
+                &local_language,
+                &cancel_flag,
+                &move |done, total| {
+                    let _ = progress_app.emit(
+                        "transcription-progress",
+                        JobProgress {
+                            stage: "transcribe".into(),
+                            done,
+                            total,
+                        },
+                    );
+                },
+            )
+        })
+        .await
+        .map_err(|error| format!("本地转写任务失败：{error}"))?
+    } else {
+        let mut config = asr_state.credential(provider)?;
+        if let Some(language) = language.filter(|value| !value.trim().is_empty()) {
+            config.language = language;
+        }
         asr::transcribe_chunks_with(&chunks, &config, &session_id, cancel.as_ref(), &on_progress)
-            .await;
+            .await
+    };
     transcription.clear();
     let transcript = result?;
     write_transcript(&directory, &transcript)?;
@@ -1981,12 +2022,14 @@ fn start_openai_realtime(
                         let Message::Text(text) = message else { continue; };
                         let event: serde_json::Value = serde_json::from_str(&text).map_err(|error| error.to_string())?;
                         let event_type = event["type"].as_str().unwrap_or_default();
-                        let live_state = app.state::<Mutex<LiveTranscriptionState>>();
-                        let mut live = live_state.lock().expect("live transcription state poisoned");
-                        match event_type {
+                        let should_close = {
+                            let live_state = app.state::<Mutex<LiveTranscriptionState>>();
+                            let mut live = live_state.lock().expect("live transcription state poisoned");
+                            match event_type {
                             "conversation.item.input_audio_transcription.delta" => {
                                 live.partial_text.push_str(event["delta"].as_str().unwrap_or_default());
                                 live.error = None;
+                                false
                             }
                             "conversation.item.input_audio_transcription.completed" => {
                                 let text = event["transcript"].as_str().unwrap_or_default().trim().to_owned();
@@ -2001,11 +2044,16 @@ fn start_openai_realtime(
                                 }
                                 live.partial_text.clear();
                                 live.error = None;
-                                if closing && pending_turns.is_empty() { let _ = writer.close().await; break; }
+                                closing && pending_turns.is_empty()
                             }
-                            "error" => live.error = Some(event["error"]["message"].as_str().unwrap_or("Realtime API 返回错误").to_owned()),
-                            _ => {}
-                        }
+                            "error" => {
+                                live.error = Some(event["error"]["message"].as_str().unwrap_or("Realtime API 返回错误").to_owned());
+                                false
+                            }
+                            _ => false
+                            }
+                        };
+                        if should_close { let _ = writer.close().await; break; }
                     }
                 }
             }
@@ -2030,6 +2078,9 @@ async fn start_live_transcription(
     asr_state: tauri::State<'_, AsrState>,
     live: tauri::State<'_, Mutex<LiveTranscriptionState>>,
 ) -> Result<LiveTranscriptView, String> {
+    if provider == asr::AsrProvider::LocalWhisper {
+        return Err("本地 Whisper 暂不支持实时字幕，请使用云端服务或录音后转写".into());
+    }
     let session_id = {
         let state = state.lock().expect("session state poisoned");
         if state.status != RecorderStatus::Recording {
@@ -2129,10 +2180,17 @@ fn poll_live_inner(
             .as_ref()
             .map(AudioRecording::drain_realtime_pcm)
             .unwrap_or_default();
-        if !pcm.is_empty() {
-            stream_tx
-                .send(pcm)
-                .map_err(|_| "Realtime WebSocket 已断开".to_owned())?;
+        if !pcm.is_empty()
+            && let Err(failed) = stream_tx.send(pcm)
+        {
+            let config = asr_state.credential(asr::AsrProvider::OpenAiRealtime)?;
+            let replacement = start_openai_realtime(app.clone(), config, directory.clone())?;
+            replacement
+                .send(failed.0)
+                .map_err(|_| "Realtime WebSocket 重连失败".to_owned())?;
+            let mut live = live.lock().expect("live transcription state poisoned");
+            live.stream_tx = Some(replacement);
+            live.error = None;
         }
         return Ok(());
     }
@@ -2482,6 +2540,7 @@ pub fn run() {
         .manage(AiState::default())
         .manage(AsrState::default())
         .manage(TranscriptionRun::default())
+        .manage(LocalWhisperState::default())
         .manage(Mutex::new(LiveTranscriptionState::default()))
         .setup(|app| {
             let data_directory = app.path().app_data_dir()?;
@@ -2576,7 +2635,11 @@ pub fn run() {
             reveal_export,
             discard_session_audio,
             get_library_stats,
-            cleanup_audio_older_than
+            cleanup_audio_older_than,
+            local_whisper::get_local_whisper_status,
+            local_whisper::download_local_whisper_engine,
+            local_whisper::download_local_whisper_model,
+            local_whisper::delete_local_whisper_model
         ])
         .run(tauri::generate_context!())
         .expect("error while running MagneticTape desktop application");
