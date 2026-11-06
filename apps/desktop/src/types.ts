@@ -95,7 +95,7 @@ export interface Transcript {
 }
 
 export interface AsrConfiguration {
-  provider: "minimax" | "silicon_flow";
+  provider: "minimax" | "silicon_flow" | "openai_realtime";
   endpoint: string;
   model: string;
   language: string;
@@ -111,6 +111,7 @@ export interface LiveTranscript {
   model: string;
   language: string;
   error?: string;
+  partialText: string;
 }
 
 export interface AsrProfile {
@@ -126,7 +127,7 @@ export interface AppSettings {
   translation: string;
   retainAudio: boolean;
   liveCaptions: boolean;
-  asrProvider: "minimax" | "silicon_flow";
+  asrProvider: "minimax" | "silicon_flow" | "openai_realtime";
   asrProfiles: Record<string, AsrProfile>;
   autoCleanupDays: number;
   storageQuotaMb: number;

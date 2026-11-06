@@ -88,6 +88,8 @@ struct SharedState {
     system_error: Mutex<Option<String>>,
     last_microphone_ms: AtomicU64,
     last_system_ms: AtomicU64,
+    live_microphone: Mutex<Vec<f32>>,
+    live_system: Mutex<Vec<f32>>,
 }
 
 impl Default for SharedState {
@@ -102,6 +104,8 @@ impl Default for SharedState {
             system_error: Mutex::new(None),
             last_microphone_ms: AtomicU64::new(0),
             last_system_ms: AtomicU64::new(0),
+            live_microphone: Mutex::new(Vec::new()),
+            live_system: Mutex::new(Vec::new()),
         }
     }
 }
@@ -148,6 +152,57 @@ pub struct AudioRecording {
 }
 
 impl AudioRecording {
+    /// Drains captured audio and returns mixed 24 kHz mono PCM16 for realtime ASR.
+    pub fn drain_realtime_pcm(&self) -> Vec<i16> {
+        fn convert(input: &mut Vec<f32>, channels: u16, rate: u32) -> Vec<f32> {
+            let source = std::mem::take(input);
+            let channels = usize::from(channels.max(1));
+            let mono: Vec<f32> = source
+                .chunks(channels)
+                .map(|frame| frame.iter().sum::<f32>() / frame.len() as f32)
+                .collect();
+            if rate == 24_000 {
+                return mono;
+            }
+            let step = f64::from(rate) / 24_000.0;
+            let mut output = Vec::with_capacity((mono.len() as f64 / step) as usize + 1);
+            let mut position = 0.0;
+            while (position as usize) < mono.len() {
+                output.push(mono[position as usize]);
+                position += step;
+            }
+            output
+        }
+        let mut microphone = self
+            .shared
+            .live_microphone
+            .lock()
+            .expect("live microphone poisoned");
+        let mut system = self
+            .shared
+            .live_system
+            .lock()
+            .expect("live system poisoned");
+        let microphone = convert(
+            &mut microphone,
+            self.microphone_config.channels(),
+            self.microphone_config.sample_rate(),
+        );
+        let system = convert(
+            &mut system,
+            self.system_config.channels(),
+            self.system_config.sample_rate(),
+        );
+        let length = microphone.len().max(system.len());
+        (0..length)
+            .map(|index| {
+                let sample = microphone.get(index).copied().unwrap_or(0.0)
+                    + system.get(index).copied().unwrap_or(0.0);
+                (sample.clamp(-1.0, 1.0) * f32::from(i16::MAX)) as i16
+            })
+            .collect()
+    }
+
     pub fn start(
         microphone_id: &str,
         system_output_id: &str,
@@ -522,11 +577,21 @@ fn submit(
     match source {
         Source::Microphone => {
             shared
+                .live_microphone
+                .lock()
+                .expect("live microphone poisoned")
+                .extend_from_slice(&samples);
+            shared
                 .microphone_level
                 .store(rms.to_bits(), Ordering::Relaxed);
             shared.last_microphone_ms.store(now, Ordering::Relaxed);
         }
         Source::System => {
+            shared
+                .live_system
+                .lock()
+                .expect("live system poisoned")
+                .extend_from_slice(&samples);
             shared.system_level.store(rms.to_bits(), Ordering::Relaxed);
             shared.last_system_ms.store(now, Ordering::Relaxed);
         }

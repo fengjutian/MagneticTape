@@ -114,7 +114,7 @@ export function renderApp(): string {
     <dialog class="asr-dialog" aria-labelledby="asr-dialog-title">
       <form method="dialog" class="asr-form">
         <header><div><p class="section-kicker">SPEECH TO TEXT</p><h2 id="asr-dialog-title">配置转写服务</h2></div><button class="dialog-close" value="cancel" aria-label="关闭">×</button></header>
-        <label><span>服务商</span><select class="asr-dialog-provider"><option value="minimax">MiniMax（可复用 AI 密钥）</option><option value="silicon_flow">SiliconFlow</option></select></label>
+        <label><span>服务商</span><select class="asr-dialog-provider"><option value="openai_realtime">OpenAI Realtime（流式）</option><option value="minimax">MiniMax（分片）</option><option value="silicon_flow">SiliconFlow（分片）</option></select></label>
         <label><span>接口地址</span><input class="asr-endpoint" autocomplete="off" /></label>
         <label><span>模型</span><input class="asr-model" autocomplete="off" /></label>
         <label><span>识别语言</span><select class="asr-language"><option value="auto">自动识别</option><option value="zh-CN">中文</option><option value="en-US">English</option></select></label>

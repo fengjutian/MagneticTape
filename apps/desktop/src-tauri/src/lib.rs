@@ -1,3 +1,5 @@
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use futures_util::{SinkExt, StreamExt};
 use magnetic_tape_audio::{
     AudioLevels, AudioRecording, ChunkInfo, OPUS_SAMPLE_RATE, RecordingSnapshot, Track,
     wav_duration_ms,
@@ -22,6 +24,11 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use tauri::{Emitter, Manager};
+use tokio::sync::mpsc;
+use tokio_tungstenite::{
+    connect_async,
+    tungstenite::{Message, client::IntoClientRequest, http::HeaderValue},
+};
 
 mod ai;
 mod asr;
@@ -108,7 +115,10 @@ impl AppSettings {
         if !matches!(self.translation.as_str(), "none" | "zh-CN" | "en-US") {
             self.translation = "none".into();
         }
-        if !matches!(self.asr_provider.as_str(), "minimax" | "silicon_flow") {
+        if !matches!(
+            self.asr_provider.as_str(),
+            "minimax" | "silicon_flow" | "openai_realtime"
+        ) {
             self.asr_provider = "minimax".into();
         }
         if !matches!(self.auto_cleanup_days, 0 | 30 | 90 | 180) {
@@ -126,7 +136,7 @@ impl AppSettings {
             .map(|id| id.chars().take(512).collect::<String>())
             .filter(|id| !id.is_empty());
         self.asr_profiles.retain(|key, profile| {
-            if !matches!(key.as_str(), "minimax" | "silicon_flow") {
+            if !matches!(key.as_str(), "minimax" | "silicon_flow" | "openai_realtime") {
                 return false;
             }
             profile.endpoint = profile.endpoint.chars().take(512).collect();
@@ -317,6 +327,8 @@ struct LiveTranscriptionState {
     model: String,
     language: String,
     error: Option<String>,
+    partial_text: String,
+    stream_tx: Option<mpsc::UnboundedSender<Vec<i16>>>,
 }
 
 #[derive(Debug, Serialize)]
@@ -330,6 +342,7 @@ struct LiveTranscriptView {
     model: String,
     language: String,
     error: Option<String>,
+    partial_text: String,
 }
 
 fn live_view(state: &LiveTranscriptionState) -> LiveTranscriptView {
@@ -342,6 +355,7 @@ fn live_view(state: &LiveTranscriptionState) -> LiveTranscriptView {
         model: state.model.clone(),
         language: state.language.clone(),
         error: state.error.clone(),
+        partial_text: state.partial_text.clone(),
     }
 }
 
@@ -397,6 +411,7 @@ fn persist_live_transcript(directory: &Path, state: &LiveTranscriptionState) {
 }
 
 fn finish_live_transcription(directory: &Path, state: &mut LiveTranscriptionState) {
+    state.stream_tx.take();
     if !state.segments.is_empty() {
         let transcript = live_transcript(state);
         let _ = write_transcript(directory, &transcript);
@@ -1883,10 +1898,87 @@ fn save_settings(
     Ok(sanitized)
 }
 
+fn start_openai_realtime(
+    app: tauri::AppHandle,
+    config: asr::AsrCredential,
+) -> Result<mpsc::UnboundedSender<Vec<i16>>, String> {
+    let (tx, mut rx) = mpsc::unbounded_channel::<Vec<i16>>();
+    tauri::async_runtime::spawn(async move {
+        let result: Result<(), String> = async {
+            let mut request = config.endpoint.clone().into_client_request().map_err(|error| error.to_string())?;
+            request.headers_mut().insert("Authorization", HeaderValue::from_str(&format!("Bearer {}", config.api_key)).map_err(|error| error.to_string())?);
+            let (socket, _) = connect_async(request).await.map_err(|error| format!("Realtime WebSocket 连接失败：{error}"))?;
+            let (mut writer, mut reader) = socket.split();
+            let update = serde_json::json!({
+                "type": "session.update",
+                "session": {"type":"transcription","audio":{"input":{"format":{"type":"audio/pcm","rate":24000},"transcription":{"model":config.model},"turn_detection":null}}}
+            });
+            writer.send(Message::Text(update.to_string().into())).await.map_err(|error| error.to_string())?;
+            let mut samples_since_commit = 0usize;
+            loop {
+                tokio::select! {
+                    audio = rx.recv() => match audio {
+                        Some(samples) => {
+                            let bytes: Vec<u8> = samples.iter().flat_map(|sample| sample.to_le_bytes()).collect();
+                            let append = serde_json::json!({"type":"input_audio_buffer.append","audio":BASE64.encode(bytes)});
+                            writer.send(Message::Text(append.to_string().into())).await.map_err(|error| error.to_string())?;
+                            samples_since_commit += samples.len();
+                            if samples_since_commit >= 48_000 {
+                                writer.send(Message::Text(r#"{"type":"input_audio_buffer.commit"}"#.into())).await.map_err(|error| error.to_string())?;
+                                samples_since_commit = 0;
+                            }
+                        }
+                        None => {
+                            if samples_since_commit > 0 { let _ = writer.send(Message::Text(r#"{"type":"input_audio_buffer.commit"}"#.into())).await; }
+                            let _ = writer.close().await;
+                            break;
+                        }
+                    },
+                    message = reader.next() => {
+                        let Some(message) = message else { return Err("Realtime WebSocket 已断开".into()); };
+                        let message = message.map_err(|error| error.to_string())?;
+                        let Message::Text(text) = message else { continue; };
+                        let event: serde_json::Value = serde_json::from_str(&text).map_err(|error| error.to_string())?;
+                        let event_type = event["type"].as_str().unwrap_or_default();
+                        let live_state = app.state::<Mutex<LiveTranscriptionState>>();
+                        let mut live = live_state.lock().expect("live transcription state poisoned");
+                        match event_type {
+                            "conversation.item.input_audio_transcription.delta" => {
+                                live.partial_text.push_str(event["delta"].as_str().unwrap_or_default());
+                                live.error = None;
+                            }
+                            "conversation.item.input_audio_transcription.completed" => {
+                                let text = event["transcript"].as_str().unwrap_or_default().trim().to_owned();
+                                if !text.is_empty() {
+                                    let start_ms = live.segments.last().map(|segment| segment.end_ms).unwrap_or(0);
+                                    live.segments.push(asr::TranscriptSegment { start_ms, end_ms: start_ms + 2_000, speaker: None, text });
+                                }
+                                live.partial_text.clear();
+                                live.error = None;
+                            }
+                            "error" => live.error = Some(event["error"]["message"].as_str().unwrap_or("Realtime API 返回错误").to_owned()),
+                            _ => {}
+                        }
+                    }
+                }
+            }
+            Ok(())
+        }.await;
+        if let Err(error) = result {
+            app.state::<Mutex<LiveTranscriptionState>>()
+                .lock()
+                .expect("live transcription state poisoned")
+                .error = Some(error);
+        }
+    });
+    Ok(tx)
+}
+
 #[tauri::command]
-fn start_live_transcription(
+async fn start_live_transcription(
     provider: asr::AsrProvider,
     language: Option<String>,
+    app: tauri::AppHandle,
     state: tauri::State<'_, Mutex<SessionState>>,
     asr_state: tauri::State<'_, AsrState>,
     live: tauri::State<'_, Mutex<LiveTranscriptionState>>,
@@ -1902,6 +1994,11 @@ fn start_live_transcription(
             .ok_or_else(|| "当前没有录音会话".to_owned())?
     };
     let config = asr_state.credential(provider)?;
+    let stream_tx = if provider == asr::AsrProvider::OpenAiRealtime {
+        Some(start_openai_realtime(app, config.clone())?)
+    } else {
+        None
+    };
     let mut live = live.lock().expect("live transcription state poisoned");
     *live = LiveTranscriptionState {
         active: true,
@@ -1916,6 +2013,8 @@ fn start_live_transcription(
             .filter(|value| !value.trim().is_empty())
             .unwrap_or(config.language),
         error: None,
+        partial_text: String::new(),
+        stream_tx,
     };
     Ok(live_view(&live))
 }
@@ -1962,6 +2061,26 @@ fn poll_live_inner(
         .expect("audio recorder state poisoned")
         .as_ref()
         .map(AudioRecording::snapshot);
+    let stream_tx = live
+        .lock()
+        .expect("live transcription state poisoned")
+        .stream_tx
+        .clone();
+    if let Some(stream_tx) = stream_tx {
+        let pcm = recorder
+            .0
+            .lock()
+            .expect("audio recorder state poisoned")
+            .as_ref()
+            .map(AudioRecording::drain_realtime_pcm)
+            .unwrap_or_default();
+        if !pcm.is_empty() {
+            stream_tx
+                .send(pcm)
+                .map_err(|_| "Realtime WebSocket 已断开".to_owned())?;
+        }
+        return Ok(());
+    }
     let Some(snapshot) = snapshot else {
         return Ok(());
     };
@@ -2322,6 +2441,7 @@ pub fn run() {
                     let provider = match name.as_str() {
                         "minimax" => asr::AsrProvider::MiniMax,
                         "silicon_flow" => asr::AsrProvider::SiliconFlow,
+                        "openai_realtime" => asr::AsrProvider::OpenAiRealtime,
                         _ => continue,
                     };
                     asr_state.seed(

@@ -25,6 +25,7 @@ let livePollHandle: number | undefined;
 let livePollBusy = false;
 let livePendingChunks = 0;
 let liveProcessedChunks = 0;
+let livePartialText = "";
 let liveSegments: TranscriptSegment[] = [];
 let liveError: string | undefined;
 let liveTranslations: string[] = [];
@@ -117,7 +118,7 @@ function renderLive(): void {
   const body = app.querySelector<HTMLElement>(".content-body");
   if (!body) return;
   if (view.status !== "recording" && view.status !== "paused") return;
-  if (liveSegments.length === 0) {
+  if (liveSegments.length === 0 && !livePartialText) {
     if (liveError) {
       body.replaceChildren();
       const failure = document.createElement("p");
@@ -141,7 +142,7 @@ function renderLive(): void {
     language: view.language,
     durationMs: 0,
     text: "",
-    segments: liveSegments,
+    segments: livePartialText ? [...liveSegments, { startMs: liveSegments.at(-1)?.endMs ?? 0, endMs: liveSegments.at(-1)?.endMs ?? 0, text: livePartialText }] : liveSegments,
     createdAtEpochMs: 0,
   });
   body.querySelectorAll<HTMLElement>(".transcript-line").forEach((line, index) => {
@@ -220,6 +221,7 @@ async function pollLive(): Promise<void> {
     liveSegments = live.segments;
     livePendingChunks = live.pendingChunks;
     liveProcessedChunks = live.processedChunks;
+    livePartialText = live.partialText;
     liveError = live.error;
     renderLive();
     void translateNewLiveSegments();
@@ -263,6 +265,7 @@ async function beginLive(): Promise<void> {
     liveSegments = live.segments;
     livePendingChunks = live.pendingChunks;
     liveProcessedChunks = live.processedChunks;
+    livePartialText = live.partialText;
     liveError = live.error;
     setLiveIndicator(true);
     startLivePolling();
@@ -815,6 +818,7 @@ const asrKey = app.querySelector<HTMLInputElement>(".asr-key")!;
 const asrStatus = app.querySelector<HTMLElement>(".asr-config-status")!;
 const asrResult = app.querySelector<HTMLOutputElement>(".asr-result")!;
 const asrDefaults: Record<string, { endpoint: string; model: string }> = {
+  openai_realtime: { endpoint: "wss://api.openai.com/v1/realtime?intent=transcription", model: "gpt-live-transcribe" },
   minimax: { endpoint: "https://api.minimax.cn/v1/speech_to_text", model: "asr-1.0" },
   silicon_flow: { endpoint: "https://api.siliconflow.cn/v1/audio/transcriptions", model: "FunAudioLLM/SenseVoiceSmall" },
 };

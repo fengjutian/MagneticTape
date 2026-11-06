@@ -39,6 +39,8 @@ pub enum AsrProvider {
     MiniMax,
     #[serde(rename = "silicon_flow")]
     SiliconFlow,
+    #[serde(rename = "openai_realtime")]
+    OpenAiRealtime,
 }
 
 impl AsrProvider {
@@ -46,6 +48,7 @@ impl AsrProvider {
         match self {
             Self::MiniMax => "minimax",
             Self::SiliconFlow => "siliconflow",
+            Self::OpenAiRealtime => "openai-realtime",
         }
     }
 
@@ -53,6 +56,7 @@ impl AsrProvider {
         match self {
             Self::MiniMax => "https://api.minimax.cn/v1/speech_to_text",
             Self::SiliconFlow => "https://api.siliconflow.cn/v1/audio/transcriptions",
+            Self::OpenAiRealtime => "wss://api.openai.com/v1/realtime?intent=transcription",
         }
     }
 
@@ -60,6 +64,7 @@ impl AsrProvider {
         match self {
             Self::MiniMax => "asr-1.0",
             Self::SiliconFlow => "FunAudioLLM/SenseVoiceSmall",
+            Self::OpenAiRealtime => "gpt-live-transcribe",
         }
     }
 
@@ -67,6 +72,7 @@ impl AsrProvider {
         match self {
             Self::MiniMax => "minimax",
             Self::SiliconFlow => "siliconflow",
+            Self::OpenAiRealtime => "openai_realtime",
         }
     }
 }
@@ -264,33 +270,37 @@ pub fn configure_asr(
 
 #[tauri::command]
 pub fn get_asr_configurations(state: tauri::State<'_, AsrState>) -> Vec<AsrConfigurationView> {
-    [AsrProvider::MiniMax, AsrProvider::SiliconFlow]
-        .into_iter()
-        .map(|provider| {
-            let cached = state
-                .0
-                .lock()
-                .expect("ASR state poisoned")
-                .get(&provider)
-                .cloned();
-            AsrConfigurationView {
-                provider,
-                endpoint: cached
-                    .as_ref()
-                    .map(|value| value.endpoint.clone())
-                    .unwrap_or_else(|| provider.default_endpoint().to_owned()),
-                model: cached
-                    .as_ref()
-                    .map(|value| value.model.clone())
-                    .unwrap_or_else(|| provider.default_model().to_owned()),
-                language: cached
-                    .as_ref()
-                    .map(|value| value.language.clone())
-                    .unwrap_or_else(|| "auto".to_owned()),
-                configured: stored_api_key(provider).is_some(),
-            }
-        })
-        .collect()
+    [
+        AsrProvider::MiniMax,
+        AsrProvider::SiliconFlow,
+        AsrProvider::OpenAiRealtime,
+    ]
+    .into_iter()
+    .map(|provider| {
+        let cached = state
+            .0
+            .lock()
+            .expect("ASR state poisoned")
+            .get(&provider)
+            .cloned();
+        AsrConfigurationView {
+            provider,
+            endpoint: cached
+                .as_ref()
+                .map(|value| value.endpoint.clone())
+                .unwrap_or_else(|| provider.default_endpoint().to_owned()),
+            model: cached
+                .as_ref()
+                .map(|value| value.model.clone())
+                .unwrap_or_else(|| provider.default_model().to_owned()),
+            language: cached
+                .as_ref()
+                .map(|value| value.language.clone())
+                .unwrap_or_else(|| "auto".to_owned()),
+            configured: stored_api_key(provider).is_some(),
+        }
+    })
+    .collect()
 }
 
 #[tauri::command]

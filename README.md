@@ -146,6 +146,7 @@ cargo test --workspace --all-targets
 
 ## 设计资料
 
+- [UI 设计规范](doc/UI设计规范.md)
 - [录音页面布局需求](doc/录音页面布局需求.md)
 - [飞书妙记录音逆向分析](doc/飞书妙记录音-逆向分析.md)
 
