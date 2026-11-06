@@ -62,7 +62,7 @@ MagneticTape 是一个面向 Windows 的本地优先会议录音与转写工具�
 
 - 说话人分离（需要额外的 diarization 模型）与内嵌 whisper.cpp 绑定（当前为子进程）。
 - 代码签名、自动更新与远程崩溃上报（本地日志/崩溃报告已实现）。
-- 端到端 UI 自动化测试（前端单元测试已接入 `npm test`，覆盖时间轴与转写渲染）。
+- 真实 Tauri 进程的端到端 UI 自动化（浏览器模式 E2E 已接入 `npm run test:e2e`）。
 
 完整清单、优先级与里程碑见 [功能规划（未完成项）](doc/功能规划.md)。
 
@@ -130,9 +130,12 @@ cargo test --workspace --all-targets
 
 cd apps/desktop
 npm run test:coverage
+npm run test:e2e
 ```
 
 前端覆盖率门禁：时间轴、设置合并、转写状态机三个模块要求行/函数/语句 ≥ 85%、分支 ≥ 80%。
+
+`npm run test:e2e` 使用 Playwright + 本机 Edge，在 Vite 开发服务器上跑真实 UI，并通过 `VITE_E2E=1` 注入内存版 Tauri IPC（无需 Rust 后端）。真实 Tauri 进程的端到端测试需要 tauri-driver + WebdriverIO，见 [功能规划](doc/功能规划.md) 的 QA-2b。
 
 ## 构建安装包
 
