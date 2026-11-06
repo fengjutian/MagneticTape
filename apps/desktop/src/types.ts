@@ -107,7 +107,7 @@ export interface LiveTranscript {
   pendingChunks: number;
   processedChunks: number;
   segments: TranscriptSegment[];
-  provider?: "minimax" | "silicon_flow";
+  provider?: "minimax" | "silicon_flow" | "openai_realtime";
   model: string;
   language: string;
   error?: string;

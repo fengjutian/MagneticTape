@@ -281,6 +281,7 @@ liveButton.addEventListener("click", () => {
   if (view.status === "recording" || view.status === "paused") {
     if (livePollHandle !== undefined) {
       stopLivePolling();
+      void invoke("stop_live_transcription");
       liveDesired = false;
       setLiveIndicator(false);
     } else {

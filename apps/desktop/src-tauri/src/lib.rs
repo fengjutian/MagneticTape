@@ -2026,6 +2026,13 @@ fn get_live_transcript(
     live_view(&live.lock().expect("live transcription state poisoned"))
 }
 
+#[tauri::command]
+fn stop_live_transcription(live: tauri::State<'_, Mutex<LiveTranscriptionState>>) {
+    let mut live = live.lock().expect("live transcription state poisoned");
+    live.active = false;
+    live.stream_tx.take();
+}
+
 fn track_slot(track: Track) -> u8 {
     match track {
         Track::Microphone => 0,
@@ -2512,6 +2519,7 @@ pub fn run() {
             get_translation,
             summarize_session,
             start_live_transcription,
+            stop_live_transcription,
             poll_live_transcription,
             get_live_transcript,
             get_settings,
