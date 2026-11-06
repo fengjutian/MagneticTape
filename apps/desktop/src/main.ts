@@ -137,12 +137,14 @@ function renderLive(): void {
     translated.textContent = translation;
     line.append(translated);
   });
-  if (settings.translation !== "none" && (liveTranslationBusy || liveTranslationError)) {
+  if (settings.translation !== "none") {
     const status = document.createElement("p");
-    status.className = liveTranslationError ? "live-error" : "live-translation-status";
+    status.className = liveTranslationError ? "live-error live-translation-status" : "live-translation-status";
     status.textContent = liveTranslationError
-      ? `实时翻译错误：${liveTranslationError}`
-      : `AI 正在翻译为${translationLabel(settings.translation)}…`;
+      ? `AI 同传将在稍后重试：${liveTranslationError}`
+      : liveTranslationBusy
+        ? `AI 正在翻译为${translationLabel(settings.translation)} · ${liveTranslatedCount}/${liveSegments.length} 段`
+        : `AI 同传 ${translationLabel(settings.translation)} · 已翻译 ${liveTranslatedCount}/${liveSegments.length} 段`;
     body.append(status);
   }
   if (liveError) {
@@ -169,6 +171,10 @@ async function translateNewLiveSegments(): Promise<void> {
   liveTranslationError = undefined;
   renderLive();
   try {
+    const configurations = await invoke<AiConfiguration[]>("get_ai_configurations");
+    const configured = configurations.find((item) => item.configured);
+    if (!configured) throw new Error("请先在“AI 助手”中配置 MiniMax 或 DeepSeek API Key");
+    liveAiProvider = configured.provider;
     const translated = await invoke<string[]>("translate_live_segments", {
       segments: pendingSegments.map((segment) => segment.text),
       targetLanguage: translationLabel(target),

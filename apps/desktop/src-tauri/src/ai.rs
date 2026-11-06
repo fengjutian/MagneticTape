@@ -229,7 +229,7 @@ pub async fn translate_live_segments(
 
 fn parse_translation_array(content: &str, expected: usize) -> Result<Vec<String>, String> {
     let trimmed = content.trim();
-    let json = if trimmed.starts_with("```") {
+    let candidate = if trimmed.starts_with("```") {
         trimmed
             .lines()
             .skip(1)
@@ -239,8 +239,11 @@ fn parse_translation_array(content: &str, expected: usize) -> Result<Vec<String>
     } else {
         trimmed.to_owned()
     };
-    let translations: Vec<String> = serde_json::from_str(json.trim())
-        .map_err(|error| format!("无法解析实时翻译响应：{error}"))?;
+    // Some models still add a short introduction despite the prompt. Restrict
+    // parsing to the outer JSON array while keeping brackets inside strings.
+    let json = extract_json_array(&candidate).unwrap_or(candidate.trim());
+    let translations: Vec<String> =
+        serde_json::from_str(json).map_err(|error| format!("无法解析实时翻译响应：{error}"))?;
     if translations.len() != expected {
         return Err(format!(
             "实时翻译返回了 {} 段，预期 {expected} 段",
@@ -248,6 +251,38 @@ fn parse_translation_array(content: &str, expected: usize) -> Result<Vec<String>
         ));
     }
     Ok(translations)
+}
+
+fn extract_json_array(content: &str) -> Option<&str> {
+    let bytes = content.as_bytes();
+    let start = bytes.iter().position(|byte| *byte == b'[')?;
+    let mut in_string = false;
+    let mut escaped = false;
+    let mut depth = 0_u32;
+    for (offset, byte) in bytes[start..].iter().enumerate() {
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if *byte == b'\\' {
+                escaped = true;
+            } else if *byte == b'"' {
+                in_string = false;
+            }
+            continue;
+        }
+        match *byte {
+            b'"' => in_string = true,
+            b'[' => depth += 1,
+            b']' => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    return content.get(start..=start + offset);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
 }
 
 /// Generates plain text with a configured provider. Shared with transcript
@@ -370,6 +405,10 @@ mod tests {
         assert_eq!(
             parse_translation_array("```json\n[\"你好\"]\n```", 1).unwrap(),
             ["你好"]
+        );
+        assert_eq!(
+            parse_translation_array("翻译如下：\n[\"数组 [A]\", \"完成\"]\n谢谢", 2).unwrap(),
+            ["数组 [A]", "完成"]
         );
         assert!(parse_translation_array("[\"one\"]", 2).is_err());
     }
