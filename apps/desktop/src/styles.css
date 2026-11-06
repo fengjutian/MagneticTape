@@ -787,6 +787,11 @@ wa-button::part(base) { font-family: inherit; transition: background-color .18s 
 .start-button::part(base):hover { background: var(--ui-primary-hover); transform: translateY(-1px); }
 .pause-button::part(base) { width: 100%; min-height: 42px; border: 0; border-radius: 999px; background: var(--ui-primary-soft); color: var(--ui-primary-hover); box-shadow: none; }
 .stop-button::part(base) { width: 100%; min-height: 48px; border: 0; border-radius: 999px; background: #ebecef; color: #4e5969; box-shadow: none; }
+.playback-toggle::part(base), .transcribe::part(base), .summarize-notes::part(base) { border: 0; background: var(--ui-primary); color: #fff; box-shadow: none; }
+.playback-toggle, .transcribe, .cancel-transcribe, .asr-settings, .translate-transcript, .save-notes, .summarize-notes, .export-session, .reveal-recording, .discard-audio { padding: 0; background: transparent; }
+.asr-settings::part(base), .translate-transcript::part(base), .save-notes::part(base), .export-session::part(base), .reveal-recording::part(base) { border: 0; background: var(--ui-primary-soft); color: var(--ui-primary-hover); box-shadow: none; }
+.cancel-transcribe::part(base), .discard-audio::part(base) { border: 0; background: #fff0f0; color: #b42318; box-shadow: none; }
+.playback-toggle::part(label), .summarize-notes::part(label), .export-session::part(label), .reveal-recording::part(label), .discard-audio::part(label) { display: inline-flex; align-items: center; gap: 6px; }
 
 .level-meters { display: grid; gap: 7px; margin: 12px 2px 2px; }
 .level-channel { display: grid; grid-template-columns: 68px minmax(90px, 1fr) 58px; align-items: center; gap: 9px; }

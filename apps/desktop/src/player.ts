@@ -55,7 +55,7 @@ export class TimelinePlayer {
   private readonly microphone: Track;
   private readonly system: Track;
   private readonly options: TimelinePlayerOptions;
-  private readonly toggle: HTMLButtonElement | null;
+  private readonly toggle: (HTMLElement & { disabled: boolean }) | null;
   private readonly seekInput: HTMLInputElement | null;
   private readonly rateSelect: HTMLSelectElement | null;
   private readonly currentLabel: HTMLElement | null;
@@ -76,7 +76,7 @@ export class TimelinePlayer {
     this.durationMs = Math.max(0, tracks.durationMs);
     this.microphone = this.createTrack(tracks.microphone);
     this.system = this.createTrack(tracks.system);
-    this.toggle = root.querySelector<HTMLButtonElement>(".playback-toggle");
+    this.toggle = root.querySelector<HTMLElement & { disabled: boolean }>(".playback-toggle");
     this.seekInput = root.querySelector<HTMLInputElement>(".playback-seek");
     this.rateSelect = root.querySelector<HTMLSelectElement>(".playback-rate");
     this.currentLabel = root.querySelector<HTMLElement>(".playback-current");
