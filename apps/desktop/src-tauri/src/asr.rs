@@ -16,13 +16,19 @@ use std::{
     fs,
     io::Write,
     path::{Path, PathBuf},
-    sync::Mutex,
+    sync::{
+        Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 const ASR_SERVICE: &str = "com.magnetictape.desktop.asr";
 const ASR_SAMPLE_RATE: u32 = 16_000;
 const WAV_SEGMENT_SECONDS: u64 = 480;
+/// Returned when the user cancels a transcription run.
+pub const CANCELLED: &str = "已取消转写";
+static NEVER_CANCELLED: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -526,14 +532,24 @@ impl AsrCredential {
     }
 }
 
-/// Transcribes all chunks of a session, merging provider segments with the
-/// global session timeline. Temporary WAV segments are removed afterwards.
-pub async fn transcribe_chunks(
+/// Transcribes a session while reporting `(done, total)` segment progress and
+/// observing a cancellation flag between uploads.
+pub async fn transcribe_chunks_with(
     chunks: &[AudioChunkRef],
     config: &AsrCredential,
     session_id: &str,
+    cancel: &AtomicBool,
+    on_progress: &(dyn Fn(usize, usize) + Sync),
 ) -> Result<Transcript, String> {
-    transcribe_refs(chunks, config, session_id, WAV_SEGMENT_SECONDS).await
+    transcribe_refs_with(
+        chunks,
+        config,
+        session_id,
+        WAV_SEGMENT_SECONDS,
+        cancel,
+        on_progress,
+    )
+    .await
 }
 
 /// Transcribes the newest five-second chunk pair for live subtitles.
@@ -552,6 +568,25 @@ async fn transcribe_refs(
     config: &AsrCredential,
     session_id: &str,
     segment_seconds: u64,
+) -> Result<Transcript, String> {
+    transcribe_refs_with(
+        chunks,
+        config,
+        session_id,
+        segment_seconds,
+        &NEVER_CANCELLED,
+        &|_, _| {},
+    )
+    .await
+}
+
+async fn transcribe_refs_with(
+    chunks: &[AudioChunkRef],
+    config: &AsrCredential,
+    session_id: &str,
+    segment_seconds: u64,
+    cancel: &AtomicBool,
+    on_progress: &(dyn Fn(usize, usize) + Sync),
 ) -> Result<Transcript, String> {
     let working =
         std::env::temp_dir().join(format!("magnetic-tape-asr-{session_id}-{}", epoch_ms()));
@@ -574,7 +609,12 @@ async fn transcribe_refs(
         created_at_epoch_ms: epoch_ms(),
     };
     let mut failures = Vec::new();
-    for segment in &segments {
+    let total = segments.len();
+    for (index, segment) in segments.iter().enumerate() {
+        if cancel.load(Ordering::SeqCst) {
+            let _ = fs::remove_dir_all(&working);
+            return Err(CANCELLED.into());
+        }
         match upload_segment(&client, config, segment).await {
             Ok(response) => {
                 transcript.duration_ms = transcript
@@ -608,6 +648,7 @@ async fn transcribe_refs(
             }
             Err(error) => failures.push(error),
         }
+        on_progress(index + 1, total);
     }
     let _ = fs::remove_dir_all(&working);
     if transcript.text.is_empty() && !failures.is_empty() {
@@ -786,8 +827,15 @@ mod tests {
             model: "asr-1.0".into(),
             language: "zh-CN".into(),
         };
-        let transcript =
-            tauri::async_runtime::block_on(transcribe_chunks(&refs, &config, "session")).unwrap();
+        let cancel = AtomicBool::new(false);
+        let transcript = tauri::async_runtime::block_on(transcribe_chunks_with(
+            &refs,
+            &config,
+            "session",
+            &cancel,
+            &|_, _| {},
+        ))
+        .unwrap();
         let request = String::from_utf8_lossy(&server.join().unwrap()).into_owned();
 
         assert!(request.contains(r#"name="model""#));

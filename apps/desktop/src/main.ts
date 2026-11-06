@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { applyAudioDevices, applyView, formatElapsed, renderApp, renderTranscript } from "./components";
-import type { AiConfiguration, AiResponse, AppSettings, AsrConfiguration, AudioDeviceSnapshot, AudioHealth, AudioLevels, CleanupResult, ExportResult, LibraryStats, LiveTranscript, RecorderViewState, RecordingListItem, SessionState, Transcript, TranscriptSegment } from "./types";
+import type { AiConfiguration, AiResponse, AppSettings, AsrConfiguration, AudioDeviceSnapshot, AudioHealth, AudioLevels, CleanupResult, ExportResult, JobProgress, LibraryStats, LiveTranscript, RecorderViewState, RecordingListItem, SessionState, Transcript, TranscriptSegment } from "./types";
 import "./styles.css";
 
 const appElement = document.querySelector<HTMLElement>("#app");
@@ -14,6 +15,7 @@ let tickHandle: number | undefined;
 let levelHandle: number | undefined;
 let healthHandle: number | undefined;
 let currentTranscript: Transcript | null = null;
+let currentTranslation: { code: string; content: string } | null = null;
 let liveDesired = false;
 let livePollHandle: number | undefined;
 let livePollBusy = false;
@@ -157,7 +159,9 @@ function renderLive(): void {
 }
 
 function translationLabel(value: string): string {
-  return value === "zh-CN" ? "中文" : "English";
+  if (value === "zh-CN" || value === "zh") return "中文";
+  if (value === "en-US" || value === "en") return "English";
+  return value;
 }
 
 async function translateNewLiveSegments(): Promise<void> {
@@ -305,19 +309,75 @@ async function loadSessionNotes(): Promise<void> {
   }
 }
 
-async function loadTranscript(): Promise<void> {
+function selectedTranslationCode(): string {
+  return app.querySelector<HTMLSelectElement>(".translate-target")?.value ?? "zh";
+}
+
+function renderTranscriptBody(): void {
   const body = app.querySelector<HTMLElement>(".transcript-body");
+  if (!body || !currentTranscript) return;
+  const code = selectedTranslationCode();
+  const translation =
+    currentTranslation && currentTranslation.code === code
+      ? { label: translationLabel(code), content: currentTranslation.content }
+      : undefined;
+  renderTranscript(body, currentTranscript, translation);
+}
+
+function setTranscriptStatus(suffix?: string): void {
   const status = app.querySelector<HTMLElement>(".transcript-state");
-  if (!body || !status) return;
+  if (!status || !currentTranscript) return;
+  const base = `${currentTranscript.model} · ${currentTranscript.segments.length} 段`;
+  status.textContent = suffix ? `${base} · ${suffix}` : base;
+}
+
+/// Loads the saved translation for the currently selected target language.
+async function loadTranslation(): Promise<void> {
+  if (!currentTranscript) {
+    currentTranslation = null;
+    return;
+  }
+  const code = selectedTranslationCode();
+  try {
+    const content = await invoke<string | null>("get_translation", { targetLanguage: code });
+    currentTranslation = content && content.trim() ? { code, content } : null;
+  } catch {
+    currentTranslation = null;
+  }
+  renderTranscriptBody();
+  setTranscriptStatus(currentTranslation ? "已翻译" : undefined);
+}
+
+async function loadTranscript(): Promise<void> {
+  const status = app.querySelector<HTMLElement>(".transcript-state");
+  if (!status) return;
+  currentTranscript = null;
+  currentTranslation = null;
   try {
     const transcript = await invoke<Transcript | null>("get_transcript");
     if (!transcript) return;
     currentTranscript = transcript;
-    renderTranscript(body, transcript);
-    status.textContent = `${transcript.model} · ${transcript.segments.length} 段`;
+    renderTranscriptBody();
+    setTranscriptStatus();
+    await loadTranslation();
   } catch {
     // No transcript has been generated for this session yet.
   }
+}
+
+/// Applies backend job progress to the matching status line.
+function applyJobProgress(progress: JobProgress): void {
+  const selector = progress.stage === "summarize" ? ".notes-state" : ".transcript-state";
+  const status = app.querySelector<HTMLElement>(selector);
+  if (!status) return;
+  const label =
+    progress.stage === "transcribe"
+      ? "正在转写"
+      : progress.stage === "translate"
+        ? "AI 正在翻译"
+        : "AI 正在整理";
+  const counter = progress.total > 0 ? ` ${progress.done}/${progress.total}` : "";
+  status.textContent = `${label}${counter} 段`;
 }
 
 function restartClock(): void {
@@ -754,24 +814,47 @@ app.querySelector<HTMLButtonElement>(".asr-clear")!.addEventListener("click", as
 app.addEventListener("click", async (event) => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>(".transcribe");
   if (!button) return;
-  const body = app.querySelector<HTMLElement>(".transcript-body");
   const status = app.querySelector<HTMLElement>(".transcript-state");
   const provider = app.querySelector<HTMLSelectElement>(".asr-provider")?.value ?? "minimax";
-  if (!body || !status) return;
+  if (!status) return;
+  const cancelButton = app.querySelector<HTMLButtonElement>(".cancel-transcribe");
   button.disabled = true;
+  if (cancelButton) {
+    cancelButton.hidden = false;
+    cancelButton.disabled = false;
+  }
   status.textContent = "正在解码并混音…";
   try {
     const transcript = await invoke<Transcript>("transcribe_session", { provider, language: null });
     currentTranscript = transcript;
-    renderTranscript(body, transcript);
-    status.textContent = `${transcript.model} · ${transcript.segments.length} 段`;
+    currentTranslation = null;
+    renderTranscriptBody();
+    setTranscriptStatus();
     // The retention policy may have deleted the audio after transcription.
     syncBackend(await invoke<SessionState>("get_session_state"));
   } catch (error) {
-    status.textContent = "转写失败";
-    view.errorMessage = `转写失败：${error instanceof Error ? error.message : String(error)}`;
-    applyView(app, view);
+    const message = error instanceof Error ? error.message : String(error);
+    const cancelled = message.includes("已取消");
+    status.textContent = cancelled ? "已取消转写" : "转写失败";
+    if (!cancelled) {
+      view.errorMessage = `转写失败：${message}`;
+      applyView(app, view);
+    }
   } finally {
+    button.disabled = false;
+    if (cancelButton) cancelButton.hidden = true;
+  }
+});
+app.addEventListener("click", async (event) => {
+  const button = (event.target as HTMLElement).closest<HTMLButtonElement>(".cancel-transcribe");
+  if (!button) return;
+  button.disabled = true;
+  const status = app.querySelector<HTMLElement>(".transcript-state");
+  if (status) status.textContent = "正在取消…";
+  try {
+    await invoke<boolean>("cancel_transcription");
+  } catch (error) {
+    if (status) status.textContent = `取消失败：${error instanceof Error ? error.message : String(error)}`;
     button.disabled = false;
   }
 });
@@ -783,24 +866,17 @@ app.addEventListener("click", async (event) => {
     applyView(app, view);
     return;
   }
-  const target = app.querySelector<HTMLSelectElement>(".translate-target")?.value ?? "zh";
-  const targetLanguage = target === "zh" ? "中文" : "English";
+  const targetLanguage = translationLabel(selectedTranslationCode());
+  const targetCode = selectedTranslationCode();
   const provider = app.querySelector<HTMLSelectElement>(".notes-provider")?.value ?? "minimax";
-  const body = app.querySelector<HTMLElement>(".transcript-body");
   const status = app.querySelector<HTMLElement>(".transcript-state");
-  if (!body) return;
   button.disabled = true;
   if (status) status.textContent = "AI 正在翻译…";
   try {
     const translation = await invoke<string>("translate_transcript", { targetLanguage, provider });
-    body.replaceChildren();
-    const heading = document.createElement("p");
-    heading.className = "transcript-translation";
-    heading.textContent = `译文（${targetLanguage}）`;
-    const text = document.createElement("p");
-    text.textContent = translation;
-    body.append(heading, text);
-    if (status) status.textContent = "已翻译";
+    currentTranslation = { code: targetCode, content: translation };
+    renderTranscriptBody();
+    setTranscriptStatus("已翻译");
   } catch (error) {
     if (status) status.textContent = "翻译失败";
     view.errorMessage = `翻译失败：${error instanceof Error ? error.message : String(error)}`;
@@ -808,6 +884,11 @@ app.addEventListener("click", async (event) => {
   } finally {
     button.disabled = false;
   }
+});
+app.addEventListener("change", async (event) => {
+  const select = (event.target as HTMLElement).closest<HTMLSelectElement>(".translate-target");
+  if (!select || !currentTranscript) return;
+  await loadTranslation();
 });
 app.addEventListener("click", async (event) => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>(".export-session");
@@ -885,12 +966,14 @@ app.addEventListener("click", async (event) => {
   }
   button.disabled = true;
   status.textContent = "AI 正在整理…";
-  const prompt = `请将以下会议文本整理为 Markdown 会议纪要。必须包含：核心结论、讨论要点、待办事项（负责人和截止时间未知时明确写“待确认”）、风险与未决问题。不要编造原文没有的信息。\n\n${source}`;
   try {
-    const response = await invoke<AiResponse>("generate_ai", { provider, prompt });
-    editor.value = response.content;
-    await invoke("save_session_notes", { content: response.content });
-    status.textContent = `已由 ${response.model} 生成并保存`;
+    const content = await invoke<string>("summarize_session", {
+      provider,
+      source: editor.value.trim() || null,
+    });
+    editor.value = content;
+    await invoke("save_session_notes", { content });
+    status.textContent = "已生成并保存纪要";
   } catch (error) {
     status.textContent = `生成失败：${error instanceof Error ? error.message : String(error)}`;
   } finally {
@@ -967,6 +1050,10 @@ document.addEventListener("keydown", (event) => {
     void command("stop_session");
   }
 });
+
+for (const eventName of ["transcription-progress", "translation-progress", "summarize-progress"] as const) {
+  await listen<JobProgress>(eventName, (event) => applyJobProgress(event.payload));
+}
 
 const recovered = await invoke<SessionState | null>("recover_latest_session");
 syncBackend(recovered ?? await invoke<SessionState>("get_session_state"));

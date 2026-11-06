@@ -506,22 +506,24 @@ mod tests {
 
         let chunks = chunks.lock().unwrap();
         assert_eq!(chunks.len(), 3);
-        assert_eq!(chunks[0].frames, 240_000);
-        assert_eq!(chunks[1].frames, 240_000);
-        assert_eq!(chunks[2].frames, 48_000);
+        // Opus frames are 60 ms, so the first legal boundary at or after the
+        // five-second target is 5.04 seconds (84 frames).
+        assert_eq!(chunks[0].frames, 241_920);
+        assert_eq!(chunks[1].frames, 241_920);
+        assert_eq!(chunks[2].frames, 44_160);
         assert_eq!(
             chunks
                 .iter()
                 .map(|chunk| chunk.start_frame)
                 .collect::<Vec<_>>(),
-            vec![0, 240_000, 480_000]
+            vec![0, 241_920, 483_840]
         );
         assert_eq!(
             chunks
                 .iter()
                 .map(|chunk| chunk.duration_ms)
                 .collect::<Vec<_>>(),
-            vec![5_000, 5_000, 1_000]
+            vec![5_040, 5_040, 920]
         );
     }
 

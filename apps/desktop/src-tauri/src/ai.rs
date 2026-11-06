@@ -1,6 +1,27 @@
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, sync::Mutex, time::Duration};
+use std::{
+    collections::HashMap,
+    sync::{
+        Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::Duration,
+};
+
+/// Returned when the user cancels a long-running AI job.
+pub(crate) const CANCELLED: &str = "已取消";
+
+/// Character budget for one AI request. Long meetings are split on line
+/// boundaries so a single request never overflows the model context window.
+pub(crate) const LONG_INPUT_CHUNK_CHARS: usize = 6_000;
+/// Upper bound for the final merge pass; summaries are regrouped until they
+/// fit this budget.
+const FINAL_INPUT_CHUNK_CHARS: usize = 16_000;
+/// Output budget per response. 1 024 tokens truncated long meeting minutes.
+const MAX_OUTPUT_TOKENS: u32 = 2_048;
+/// Long inputs need more than the original 60 seconds.
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(180);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -332,11 +353,11 @@ async fn generate(
                 content: prompt,
             },
         ],
-        max_tokens: (provider == AiProvider::DeepSeek).then_some(1_024),
-        max_completion_tokens: (provider == AiProvider::MiniMax).then_some(1_024),
+        max_tokens: (provider == AiProvider::DeepSeek).then_some(MAX_OUTPUT_TOKENS),
+        max_completion_tokens: (provider == AiProvider::MiniMax).then_some(MAX_OUTPUT_TOKENS),
     };
     let response = Client::builder()
-        .timeout(Duration::from_secs(60))
+        .timeout(REQUEST_TIMEOUT)
         .build()
         .map_err(|error| error.to_string())?
         .post(provider.endpoint())
@@ -367,6 +388,222 @@ async fn generate(
         model: credential.model,
         content,
     })
+}
+
+fn flush_chunk(chunks: &mut Vec<String>, current: &mut String) {
+    let chunk = current.trim_end();
+    if !chunk.trim().is_empty() {
+        chunks.push(chunk.to_owned());
+    }
+    current.clear();
+}
+
+/// Hard-wraps one oversized line on character boundaries.
+fn split_line(line: &str, limit: usize) -> Vec<String> {
+    let mut pieces = Vec::new();
+    let mut start = 0;
+    let mut count = 0;
+    for (index, _) in line.char_indices() {
+        if count == limit {
+            pieces.push(line[start..index].to_owned());
+            start = index;
+            count = 0;
+        }
+        count += 1;
+    }
+    if start < line.len() {
+        pieces.push(line[start..].to_owned());
+    }
+    pieces
+}
+
+/// Splits long text into request-sized chunks. Splits happen on line
+/// boundaries where possible so timestamps and speaker labels stay intact;
+/// content is never dropped or reordered.
+pub(crate) fn text_chunks(text: &str, limit: usize) -> Vec<String> {
+    let limit = limit.max(1);
+    let mut chunks = Vec::new();
+    let mut current = String::new();
+    let mut current_chars = 0_usize;
+    for line in text.lines() {
+        let line_chars = line.chars().count();
+        if line_chars > limit {
+            flush_chunk(&mut chunks, &mut current);
+            current_chars = 0;
+            chunks.extend(split_line(line, limit));
+            continue;
+        }
+        let separator = usize::from(!current.is_empty());
+        if !current.is_empty() && current_chars + separator + line_chars > limit {
+            flush_chunk(&mut chunks, &mut current);
+            current_chars = 0;
+        }
+        if !current.is_empty() {
+            current.push('\n');
+            current_chars += 1;
+        }
+        current.push_str(line);
+        current_chars += line_chars;
+    }
+    flush_chunk(&mut chunks, &mut current);
+    chunks
+}
+
+/// Groups summary fragments into merge-sized blocks. Oversized fragments are
+/// hard-wrapped so the reduce pass always stays inside the request budget.
+fn group_texts(parts: &[String], limit: usize) -> Vec<String> {
+    let limit = limit.max(1);
+    let mut groups = Vec::new();
+    let mut current = String::new();
+    let mut current_chars = 0_usize;
+    for part in parts {
+        let trimmed = part.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let chars = trimmed.chars().count();
+        if chars > limit {
+            if !current.trim().is_empty() {
+                groups.push(std::mem::take(&mut current));
+                current_chars = 0;
+            }
+            groups.extend(text_chunks(trimmed, limit));
+            continue;
+        }
+        let separator = if current.is_empty() { 0 } else { 2 };
+        if !current.is_empty() && current_chars + separator + chars > limit {
+            groups.push(std::mem::take(&mut current));
+            current_chars = 0;
+        }
+        if !current.is_empty() {
+            current.push_str("\n\n");
+            current_chars += 2;
+        }
+        current.push_str(trimmed);
+        current_chars += chars;
+    }
+    if !current.trim().is_empty() {
+        groups.push(current);
+    }
+    groups
+}
+
+/// Translates a whole transcript in request-sized chunks. Segment timestamps
+/// and speaker labels are preserved because chunks split on line boundaries.
+pub(crate) async fn translate_long_text(
+    provider: AiProvider,
+    target_language: &str,
+    text: &str,
+    state: &tauri::State<'_, AiState>,
+    cancel: &AtomicBool,
+    on_progress: &(dyn Fn(usize, usize) + Sync),
+) -> Result<String, String> {
+    let target_language = target_language.trim();
+    if target_language.is_empty() {
+        return Err("翻译目标语言不能为空".into());
+    }
+    let chunks = text_chunks(text, LONG_INPUT_CHUNK_CHARS);
+    if chunks.is_empty() {
+        return Err("没有可翻译的转写文本".into());
+    }
+    let total = chunks.len();
+    let mut translated = Vec::with_capacity(total);
+    for (index, chunk) in chunks.iter().enumerate() {
+        if cancel.load(Ordering::SeqCst) {
+            return Err(CANCELLED.into());
+        }
+        let prompt = if total == 1 {
+            format!(
+                "请将以下会议转写翻译为{target_language}。保留时间戳、说话人标记和段落结构，只输出译文，不要解释，不要编造原文没有的信息。\n\n{chunk}"
+            )
+        } else {
+            format!(
+                "这是会议转写的第 {} / {total} 部分。请只把这一部分翻译为{target_language}，保留时间戳、说话人标记和段落结构；不要输出解释、标题或“第几部分”之类的前缀。\n\n{chunk}",
+                index + 1
+            )
+        };
+        translated.push(generate_text(provider, &prompt, state).await?);
+        on_progress(index + 1, total);
+    }
+    Ok(translated.join("\n\n"))
+}
+
+fn minutes_prompt(source: &str) -> String {
+    format!(
+        "请把以下会议内容整理为 Markdown 会议纪要。必须包含：会议主题、核心结论、讨论要点、待办事项（负责人和截止时间未知时明确写“待确认”）、风险与未决问题。不要编造原文没有的信息，不要写开场白。\n\n{source}"
+    )
+}
+
+/// Produces meeting minutes with a map-reduce pass so hour-long transcripts
+/// do not overflow one request or get cut off by the output budget.
+pub(crate) async fn summarize_text(
+    provider: AiProvider,
+    text: &str,
+    state: &tauri::State<'_, AiState>,
+    cancel: &AtomicBool,
+    on_progress: &(dyn Fn(usize, usize) + Sync),
+) -> Result<String, String> {
+    let chunks = text_chunks(text, LONG_INPUT_CHUNK_CHARS);
+    if chunks.is_empty() {
+        return Err("没有可整理的文本".into());
+    }
+    let total = chunks.len();
+    if total == 1 {
+        let summary = generate_text(provider, &minutes_prompt(&chunks[0]), state).await?;
+        on_progress(1, 1);
+        return Ok(summary);
+    }
+
+    let mut summaries = Vec::with_capacity(total);
+    for (index, chunk) in chunks.iter().enumerate() {
+        if cancel.load(Ordering::SeqCst) {
+            return Err(CANCELLED.into());
+        }
+        let prompt = format!(
+            "以下是会议转写的第 {} / {total} 段。请只提取这一段的：核心结论、讨论要点、待办事项（负责人或截止时间未知时写“待确认”）、风险与未决问题。用简洁的 Markdown 条目输出，不要编造原文没有的信息，不要写开场白。\n\n{chunk}",
+            index + 1
+        );
+        summaries.push(generate_text(provider, &prompt, state).await?);
+        on_progress(index + 1, total);
+    }
+
+    let mut rounds = 0;
+    while summaries.join("\n\n").chars().count() > FINAL_INPUT_CHUNK_CHARS && rounds < 4 {
+        if cancel.load(Ordering::SeqCst) {
+            return Err(CANCELLED.into());
+        }
+        let groups = group_texts(&summaries, FINAL_INPUT_CHUNK_CHARS);
+        if groups.len() <= 1 {
+            break;
+        }
+        let mut merged = Vec::with_capacity(groups.len());
+        for (index, group) in groups.iter().enumerate() {
+            if cancel.load(Ordering::SeqCst) {
+                return Err(CANCELLED.into());
+            }
+            let prompt = format!(
+                "以下是会议纪要的分段摘要（第 {} / {} 组）。请合并为一组更凝练的要点，保留结论、待办、风险和未决问题，不要重复，不要编造。\n\n{group}",
+                index + 1,
+                groups.len()
+            );
+            merged.push(generate_text(provider, &prompt, state).await?);
+        }
+        summaries = merged;
+        rounds += 1;
+    }
+
+    let joined = summaries.join("\n\n");
+    let source = if joined.chars().count() > FINAL_INPUT_CHUNK_CHARS {
+        joined.chars().take(FINAL_INPUT_CHUNK_CHARS).collect()
+    } else {
+        joined
+    };
+    if cancel.load(Ordering::SeqCst) {
+        return Err(CANCELLED.into());
+    }
+    let summary = generate_text(provider, &minutes_prompt(&source), state).await?;
+    on_progress(total, total);
+    Ok(summary)
 }
 
 #[cfg(test)]
@@ -411,5 +648,42 @@ mod tests {
             ["数组 [A]", "完成"]
         );
         assert!(parse_translation_array("[\"one\"]", 2).is_err());
+    }
+
+    #[test]
+    fn splits_long_text_on_line_boundaries_without_losing_content() {
+        let text = (0..40)
+            .map(|index| format!("**[00:{index:02}]** 第 {index} 行内容"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let chunks = text_chunks(&text, 120);
+        assert!(chunks.len() > 1);
+        assert!(chunks.iter().all(|chunk| chunk.chars().count() <= 120));
+        assert_eq!(chunks.join("\n"), text);
+    }
+
+    #[test]
+    fn hard_wraps_lines_that_exceed_the_budget() {
+        let chunks = text_chunks(&"甲".repeat(25), 10);
+        assert_eq!(chunks, ["甲".repeat(10), "甲".repeat(10), "甲".repeat(5)]);
+    }
+
+    #[test]
+    fn blank_text_produces_no_chunks() {
+        assert!(text_chunks("  \n\n\t\n", 100).is_empty());
+    }
+
+    #[test]
+    fn groups_summary_fragments_within_the_merge_budget() {
+        let parts = vec!["甲".repeat(8), "乙".repeat(8), "丙".repeat(8)];
+        let groups = group_texts(&parts, 20);
+        assert_eq!(groups.len(), 2);
+        assert!(groups.iter().all(|group| group.chars().count() <= 20));
+        assert!(groups[0].contains(&"甲".repeat(8)));
+        assert!(groups[1].contains(&"丙".repeat(8)));
+
+        let oversized = group_texts(&["丁".repeat(25)], 10);
+        assert_eq!(oversized.len(), 3);
+        assert!(oversized.iter().all(|group| group.chars().count() <= 10));
     }
 }

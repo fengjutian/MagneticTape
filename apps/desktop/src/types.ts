@@ -144,6 +144,33 @@ export interface ExportResult {
   files: string[];
 }
 
+/// Progress emitted by the backend while transcription, translation or
+/// minutes generation is running.
+export interface JobProgress {
+  stage: "transcribe" | "translate" | "summarize";
+  done: number;
+  total: number;
+}
+
+export interface SavedTranslation {
+  code: string;
+  content: string;
+}
+
+/// One 15 second Opus chunk placed on the shared session timeline.
+export interface PlaybackChunk {
+  path: string;
+  startMs: number;
+  durationMs: number;
+}
+
+/// Both recording tracks on one timeline, used by the unified player.
+export interface PlaybackTracks {
+  durationMs: number;
+  microphone: PlaybackChunk[];
+  system: PlaybackChunk[];
+}
+
 export interface LibraryStats {
   sessionCount: number;
   totalBytes: number;

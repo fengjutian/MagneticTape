@@ -219,8 +219,13 @@ button:disabled, select:disabled { cursor: not-allowed; }
 .transcript-actions select, .transcript-actions button { border: 0; border-radius: 7px; padding: 8px 10px; font-size: 11px; }
 .transcript-actions select { background: #f0f2f5; color: #4e5969; }
 .transcribe { background: #3370ff; color: #fff; }
+.transcribe:disabled, .cancel-transcribe:disabled { opacity: .6; }
+.cancel-transcribe { background: #fdecea; color: #b42318; }
 .asr-settings, .translate-transcript { background: #e8eeff; color: #245bdb; }
 .transcript-translation { margin: 0 0 8px; color: #245bdb; font-weight: 600; }
+.transcript-translation-block { margin-top: 12px; padding-top: 10px; border-top: 1px dashed #dfe4ec; }
+.transcript-translation-block h4 { margin: 0 0 6px; color: #245bdb; font-size: 12px; }
+.transcript-translation-body { white-space: pre-wrap; color: #3a4557; font-size: 12px; line-height: 1.7; }
 .live-error { margin: 10px 0 0; color: #b42318; font-size: 12px; }
 .content-body > .transcript-line { display: grid; grid-template-columns: auto auto 1fr; align-items: start; }
 .live-translation-text { grid-column: 2 / 4; margin-top: 3px; padding: 5px 8px; border-left: 2px solid #8aa7ff; border-radius: 0 5px 5px 0; background: #f5f7ff; color: #245bdb; line-height: 1.55; }

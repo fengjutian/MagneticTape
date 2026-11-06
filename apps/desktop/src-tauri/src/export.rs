@@ -26,8 +26,23 @@ pub struct ExportInput<'a> {
     pub started_at_epoch_ms: u64,
     pub duration_ms: u64,
     pub transcript: Option<&'a Transcript>,
+    pub translations: &'a [TranslationDoc],
     pub notes: &'a str,
     pub chunks: &'a [AudioChunkRef],
+}
+
+/// A saved transcript translation, keyed by language code (`zh`, `en`, ...).
+pub struct TranslationDoc {
+    pub code: String,
+    pub content: String,
+}
+
+fn translation_label(code: &str) -> &str {
+    match code {
+        "zh" => "中文",
+        "en" => "English",
+        other => other,
+    }
 }
 
 fn timestamp(milliseconds: u64, separator: char) -> String {
@@ -127,6 +142,16 @@ pub fn markdown(input: &ExportInput<'_>) -> String {
         output.push_str("\n## 会议笔记\n\n");
         output.push_str(input.notes.trim());
         output.push('\n');
+    }
+    for translation in input.translations {
+        if translation.content.trim().is_empty() {
+            continue;
+        }
+        output.push_str(&format!(
+            "\n## 译文（{}）\n\n{}\n",
+            translation_label(&translation.code),
+            translation.content.trim()
+        ));
     }
     output
 }
@@ -260,6 +285,15 @@ pub fn export_all(input: &ExportInput<'_>, parent: &Path) -> Result<ExportResult
         files.push(directory.join("notes.md"));
     }
 
+    for translation in input.translations {
+        if translation.content.trim().is_empty() {
+            continue;
+        }
+        let name = format!("translation-{}.md", translation.code);
+        write_text(&directory.join(&name), translation.content.trim())?;
+        files.push(directory.join(name));
+    }
+
     if !input.chunks.is_empty() {
         let audio = directory.join("audio.wav");
         write_mixed_wav(input.chunks, &audio)?;
@@ -273,6 +307,12 @@ pub fn export_all(input: &ExportInput<'_>, parent: &Path) -> Result<ExportResult
         "durationMs": input.duration_ms,
         "transcriptProvider": input.transcript.map(|transcript| transcript.provider.as_str()),
         "transcriptModel": input.transcript.map(|transcript| transcript.model.as_str()),
+        "translationLanguages": input
+            .translations
+            .iter()
+            .filter(|translation| !translation.content.trim().is_empty())
+            .map(|translation| translation.code.as_str())
+            .collect::<Vec<_>>(),
         "chunkCount": input.chunks.len(),
     });
     let bytes = serde_json::to_vec_pretty(&metadata).map_err(|error| error.to_string())?;
@@ -374,12 +414,17 @@ mod tests {
             .collect();
 
         let transcript = transcript();
+        let translations = [TranslationDoc {
+            code: "zh".into(),
+            content: "大家好（译文）。".into(),
+        }];
         let input = ExportInput {
             title: "周会 / 2026",
             session_id: "0011223344556677",
             started_at_epoch_ms: 1_000,
             duration_ms: 1_000,
             transcript: Some(&transcript),
+            translations: &translations,
             notes: "讨论了下季度计划。",
             chunks: &refs,
         };
@@ -390,12 +435,16 @@ mod tests {
             "transcript.txt",
             "transcript.srt",
             "transcript.vtt",
+            "translation-zh.md",
             "notes.md",
             "audio.wav",
             "session.json",
         ] {
             assert!(exported.directory.join(name).exists(), "{name} missing");
         }
+        let markdown = std::fs::read_to_string(exported.directory.join("meeting.md")).unwrap();
+        assert!(markdown.contains("## 译文（中文）"));
+        assert!(markdown.contains("大家好（译文）。"));
         let audio = std::fs::read(exported.directory.join("audio.wav")).unwrap();
         assert_eq!(&audio[..4], b"RIFF");
         let data_len = u32::from_le_bytes(audio[40..44].try_into().unwrap()) as usize;

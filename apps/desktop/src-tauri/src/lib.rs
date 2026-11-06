@@ -1,5 +1,6 @@
 use magnetic_tape_audio::{
-    AudioLevels, AudioRecording, ChunkInfo, RecordingSnapshot, Track, wav_duration_ms,
+    AudioLevels, AudioRecording, ChunkInfo, OPUS_SAMPLE_RATE, RecordingSnapshot, Track,
+    wav_duration_ms,
 };
 use magnetic_tape_core::{
     manifest::{ChunkMetadata, RecoveryManifest, SessionStatus},
@@ -20,7 +21,7 @@ use std::{
     thread::{self, JoinHandle},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 mod ai;
 mod asr;
@@ -265,12 +266,50 @@ impl Default for SessionState {
 /// while a session is active.
 struct RecorderState(Arc<Mutex<Option<AudioRecording>>>);
 
-/// In-memory live subtitle buffer. The frontend polls one chunk at a time so
-/// a slow ASR request never blocks recording or stopping.
+/// Cancellation handle for the one long-running transcription at a time.
+#[derive(Default)]
+struct TranscriptionRun(Mutex<Option<Arc<AtomicBool>>>);
+
+impl TranscriptionRun {
+    fn begin(&self) -> Result<Arc<AtomicBool>, String> {
+        let mut slot = self.0.lock().expect("transcription state poisoned");
+        if slot.is_some() {
+            return Err("已有转写任务正在运行".into());
+        }
+        let flag = Arc::new(AtomicBool::new(false));
+        *slot = Some(Arc::clone(&flag));
+        Ok(flag)
+    }
+
+    fn cancel(&self) -> bool {
+        let slot = self.0.lock().expect("transcription state poisoned");
+        slot.as_ref().is_some_and(|flag| {
+            flag.store(true, Ordering::SeqCst);
+            true
+        })
+    }
+
+    fn clear(&self) {
+        *self.0.lock().expect("transcription state poisoned") = None;
+    }
+}
+
+/// Payload emitted to the frontend for long-running AI/ASR jobs.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct JobProgress {
+    stage: String,
+    done: usize,
+    total: usize,
+}
+
+/// In-memory live subtitle buffer. Polling schedules at most two background
+/// ASR jobs so a slow request never blocks recording or later audio windows.
 #[derive(Default)]
 struct LiveTranscriptionState {
     active: bool,
-    busy: Arc<AtomicBool>,
+    session_id: Option<String>,
+    inflight: HashSet<u64>,
     processed: HashSet<(u8, u64)>,
     first_seen: HashMap<u64, Instant>,
     segments: Vec<asr::TranscriptSegment>,
@@ -327,6 +366,16 @@ fn live_transcript(state: &LiveTranscriptionState) -> asr::Transcript {
         segments: state.segments.clone(),
         created_at_epoch_ms: epoch_ms(),
     }
+}
+
+fn merge_live_transcript(state: &mut LiveTranscriptionState, transcript: asr::Transcript) {
+    state.segments.extend(transcript.segments);
+    // Concurrent requests can finish out of order. The UI and persisted
+    // transcript must always follow the shared recording timeline.
+    state
+        .segments
+        .sort_by_key(|segment| (segment.start_ms, segment.end_ms));
+    state.error = None;
 }
 
 fn persist_live_transcript(directory: &Path, state: &LiveTranscriptionState) {
@@ -1524,6 +1573,20 @@ fn read_transcript(directory: &Path) -> Option<asr::Transcript> {
         .and_then(|bytes| serde_json::from_slice(&bytes).ok())
 }
 
+/// Source text for AI jobs: the plain transcript when present, otherwise the
+/// segment texts (some providers only return timed segments).
+fn transcript_source(transcript: &asr::Transcript) -> String {
+    if !transcript.text.trim().is_empty() {
+        return transcript.text.clone();
+    }
+    transcript
+        .segments
+        .iter()
+        .map(|segment| segment.text.trim())
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 /// Deletes all Ogg Opus chunks and their sidecars, keeping transcript, notes,
 /// title and the recovery manifests. Returns the number of bytes freed.
 fn discard_audio_files(directory: &Path) -> Result<u64, String> {
@@ -1605,6 +1668,7 @@ async fn transcribe_session(
     state: tauri::State<'_, Mutex<SessionState>>,
     asr_state: tauri::State<'_, AsrState>,
     settings: tauri::State<'_, Mutex<AppSettings>>,
+    transcription: tauri::State<'_, TranscriptionRun>,
 ) -> Result<asr::Transcript, String> {
     let (directory, session_id) = {
         let state = state.lock().expect("session state poisoned");
@@ -1626,8 +1690,25 @@ async fn transcribe_session(
     if let Some(language) = language.filter(|value| !value.trim().is_empty()) {
         config.language = language;
     }
-    let transcript = asr::transcribe_chunks(&chunks, &config, &session_id).await?;
+    let cancel = transcription.begin()?;
+    let on_progress = |done: usize, total: usize| {
+        let _ = app.emit(
+            "transcription-progress",
+            JobProgress {
+                stage: "transcribe".into(),
+                done,
+                total,
+            },
+        );
+    };
+    let result =
+        asr::transcribe_chunks_with(&chunks, &config, &session_id, cancel.as_ref(), &on_progress)
+            .await;
+    transcription.clear();
+    let transcript = result?;
     write_transcript(&directory, &transcript)?;
+    // A new transcript invalidates translations of the old text.
+    clear_translations(&directory);
     if !settings
         .lock()
         .expect("settings state poisoned")
@@ -1646,12 +1727,105 @@ async fn transcribe_session(
 }
 
 #[tauri::command]
+fn cancel_transcription(transcription: tauri::State<'_, TranscriptionRun>) -> bool {
+    transcription.cancel()
+}
+
+/// Maps a display language to a stable file suffix.
+fn translation_code(target_language: &str) -> String {
+    let code: String = match target_language.trim() {
+        "zh" | "zh-CN" | "中文" | "Chinese" => "zh".into(),
+        "en" | "en-US" | "English" => "en".into(),
+        other => other
+            .chars()
+            .filter(|character| character.is_ascii_alphanumeric())
+            .take(16)
+            .collect::<String>()
+            .to_lowercase(),
+    };
+    if code.is_empty() {
+        "target".into()
+    } else {
+        code
+    }
+}
+
+fn translation_path(directory: &Path, code: &str) -> PathBuf {
+    directory.join(format!("translation-{code}.md"))
+}
+
+fn write_text_atomic(path: &Path, content: &str) -> Result<(), String> {
+    let temporary = path.with_extension("md.tmp");
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(&temporary)
+        .map_err(|error| error.to_string())?;
+    file.write_all(content.as_bytes())
+        .map_err(|error| error.to_string())?;
+    file.sync_all().map_err(|error| error.to_string())?;
+    fs::rename(&temporary, path).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 fn get_transcript(
     app: tauri::AppHandle,
     state: tauri::State<'_, Mutex<SessionState>>,
 ) -> Result<Option<asr::Transcript>, String> {
     let directory = current_session_directory(&app, &state)?;
     Ok(read_transcript(&directory))
+}
+
+/// One 15 second Opus chunk placed on the shared session timeline.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PlaybackChunk {
+    path: PathBuf,
+    start_ms: u64,
+    duration_ms: u64,
+}
+
+/// Both tracks laid out on one timeline so the frontend can scrub and seek.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PlaybackTracks {
+    duration_ms: u64,
+    microphone: Vec<PlaybackChunk>,
+    system: Vec<PlaybackChunk>,
+}
+
+#[tauri::command]
+fn get_session_playback(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Mutex<SessionState>>,
+) -> Result<PlaybackTracks, String> {
+    let directory = current_session_directory(&app, &state)?;
+    let chunks = audio_chunks(&directory)?;
+    let mut microphone = Vec::new();
+    let mut system = Vec::new();
+    let mut duration_ms = 0_u64;
+    for chunk in chunks {
+        let start_ms = chunk.start_frame.saturating_mul(1_000) / u64::from(OPUS_SAMPLE_RATE);
+        let chunk_duration_ms = chunk.frames.saturating_mul(1_000) / u64::from(OPUS_SAMPLE_RATE);
+        let entry = PlaybackChunk {
+            path: chunk.path,
+            start_ms,
+            duration_ms: chunk_duration_ms,
+        };
+        duration_ms = duration_ms.max(start_ms.saturating_add(chunk_duration_ms));
+        match chunk.track {
+            Track::Microphone => microphone.push(entry),
+            Track::System => system.push(entry),
+        }
+    }
+    microphone.sort_by_key(|chunk| chunk.start_ms);
+    system.sort_by_key(|chunk| chunk.start_ms);
+    Ok(PlaybackTracks {
+        duration_ms,
+        microphone,
+        system,
+    })
 }
 
 #[tauri::command]
@@ -1713,17 +1887,22 @@ fn start_live_transcription(
     asr_state: tauri::State<'_, AsrState>,
     live: tauri::State<'_, Mutex<LiveTranscriptionState>>,
 ) -> Result<LiveTranscriptView, String> {
-    {
+    let session_id = {
         let state = state.lock().expect("session state poisoned");
         if state.status != RecorderStatus::Recording {
             return Err("只有录音中的会话可以开启实时字幕".into());
         }
-    }
+        state
+            .session_id
+            .clone()
+            .ok_or_else(|| "当前没有录音会话".to_owned())?
+    };
     let config = asr_state.credential(provider)?;
     let mut live = live.lock().expect("live transcription state poisoned");
     *live = LiveTranscriptionState {
         active: true,
-        busy: Arc::new(AtomicBool::new(false)),
+        session_id: Some(session_id),
+        inflight: HashSet::new(),
         processed: HashSet::new(),
         first_seen: HashMap::new(),
         segments: Vec::new(),
@@ -1751,7 +1930,7 @@ fn track_slot(track: Track) -> u8 {
     }
 }
 
-async fn poll_live_inner(
+fn poll_live_inner(
     app: &tauri::AppHandle,
     state: &tauri::State<'_, Mutex<SessionState>>,
     recorder: &tauri::State<'_, RecorderState>,
@@ -1785,11 +1964,16 @@ async fn poll_live_inner(
 
     let (ready, provider, language) = {
         let mut live = live.lock().expect("live transcription state poisoned");
+        const MAX_INFLIGHT: usize = 2;
+        let capacity = MAX_INFLIGHT.saturating_sub(live.inflight.len());
+        if capacity == 0 {
+            return Ok(());
+        }
         let mut slots: BTreeMap<u64, (Option<asr::AudioChunkRef>, Option<asr::AudioChunkRef>)> =
             BTreeMap::new();
         for chunk in &snapshot.chunks {
             let key = (track_slot(chunk.track), chunk.start_frame);
-            if live.processed.contains(&key) {
+            if live.processed.contains(&key) || live.inflight.contains(&chunk.start_frame) {
                 continue;
             }
             let entry = slots.entry(chunk.start_frame).or_default();
@@ -1810,7 +1994,7 @@ async fn poll_live_inner(
         let latest = slots.keys().next_back().copied();
         let chosen = slots
             .iter()
-            .find(|(slot, entry)| {
+            .filter(|(slot, entry)| {
                 let complete = entry.0.is_some() && entry.1.is_some();
                 let superseded = latest.is_some_and(|latest| **slot < latest);
                 let stale = live
@@ -1819,62 +2003,89 @@ async fn poll_live_inner(
                     .is_some_and(|seen| seen.elapsed() >= Duration::from_secs(1));
                 complete || superseded || stale
             })
-            .map(|(slot, entry)| (*slot, entry.0.clone(), entry.1.clone()));
+            .take(capacity)
+            .map(|(slot, entry)| (*slot, entry.0.clone(), entry.1.clone()))
+            .collect::<Vec<_>>();
+        for (slot, _, _) in &chosen {
+            live.inflight.insert(*slot);
+            // Reserve both track keys immediately. A late second track for a
+            // window already sent to ASR must not create a duplicate request.
+            live.processed.insert((0, *slot));
+            live.processed.insert((1, *slot));
+            live.first_seen.remove(slot);
+        }
         (chosen, live.provider, live.language.clone())
     };
 
-    let Some((slot, microphone, system)) = ready else {
+    if ready.is_empty() {
         return Ok(());
-    };
+    }
     let provider = provider.ok_or_else(|| "实时转写未配置服务商".to_owned())?;
-    let mut config = asr_state.credential(provider)?;
+    let mut config = match asr_state.credential(provider) {
+        Ok(config) => config,
+        Err(error) => {
+            let mut live = live.lock().expect("live transcription state poisoned");
+            for (slot, _, _) in &ready {
+                live.inflight.remove(slot);
+                live.processed.remove(&(0, *slot));
+                live.processed.remove(&(1, *slot));
+            }
+            return Err(error);
+        }
+    };
     if !language.is_empty() {
         config.language = language;
     }
-    let result =
-        asr::transcribe_pair(microphone.clone(), system.clone(), &config, &session_id).await;
-
-    let mut live = live.lock().expect("live transcription state poisoned");
-    // Mark the slot as consumed even if one track had not committed yet; a
-    // late chunk for the same window must not be transcribed twice.
-    live.processed.insert((0, slot));
-    live.processed.insert((1, slot));
-    live.first_seen.remove(&slot);
-    match result {
-        Ok(transcript) => {
-            live.segments.extend(transcript.segments);
-            live.error = None;
-        }
-        Err(error) => {
-            live.error = Some(error);
-        }
+    for (slot, microphone, system) in ready {
+        let task_app = app.clone();
+        let task_session = session_id.clone();
+        let task_directory = directory.clone();
+        let task_config = config.clone();
+        tauri::async_runtime::spawn(async move {
+            let result =
+                asr::transcribe_pair(microphone, system, &task_config, &task_session).await;
+            let live_state = task_app.state::<Mutex<LiveTranscriptionState>>();
+            let mut live = live_state
+                .lock()
+                .expect("live transcription state poisoned");
+            live.inflight.remove(&slot);
+            if live.session_id.as_deref() != Some(task_session.as_str()) {
+                return;
+            }
+            match result {
+                Ok(transcript) => {
+                    merge_live_transcript(&mut live, transcript);
+                }
+                Err(error) => live.error = Some(error),
+            }
+            persist_live_transcript(&task_directory, &live);
+            if !live.active && !live.segments.is_empty() {
+                let transcript = live_transcript(&live);
+                let _ = write_transcript(&task_directory, &transcript);
+            }
+        });
     }
-    persist_live_transcript(&directory, &live);
     Ok(())
 }
 
 #[tauri::command]
-async fn poll_live_transcription(
+fn poll_live_transcription(
     app: tauri::AppHandle,
     state: tauri::State<'_, Mutex<SessionState>>,
     recorder: tauri::State<'_, RecorderState>,
     asr_state: tauri::State<'_, AsrState>,
     live: tauri::State<'_, Mutex<LiveTranscriptionState>>,
 ) -> Result<LiveTranscriptView, String> {
-    let busy = {
-        let live = live.lock().expect("live transcription state poisoned");
-        if !live.active {
-            return Ok(live_view(&live));
-        }
-        Arc::clone(&live.busy)
-    };
-    if busy.swap(true, Ordering::SeqCst) {
+    let active = live
+        .lock()
+        .expect("live transcription state poisoned")
+        .active;
+    if !active {
         return Ok(live_view(
             &live.lock().expect("live transcription state poisoned"),
         ));
     }
-    let result = poll_live_inner(&app, &state, &recorder, &asr_state, &live).await;
-    busy.store(false, Ordering::SeqCst);
+    let result = poll_live_inner(&app, &state, &recorder, &asr_state, &live);
     let mut live = live.lock().expect("live transcription state poisoned");
     if let Err(error) = result {
         live.error = Some(error);
@@ -1893,31 +2104,70 @@ async fn translate_transcript(
     let directory = current_session_directory(&app, &state)?;
     let transcript =
         read_transcript(&directory).ok_or_else(|| "请先完成转写，再生成译文".to_owned())?;
-    let prompt = format!(
-        "请将以下会议转写翻译为{}。保留时间戳、说话人标记和段落结构，只输出译文，不要解释，不要编造原文没有的信息。\n\n{}",
-        target_language, transcript.text
-    );
-    let translation = ai::generate_text(provider, &prompt, &ai_state).await?;
-    let suffix: String = target_language
-        .chars()
-        .filter(|character| character.is_ascii_alphanumeric())
-        .collect();
-    let suffix = if suffix.is_empty() {
-        "target"
-    } else {
-        suffix.as_str()
+    let source = transcript_source(&transcript);
+    let on_progress = |done: usize, total: usize| {
+        let _ = app.emit(
+            "translation-progress",
+            JobProgress {
+                stage: "translate".into(),
+                done,
+                total,
+            },
+        );
     };
-    let path = directory.join(format!("translation-{suffix}.md"));
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open(path)
-        .map_err(|error| error.to_string())?;
-    file.write_all(translation.as_bytes())
-        .map_err(|error| error.to_string())?;
-    file.sync_all().map_err(|error| error.to_string())?;
+    let cancel = AtomicBool::new(false);
+    let translation = ai::translate_long_text(
+        provider,
+        &target_language,
+        &source,
+        &ai_state,
+        &cancel,
+        &on_progress,
+    )
+    .await?;
+    let code = translation_code(&target_language);
+    write_text_atomic(&translation_path(&directory, &code), &translation)?;
     Ok(translation)
+}
+
+#[tauri::command]
+fn get_translation(
+    target_language: String,
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Mutex<SessionState>>,
+) -> Result<Option<String>, String> {
+    let directory = current_session_directory(&app, &state)?;
+    let path = translation_path(&directory, &translation_code(&target_language));
+    Ok(fs::read_to_string(path).ok())
+}
+
+#[tauri::command]
+async fn summarize_session(
+    provider: ai::AiProvider,
+    source: Option<String>,
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Mutex<SessionState>>,
+    ai_state: tauri::State<'_, AiState>,
+) -> Result<String, String> {
+    let directory = current_session_directory(&app, &state)?;
+    let source = source
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty())
+        .or_else(|| read_transcript(&directory).map(|transcript| transcript_source(&transcript)))
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| "请先完成转写或输入会议笔记".to_owned())?;
+    let on_progress = |done: usize, total: usize| {
+        let _ = app.emit(
+            "summarize-progress",
+            JobProgress {
+                stage: "summarize".into(),
+                done,
+                total,
+            },
+        );
+    };
+    let cancel = AtomicBool::new(false);
+    ai::summarize_text(provider, &source, &ai_state, &cancel, &on_progress).await
 }
 
 fn exports_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
@@ -1952,6 +2202,7 @@ fn export_session(
     let transcript = read_transcript(&directory);
     let notes = fs::read_to_string(directory.join(NOTES_FILE)).unwrap_or_default();
     let chunks = audio_chunks(&directory)?;
+    let translations = read_translations(&directory);
     let root = exports_root(&app)?;
     let input = export::ExportInput {
         title: &title,
@@ -1959,10 +2210,60 @@ fn export_session(
         started_at_epoch_ms,
         duration_ms,
         transcript: transcript.as_ref(),
+        translations: &translations,
         notes: &notes,
         chunks: &chunks,
     };
     export::export_all(&input, &root)
+}
+
+/// Reads every `translation-<code>.md` sidecar saved for a session.
+fn read_translations(directory: &Path) -> Vec<export::TranslationDoc> {
+    let Ok(entries) = fs::read_dir(directory) else {
+        return Vec::new();
+    };
+    let mut translations = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        let Some(code) = name
+            .strip_prefix("translation-")
+            .and_then(|name| name.strip_suffix(".md"))
+        else {
+            continue;
+        };
+        if code.is_empty() {
+            continue;
+        }
+        if let Ok(content) = fs::read_to_string(&path)
+            && !content.trim().is_empty()
+        {
+            translations.push(export::TranslationDoc {
+                code: code.to_owned(),
+                content,
+            });
+        }
+    }
+    translations.sort_by(|left, right| left.code.cmp(&right.code));
+    translations
+}
+
+/// Removes translations that no longer match the current transcript.
+fn clear_translations(directory: &Path) {
+    let Ok(entries) = fs::read_dir(directory) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if let Some(name) = path.file_name().and_then(|name| name.to_str())
+            && name.starts_with("translation-")
+            && name.ends_with(".md")
+        {
+            let _ = fs::remove_file(&path);
+        }
+    }
 }
 
 #[tauri::command]
@@ -1996,6 +2297,7 @@ pub fn run() {
         .manage(RecorderState(Arc::new(Mutex::new(None::<AudioRecording>))))
         .manage(AiState::default())
         .manage(AsrState::default())
+        .manage(TranscriptionRun::default())
         .manage(Mutex::new(LiveTranscriptionState::default()))
         .setup(|app| {
             let data_directory = app.path().app_data_dir()?;
@@ -2073,8 +2375,12 @@ pub fn run() {
             asr::get_asr_configurations,
             asr::clear_asr,
             transcribe_session,
+            cancel_transcription,
             get_transcript,
+            get_session_playback,
             translate_transcript,
+            get_translation,
+            summarize_session,
             start_live_transcription,
             poll_live_transcription,
             get_live_transcript,
@@ -2460,5 +2766,60 @@ mod tests {
         let markdown = fs::read_to_string(directory.path().join(TRANSCRIPT_MARKDOWN)).unwrap();
         assert!(markdown.contains("**[00:00] S1**"));
         assert!(markdown.contains("开始吧。"));
+    }
+
+    #[test]
+    fn concurrent_live_results_are_merged_in_timeline_order() {
+        let mut live = LiveTranscriptionState::default();
+        for (start_ms, text) in [(5_000, "第二段"), (0, "第一段")] {
+            merge_live_transcript(
+                &mut live,
+                asr::Transcript {
+                    provider: "minimax".into(),
+                    model: "asr-1.0".into(),
+                    language: "zh-CN".into(),
+                    duration_ms: start_ms + 5_000,
+                    text: text.into(),
+                    segments: vec![asr::TranscriptSegment {
+                        start_ms,
+                        end_ms: start_ms + 5_000,
+                        speaker: None,
+                        text: text.into(),
+                    }],
+                    created_at_epoch_ms: 0,
+                },
+            );
+        }
+        assert_eq!(
+            live.segments
+                .iter()
+                .map(|segment| segment.text.as_str())
+                .collect::<Vec<_>>(),
+            ["第一段", "第二段"]
+        );
+    }
+
+    #[test]
+    fn translation_codes_are_stable_across_display_names() {
+        assert_eq!(translation_code("中文"), "zh");
+        assert_eq!(translation_code("zh-CN"), "zh");
+        assert_eq!(translation_code("English"), "en");
+        assert_eq!(translation_code("en-US"), "en");
+        assert_eq!(translation_code("日本語"), "target");
+        assert_eq!(translation_code(""), "target");
+    }
+
+    #[test]
+    fn reads_and_clears_translation_sidecars() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(directory.path().join("translation-zh.md"), "大家好").unwrap();
+        fs::write(directory.path().join("translation-en.md"), "   ").unwrap();
+        fs::write(directory.path().join("notes.md"), "笔记").unwrap();
+        let translations = read_translations(directory.path());
+        assert_eq!(translations.len(), 1);
+        assert_eq!(translations[0].code, "zh");
+        clear_translations(directory.path());
+        assert!(!directory.path().join("translation-zh.md").exists());
+        assert!(directory.path().join("notes.md").exists());
     }
 }
