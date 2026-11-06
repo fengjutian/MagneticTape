@@ -53,7 +53,7 @@ export function renderApp(): string {
             <button class="title-display" id="recording-title" type="button" aria-label="编辑录音标题">新录音</button>
             <input class="title-input" type="text" maxlength="80" aria-label="录音标题" hidden />
             <span class="local-badge">本地</span>
-            <button class="history-button" type="button">${iconNode(History)}<span>历史录音</span></button>
+            <wa-button class="history-button" type="button" size="small">${iconNode(History)}<span>历史录音</span></wa-button>
           </div>
           <div class="options" aria-label="录音选项">
             <label class="option"><span>${iconNode(Languages)}转写语言</span><select data-option="language" aria-label="转写语言"><option value="auto">自动识别</option><option value="zh-CN">中文</option><option value="en-US">English</option></select></label>
@@ -65,7 +65,7 @@ export function renderApp(): string {
           <div class="device-strip" aria-label="音频设备">
             <label><span class="device-icon">${iconNode(Mic)}</span><span class="device-kind">麦克风</span><select class="microphone-select" aria-label="麦克风设备"><option>正在检测…</option></select><small class="microphone-detail"></small></label>
             <label><span class="device-icon">${iconNode(MonitorUp)}</span><span class="device-kind">系统声音</span><select class="system-output-select" aria-label="系统输出设备"><option>正在检测…</option></select><small class="system-output-detail"></small></label>
-            <button class="refresh-devices" type="button" title="重新检测音频设备">${iconNode(RefreshCw)}<span>重新检测</span></button>
+            <wa-button class="refresh-devices" type="button" size="small" title="重新检测音频设备">${iconNode(RefreshCw)}<span>重新检测</span></wa-button>
           </div>
         </header>
 
@@ -75,7 +75,7 @@ export function renderApp(): string {
           <h2 class="status-title">等待开始录音</h2>
           <p class="status-copy">麦克风与系统声音将分别保存在本地。</p>
           <p class="device-warning" role="status" hidden></p>
-          <button class="start-button" type="button">开始录音</button>
+          <wa-button class="start-button" type="button" variant="brand">开始录音</wa-button>
         </section>
 
         <section class="controls" aria-label="录音控制">
@@ -86,8 +86,8 @@ export function renderApp(): string {
           </div>
           <div class="control-row">
             <span class="elapsed-wrap">${iconNode(Clock3)}<time class="elapsed" datetime="PT0S">00:00</time></span>
-            <button class="pause-button" type="button" disabled title="暂停录音">${icon("pause")}<span>暂停</span></button>
-            <button class="stop-button" type="button" disabled title="停止并保存">${icon("stop")}<span>停止</span></button>
+            <wa-button class="pause-button" type="button" disabled title="暂停录音">${icon("pause")}<span>暂停</span></wa-button>
+            <wa-button class="stop-button" type="button" variant="brand" disabled title="停止并保存">${icon("stop")}<span>停止</span></wa-button>
           </div>
           <p class="shortcut-hint">Space 暂停/继续 · Ctrl + Enter 停止</p>
         </section>
@@ -240,14 +240,14 @@ export function applyView(root: HTMLElement, state: RecorderViewState): void {
 
   const active = state.status === "recording" || state.status === "paused";
   const busy = state.status === "stopping";
-  const pause = root.querySelector<HTMLButtonElement>(".pause-button")!;
+  const pause = root.querySelector<HTMLElement & { disabled: boolean }>(".pause-button")!;
   pause.disabled = !active || busy;
   pause.innerHTML = `${icon(state.status === "paused" ? "play" : "pause")}<span>${state.status === "paused" ? "继续" : "暂停"}</span>`;
   pause.title = state.status === "paused" ? "继续录音" : "暂停录音";
-  const stop = root.querySelector<HTMLButtonElement>(".stop-button")!;
+  const stop = root.querySelector<HTMLElement & { disabled: boolean }>(".stop-button")!;
   stop.disabled = !active || busy;
   stop.innerHTML = `${icon("stop")}<span>${busy ? "正在保存" : "结束并保存录音"}</span>`;
-  const start = root.querySelector<HTMLButtonElement>(".start-button")!;
+  const start = root.querySelector<HTMLElement>(".start-button")!;
   start.hidden = active || busy;
   start.innerHTML = `${iconNode(Mic)}<span>${state.status === "finished" ? "开始新录音" : "开始录音"}</span>`;
 

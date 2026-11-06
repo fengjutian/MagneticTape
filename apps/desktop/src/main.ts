@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { applyAudioDevices, applyView, formatElapsed, renderApp, renderTranscript } from "./components";
 import { TimelinePlayer } from "./player";
+import "@awesome.me/webawesome/dist/components/button/button.js";
 import type { AiConfiguration, AiResponse, AppSettings, AsrConfiguration, AudioDeviceSnapshot, AudioHealth, AudioLevels, CleanupResult, ExportResult, JobProgress, LibraryStats, LiveTranscript, LocalWhisperStatus, PlaybackTracks, RecorderViewState, RecordingListItem, SessionState, Transcript, TranscriptSegment, WhisperDownloadProgress } from "./types";
 import "./styles.css";
 
@@ -620,7 +621,7 @@ function stopHealthPolling(): void {
 }
 
 async function refreshAudioDevices(): Promise<void> {
-  const button = app.querySelector<HTMLButtonElement>(".refresh-devices")!;
+  const button = app.querySelector<HTMLElement & { disabled: boolean }>(".refresh-devices")!;
   button.disabled = true;
   button.textContent = "检测中…";
   try {
@@ -634,10 +635,10 @@ async function refreshAudioDevices(): Promise<void> {
   }
 }
 
-app.querySelector<HTMLButtonElement>(".start-button")!.addEventListener("click", () => void startRecording());
-app.querySelector<HTMLButtonElement>(".pause-button")!.addEventListener("click", () => void command(view.status === "paused" ? "resume_session" : "pause_session"));
-app.querySelector<HTMLButtonElement>(".stop-button")!.addEventListener("click", () => void command("stop_session"));
-app.querySelector<HTMLButtonElement>(".refresh-devices")!.addEventListener("click", () => void refreshAudioDevices());
+app.querySelector<HTMLElement>(".start-button")!.addEventListener("click", () => void startRecording());
+app.querySelector<HTMLElement>(".pause-button")!.addEventListener("click", () => void command(view.status === "paused" ? "resume_session" : "pause_session"));
+app.querySelector<HTMLElement>(".stop-button")!.addEventListener("click", () => void command("stop_session"));
+app.querySelector<HTMLElement>(".refresh-devices")!.addEventListener("click", () => void refreshAudioDevices());
 
 const historyDialog = app.querySelector<HTMLDialogElement>(".history-dialog")!;
 const historyList = app.querySelector<HTMLElement>(".history-list")!;
@@ -699,7 +700,7 @@ async function refreshLibraryStats(): Promise<void> {
     libraryStats.textContent = `无法统计占用：${error instanceof Error ? error.message : String(error)}`;
   }
 }
-app.querySelector<HTMLButtonElement>(".history-button")!.addEventListener("click", () => {
+app.querySelector<HTMLElement>(".history-button")!.addEventListener("click", () => {
   historySearch.value = "";
   historyDialog.showModal();
   void refreshHistory();
