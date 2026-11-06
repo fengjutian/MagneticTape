@@ -1,13 +1,36 @@
 import type { AudioDeviceInfo, AudioDeviceSnapshot, RecorderStatus, RecorderViewState, Transcript } from "./types";
+import {
+  Captions,
+  HardDrive,
+  History,
+  Languages,
+  Mic,
+  MonitorUp,
+  Pause,
+  Play,
+  Radio,
+  RefreshCw,
+  Sparkles,
+  Square,
+  type IconNode,
+} from "lucide";
 
-function icon(name: "pause" | "play" | "stop" | "sparkles"): string {
-  const paths = {
-    pause: '<path d="M8 6v12M16 6v12"/>',
-    play: '<path d="m9 6 9 6-9 6Z"/>',
-    stop: '<rect x="7" y="7" width="10" height="10" rx="2"/>',
-    sparkles: '<path d="m12 3 1.2 4.1L17 8.5l-3.8 1.4L12 14l-1.2-4.1L7 8.5l3.8-1.4ZM5 15l.7 2.3L8 18l-2.3.7L5 21l-.7-2.3L2 18l2.3-.7Z"/>',
-  };
-  return `<svg viewBox="0 0 24 24" aria-hidden="true">${paths[name]}</svg>`;
+const icons = { pause: Pause, play: Play, stop: Square, sparkles: Sparkles } as const;
+
+function iconNode(node: IconNode, className = "ui-icon"): string {
+  const [, svgAttributes, children = []] = node;
+  const attributes = Object.entries(svgAttributes)
+    .map(([key, value]) => `${key === "class" ? "class" : key}="${String(value)}"`)
+    .join(" ");
+  const body = children.map(([tag, childAttributes]) => {
+    const child = Object.entries(childAttributes).map(([key, value]) => `${key}="${String(value)}"`).join(" ");
+    return `<${tag} ${child}/>`;
+  }).join("");
+  return `<svg ${attributes} class="${className}" aria-hidden="true">${body}</svg>`;
+}
+
+function icon(name: keyof typeof icons): string {
+  return iconNode(icons[name]);
 }
 
 export function renderApp(): string {
@@ -19,19 +42,19 @@ export function renderApp(): string {
             <button class="title-display" id="recording-title" type="button" aria-label="编辑录音标题">新录音</button>
             <input class="title-input" type="text" maxlength="80" aria-label="录音标题" hidden />
             <span class="local-badge">本地</span>
-            <button class="history-button" type="button">历史录音</button>
+            <button class="history-button" type="button">${iconNode(History)}<span>历史录音</span></button>
           </div>
           <div class="options" aria-label="录音选项">
-            <label class="option"><span>转写语言</span><select data-option="language" aria-label="转写语言"><option value="auto">自动识别</option><option value="zh-CN">中文</option><option value="en-US">English</option></select></label>
-            <label class="option"><span>AI 同传</span><select data-option="translation" aria-label="实时翻译语言"><option value="none">不翻译</option><option value="zh-CN">实时翻译为中文</option><option value="en-US">Live English translation</option></select></label>
-            <label class="option"><span>音频</span><select data-option="audio" aria-label="音频保留策略"><option value="retain">保留音频</option><option value="discard">转写后删除音频</option></select></label>
+            <label class="option"><span>${iconNode(Languages)}转写语言</span><select data-option="language" aria-label="转写语言"><option value="auto">自动识别</option><option value="zh-CN">中文</option><option value="en-US">English</option></select></label>
+            <label class="option"><span>${iconNode(Radio)}AI 同传</span><select data-option="translation" aria-label="实时翻译语言"><option value="none">不翻译</option><option value="zh-CN">实时翻译为中文</option><option value="en-US">Live English translation</option></select></label>
+            <label class="option"><span>${iconNode(HardDrive)}音频</span><select data-option="audio" aria-label="音频保留策略"><option value="retain">保留音频</option><option value="discard">转写后删除音频</option></select></label>
             <button class="option ai-settings" type="button" title="配置 AI Provider">${icon("sparkles")}<span>AI 助手</span><small>MiniMax / DeepSeek</small></button>
-            <button class="option live-caption" type="button" title="录音时约每 5 秒生成实时字幕和增量译文"><span>实时字幕</span><small class="live-state">关</small></button>
+            <button class="option live-caption" type="button" title="录音时约每 5 秒生成实时字幕和增量译文">${iconNode(Captions)}<span>实时字幕</span><small class="live-state">关</small></button>
           </div>
           <div class="device-strip" aria-label="音频设备">
-            <label><span class="device-kind">麦克风</span><select class="microphone-select" aria-label="麦克风设备"><option>正在检测…</option></select><small class="microphone-detail"></small></label>
-            <label><span class="device-kind">系统声音</span><select class="system-output-select" aria-label="系统输出设备"><option>正在检测…</option></select><small class="system-output-detail"></small></label>
-            <button class="refresh-devices" type="button" title="重新检测音频设备">重新检测</button>
+            <label><span class="device-icon">${iconNode(Mic)}</span><span class="device-kind">麦克风</span><select class="microphone-select" aria-label="麦克风设备"><option>正在检测…</option></select><small class="microphone-detail"></small></label>
+            <label><span class="device-icon">${iconNode(MonitorUp)}</span><span class="device-kind">系统声音</span><select class="system-output-select" aria-label="系统输出设备"><option>正在检测…</option></select><small class="system-output-detail"></small></label>
+            <button class="refresh-devices" type="button" title="重新检测音频设备">${iconNode(RefreshCw)}<span>重新检测</span></button>
           </div>
         </header>
 

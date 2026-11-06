@@ -18,6 +18,7 @@ let healthHandle: number | undefined;
 let currentTranscript: Transcript | null = null;
 let currentTranslation: { code: string; content: string } | null = null;
 let playbackPlayer: TimelinePlayer | null = null;
+let playbackRequest = 0;
 let activeTranscriptLine: HTMLElement | null = null;
 let liveDesired = false;
 let livePollHandle: number | undefined;
@@ -300,6 +301,7 @@ function syncBackend(next: SessionState): void {
     void loadSessionNotes();
     void loadTranscript();
   } else {
+    playbackRequest += 1;
     playbackPlayer?.dispose();
     playbackPlayer = null;
     activeTranscriptLine = null;
@@ -309,6 +311,7 @@ function syncBackend(next: SessionState): void {
 
 /// Loads (or reloads) the unified playback timeline for the finished session.
 async function ensurePlayback(): Promise<void> {
+  const request = ++playbackRequest;
   const container = app.querySelector<HTMLElement>(".playback");
   if (view.status !== "finished" || !container) {
     playbackPlayer?.dispose();
@@ -320,12 +323,14 @@ async function ensurePlayback(): Promise<void> {
   playbackPlayer = null;
   try {
     const tracks = await invoke<PlaybackTracks>("get_session_playback");
+    if (request !== playbackRequest) return;
     if (view.status !== "finished") return;
     if (app.querySelector<HTMLElement>(".playback") !== container) return;
     playbackPlayer = new TimelinePlayer(container, tracks, {
       onPosition: (positionMs) => highlightTranscript(positionMs),
     });
   } catch (error) {
+    if (request !== playbackRequest) return;
     const hint = container.querySelector<HTMLElement>(".playback-hint");
     if (hint) hint.textContent = `无法加载回放时间轴：${error instanceof Error ? error.message : String(error)}`;
   }
