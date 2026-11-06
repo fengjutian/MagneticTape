@@ -1,6 +1,10 @@
 import type { AudioDeviceInfo, AudioDeviceSnapshot, RecorderStatus, RecorderViewState, Transcript } from "./types";
 import {
   Captions,
+  Check,
+  Download,
+  FileText,
+  FolderOpen,
   HardDrive,
   History,
   Languages,
@@ -12,6 +16,8 @@ import {
   RefreshCw,
   Sparkles,
   Square,
+  Trash2,
+  WandSparkles,
   type IconNode,
 } from "lucide";
 
@@ -29,8 +35,8 @@ function iconNode(node: IconNode, className = "ui-icon"): string {
   return `<svg ${attributes} class="${className}" aria-hidden="true">${body}</svg>`;
 }
 
-function icon(name: keyof typeof icons): string {
-  return iconNode(icons[name]);
+function icon(name: keyof typeof icons, className = "ui-icon"): string {
+  return iconNode(icons[name], className);
 }
 
 export function renderApp(): string {
@@ -237,7 +243,33 @@ function contentForStatus(state: RecorderViewState): string {
   if (status === "stopping") return `<div class="saving"><span class="spinner" aria-hidden="true"></span><h3>正在安全结束会话</h3><p>请勿重复提交停止操作。</p></div>`;
   if (status === "finished") {
     const revealPath = state.microphonePath ?? state.systemPath;
-    return `<div class="finished-card"><span class="check">✓</span><h3>${state.recovered ? "已恢复上次录音" : "录音已保存"}</h3><p>会话编号：${sessionId?.slice(0, 12) ?? "—"}</p><section class="playback" aria-label="录音回放"><div class="playback-row"><button class="playback-toggle" type="button" aria-label="播放录音"><svg class="playback-icon play" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 9 6-9 6Z"/></svg><svg class="playback-icon pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6v12M16 6v12"/></svg><span>播放</span></button><time class="playback-current" datetime="PT0S">00:00</time><input class="playback-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="播放进度" /><time class="playback-total" datetime="PT0S">00:00</time><select class="playback-rate" aria-label="播放速度"><option value="0.75">0.75×</option><option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option></select></div><p class="playback-hint">麦克风与系统声音已对齐到同一时间轴；点击下方字幕时间戳可跳转。</p></section><section class="transcript-panel"><header><strong>转写文本</strong><span class="transcript-state"></span></header><div class="transcript-body"><p class="transcript-empty">尚未转写。配置 ASR 服务后可从录音生成带时间戳与说话人的文本。</p></div><div class="transcript-actions"><select class="asr-provider" aria-label="转写服务商"><option value="minimax">MiniMax</option><option value="silicon_flow">SiliconFlow</option></select><button class="transcribe" type="button">开始转写</button><button class="cancel-transcribe" type="button" hidden>取消</button><button class="asr-settings" type="button">转写设置</button><select class="translate-target" aria-label="翻译语言"><option value="zh">中文</option><option value="en">English</option></select><button class="translate-transcript" type="button">AI 翻译</button></div></section><section class="notes-editor"><header><strong>会议笔记</strong><span class="notes-state"></span></header><textarea class="meeting-notes" rows="9" placeholder="输入会议笔记，或直接使用转写文本生成纪要…"></textarea><div class="notes-actions"><select class="notes-provider" aria-label="AI 服务商"><option value="minimax">MiniMax</option><option value="deep_seek">DeepSeek</option></select><button class="save-notes" type="button">保存笔记</button><button class="summarize-notes" type="button">AI 生成纪要</button></div></section><dl><div><dt>麦克风</dt><dd title="${escapeHtml(state.microphonePath ?? "")}">${escapeHtml(state.microphonePath ?? "未生成")}</dd></div><div><dt>系统声音</dt><dd title="${escapeHtml(state.systemPath ?? "")}">${escapeHtml(state.systemPath ?? "未生成")}</dd></div><div><dt>音频分片</dt><dd>${(state.microphoneChunks?.length ?? 0) + (state.systemChunks?.length ?? 0)}</dd></div><div><dt>丢弃缓冲块</dt><dd>${state.droppedBlocks ?? 0}</dd></div></dl><div class="export-row"><button class="export-session" type="button">导出会议资料</button><button class="discard-audio" type="button" title="删除分片音频，保留转写与笔记">删除音频</button><span class="export-state"></span></div>${revealPath ? `<button class="reveal-recording" type="button" data-path="${escapeHtml(revealPath)}">在资源管理器中查看</button>` : ""}</div>`;
+    return `<div class="finished-card">
+      <section class="session-summary">
+        <span class="check">${iconNode(Check)}</span>
+        <div><h3>${state.recovered ? "已恢复上次录音" : "录音已保存"}</h3><p>会话 ${sessionId?.slice(0, 12) ?? "—"} · 音频已安全保存在本地</p></div>
+      </section>
+      <section class="playback" aria-label="录音回放">
+        <div class="playback-row"><button class="playback-toggle" type="button" aria-label="播放录音">${icon("play", "ui-icon play")} ${icon("pause", "ui-icon pause")}<span>播放</span></button><time class="playback-current" datetime="PT0S">00:00</time><input class="playback-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="播放进度" /><time class="playback-total" datetime="PT0S">00:00</time><select class="playback-rate" aria-label="播放速度"><option value="0.75">0.75×</option><option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option></select></div>
+        <p class="playback-hint">双轨音频已自动对齐 · 点击字幕可跳转到对应时间</p>
+      </section>
+      <div class="workbench-grid">
+        <section class="transcript-panel workbench-card">
+          <header><span class="panel-heading">${iconNode(Captions)}<strong>转写文本</strong></span><span class="transcript-state"></span></header>
+          <div class="transcript-body"><p class="transcript-empty">尚未转写。配置服务后，可生成带时间戳和说话人的完整文本。</p></div>
+          <div class="transcript-actions"><select class="asr-provider" aria-label="转写服务商"><option value="minimax">MiniMax</option><option value="silicon_flow">SiliconFlow</option></select><button class="transcribe" type="button">开始转写</button><button class="cancel-transcribe" type="button" hidden>取消</button><button class="asr-settings" type="button">转写设置</button><select class="translate-target" aria-label="翻译语言"><option value="zh">中文</option><option value="en">English</option></select><button class="translate-transcript" type="button">AI 翻译</button></div>
+        </section>
+        <section class="notes-editor workbench-card">
+          <header><span class="panel-heading">${iconNode(FileText)}<strong>会议笔记</strong></span><span class="notes-state"></span></header>
+          <textarea class="meeting-notes" rows="9" placeholder="记录关键结论、决策和待办事项…"></textarea>
+          <div class="notes-actions"><select class="notes-provider" aria-label="AI 服务商"><option value="minimax">MiniMax</option><option value="deep_seek">DeepSeek</option></select><button class="save-notes" type="button">保存笔记</button><button class="summarize-notes" type="button">${iconNode(WandSparkles)}AI 生成纪要</button></div>
+        </section>
+      </div>
+      <section class="session-details">
+        <header><span class="panel-heading">${iconNode(HardDrive)}<strong>本地文件</strong></span><span>${(state.microphoneChunks?.length ?? 0) + (state.systemChunks?.length ?? 0)} 个音频分片</span></header>
+        <dl><div><dt>麦克风</dt><dd title="${escapeHtml(state.microphonePath ?? "")}">${escapeHtml(state.microphonePath ?? "未生成")}</dd></div><div><dt>系统声音</dt><dd title="${escapeHtml(state.systemPath ?? "")}">${escapeHtml(state.systemPath ?? "未生成")}</dd></div><div><dt>丢弃缓冲块</dt><dd>${state.droppedBlocks ?? 0}</dd></div></dl>
+      </section>
+      <div class="export-row"><button class="export-session" type="button">${iconNode(Download)}导出会议资料</button>${revealPath ? `<button class="reveal-recording" type="button" data-path="${escapeHtml(revealPath)}">${iconNode(FolderOpen)}打开文件夹</button>` : ""}<button class="discard-audio" type="button" title="删除分片音频，保留转写与笔记">${iconNode(Trash2)}删除音频</button><span class="export-state"></span></div>
+    </div>`;
   }
   return `<div class="empty-content"><div class="cassette-mini" aria-hidden="true"><i></i><i></i></div><h3>内容将在这里出现</h3><p>开始录音后，这里将承载实时字幕。停止后可继续生成摘要、章节和待办。</p></div>`;
 }
