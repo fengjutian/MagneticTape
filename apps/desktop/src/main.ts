@@ -65,11 +65,16 @@ function applySettings(next: AppSettings): void {
   if (autoCleanup) autoCleanup.value = String(next.autoCleanupDays);
   const quota = app.querySelector<HTMLSelectElement>(".storage-quota");
   if (quota) quota.value = String(next.storageQuotaMb);
-  const asrProviderSelect = app.querySelector<HTMLSelectElement>(".asr-provider");
-  if (asrProviderSelect && Array.from(asrProviderSelect.options).some((option) => option.value === next.asrProvider)) {
-    asrProviderSelect.value = next.asrProvider;
-  }
+  syncAsrProviderSelect();
   setLiveIndicator(false);
+}
+
+function syncAsrProviderSelect(): void {
+  const select = app.querySelector<HTMLSelectElement>(".asr-provider");
+  if (!select) return;
+  if (Array.from(select.options).some((option) => option.value === settings.asrProvider)) {
+    select.value = settings.asrProvider;
+  }
 }
 
 async function persistSettings(): Promise<void> {
@@ -314,6 +319,7 @@ function syncBackend(next: SessionState): void {
   view = { ...view, title: next.title, status: next.status, elapsedMs: next.elapsedMs, sessionId: next.sessionId, microphonePath: next.microphonePath, systemPath: next.systemPath, microphoneChunks: next.microphoneChunks, systemChunks: next.systemChunks, droppedBlocks: next.droppedBlocks, recovered: next.recovered, errorMessage: undefined };
   restartClock();
   applyView(app, view);
+  syncAsrProviderSelect();
   if (next.status === "finished") {
     stopLivePolling();
     stopHealthPolling();
