@@ -24,10 +24,10 @@ export function renderApp(): string {
           </div>
           <div class="options" aria-label="录音选项">
             <label class="option"><span>转写语言</span><select data-option="language" aria-label="转写语言"><option value="auto">自动识别</option><option value="zh-CN">中文</option><option value="en-US">English</option></select></label>
-            <label class="option"><span>翻译</span><select data-option="translation" aria-label="翻译语言"><option value="none">不翻译</option><option value="zh-CN">翻译为中文</option><option value="en-US">Translate to English</option></select></label>
+            <label class="option"><span>AI 同传</span><select data-option="translation" aria-label="实时翻译语言"><option value="none">不翻译</option><option value="zh-CN">实时翻译为中文</option><option value="en-US">Live English translation</option></select></label>
             <label class="option"><span>音频</span><select data-option="audio" aria-label="音频保留策略"><option value="retain">保留音频</option><option value="discard">转写后删除音频</option></select></label>
             <button class="option ai-settings" type="button" title="配置 AI Provider">${icon("sparkles")}<span>AI 助手</span><small>MiniMax / DeepSeek</small></button>
-            <button class="option live-caption" type="button" title="录音时每 15 秒生成实时字幕"><span>实时字幕</span><small class="live-state">关</small></button>
+            <button class="option live-caption" type="button" title="录音时每 15 秒生成实时字幕和增量译文"><span>实时字幕</span><small class="live-state">关</small></button>
           </div>
           <div class="device-strip" aria-label="音频设备">
             <label><span class="device-kind">麦克风</span><select class="microphone-select" aria-label="麦克风设备"><option>正在检测…</option></select><small class="microphone-detail"></small></label>
@@ -98,6 +98,11 @@ export function renderApp(): string {
         <div class="history-list"><p class="history-empty">正在读取录音…</p></div>
         <footer class="history-footer">
           <span class="library-stats">正在统计占用…</span>
+          <div class="storage-settings">
+            <label>自动清理<select class="auto-cleanup-days" aria-label="自动清理音频"><option value="0">关闭</option><option value="30">30 天</option><option value="90">90 天</option><option value="180">180 天</option></select></label>
+            <label>存储上限<select class="storage-quota" aria-label="存储上限"><option value="0">不限制</option><option value="5120">5 GB</option><option value="10240">10 GB</option><option value="20480">20 GB</option></select></label>
+            <span class="storage-hint">下次启动生效</span>
+          </div>
           <div class="cleanup-row">
             <select class="cleanup-days" aria-label="清理多少天前的音频">
               <option value="30">30 天前</option>
@@ -206,7 +211,7 @@ export function applyView(root: HTMLElement, state: RecorderViewState): void {
 function contentForStatus(state: RecorderViewState): string {
   const { status, sessionId } = state;
   if (status === "recording" || status === "paused") {
-    return `<div class="transcript-placeholder"><span class="pulse-dot"></span><h3>${status === "paused" ? "字幕已暂停" : "等待实时字幕"}</h3><p>实时字幕尚未接入；录音结束后可在完成页一键转写。</p><div class="skeleton"><i></i><i></i><i></i></div></div>`;
+    return `<div class="transcript-placeholder"><span class="pulse-dot"></span><h3>${status === "paused" ? "字幕已暂停" : "等待实时字幕"}</h3><p>开启实时字幕后，将按录音分片生成原文；选择 AI 同传语言后会同步显示译文。</p><div class="skeleton"><i></i><i></i><i></i></div></div>`;
   }
   if (status === "stopping") return `<div class="saving"><span class="spinner" aria-hidden="true"></span><h3>正在安全结束会话</h3><p>请勿重复提交停止操作。</p></div>`;
   if (status === "finished") {

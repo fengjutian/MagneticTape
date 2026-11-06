@@ -126,6 +126,8 @@ export interface AppSettings {
   liveCaptions: boolean;
   asrProvider: "minimax" | "silicon_flow";
   asrProfiles: Record<string, AsrProfile>;
+  autoCleanupDays: number;
+  storageQuotaMb: number;
 }
 
 export interface AudioHealth {

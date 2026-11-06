@@ -91,6 +91,10 @@ button:disabled, select:disabled { cursor: not-allowed; }
 .history-empty { padding: 40px 0; color: #8f959e; text-align: center; }
 .history-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px solid #eceef2; }
 .library-stats { color: #8f959e; font-size: 11px; }
+.storage-settings { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.storage-settings label { display: flex; align-items: center; gap: 5px; color: #8f959e; font-size: 11px; }
+.storage-settings select { border: 0; border-radius: 7px; padding: 6px 8px; background: #f0f2f5; color: #4e5969; font-size: 11px; }
+.storage-hint { color: #b1b6bf; font-size: 10px; }
 .cleanup-row { display: flex; gap: 8px; }
 .cleanup-row select, .cleanup-row button { border: 0; border-radius: 7px; padding: 7px 9px; font-size: 11px; }
 .cleanup-row select { background: #f0f2f5; color: #4e5969; }
@@ -218,6 +222,9 @@ button:disabled, select:disabled { cursor: not-allowed; }
 .asr-settings, .translate-transcript { background: #e8eeff; color: #245bdb; }
 .transcript-translation { margin: 0 0 8px; color: #245bdb; font-weight: 600; }
 .live-error { margin: 10px 0 0; color: #b42318; font-size: 12px; }
+.content-body > .transcript-line { display: grid; grid-template-columns: auto auto 1fr; align-items: start; }
+.live-translation-text { grid-column: 2 / 4; margin-top: 3px; padding: 5px 8px; border-left: 2px solid #8aa7ff; border-radius: 0 5px 5px 0; background: #f5f7ff; color: #245bdb; line-height: 1.55; }
+.live-translation-status { margin: 10px 0 0; color: #6b778c; font-size: 11px; }
 .device-warning { margin: 12px 0 0; padding: 8px 12px; border-radius: 8px; background: #fff7e8; color: #8a5a00; font-size: 12px; }
 .notes-editor > header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 9px; }
 .notes-state { color: #8f959e; font-size: 11px; }

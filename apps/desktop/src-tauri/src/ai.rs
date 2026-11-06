@@ -195,6 +195,61 @@ pub async fn generate_ai(
     generate(provider, prompt.trim(), &state).await
 }
 
+#[tauri::command]
+pub async fn translate_live_segments(
+    segments: Vec<String>,
+    target_language: String,
+    provider: AiProvider,
+    state: tauri::State<'_, AiState>,
+) -> Result<Vec<String>, String> {
+    if segments.is_empty() {
+        return Ok(Vec::new());
+    }
+    if segments.len() > 32 {
+        return Err("单次实时翻译不能超过 32 段".into());
+    }
+    let segments = segments
+        .into_iter()
+        .map(|segment| segment.trim().chars().take(4_000).collect::<String>())
+        .collect::<Vec<_>>();
+    let source = serde_json::to_string(&segments).map_err(|error| error.to_string())?;
+    if source.len() > 64_000 {
+        return Err("单次实时翻译文本不能超过 64 KB".into());
+    }
+    let target_language = target_language.trim().chars().take(32).collect::<String>();
+    if target_language.is_empty() {
+        return Err("翻译目标语言不能为空".into());
+    }
+    let prompt = format!(
+        "把下面 JSON 数组中的每一项翻译为{target_language}。保留原意、说话语气和专有名词，不要解释。只返回长度完全相同的 JSON 字符串数组，不要使用 Markdown 代码块。\n\n{source}"
+    );
+    let content = generate_text(provider, &prompt, &state).await?;
+    parse_translation_array(&content, segments.len())
+}
+
+fn parse_translation_array(content: &str, expected: usize) -> Result<Vec<String>, String> {
+    let trimmed = content.trim();
+    let json = if trimmed.starts_with("```") {
+        trimmed
+            .lines()
+            .skip(1)
+            .take_while(|line| !line.trim_start().starts_with("```"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    } else {
+        trimmed.to_owned()
+    };
+    let translations: Vec<String> = serde_json::from_str(json.trim())
+        .map_err(|error| format!("无法解析实时翻译响应：{error}"))?;
+    if translations.len() != expected {
+        return Err(format!(
+            "实时翻译返回了 {} 段，预期 {expected} 段",
+            translations.len()
+        ));
+    }
+    Ok(translations)
+}
+
 /// Generates plain text with a configured provider. Shared with transcript
 /// translation so the ASR module does not duplicate the HTTP client.
 pub(crate) async fn generate_text(
@@ -304,5 +359,18 @@ mod tests {
             serde_json::from_str::<AiProvider>("\"deep_seek\"").unwrap(),
             AiProvider::DeepSeek
         );
+    }
+
+    #[test]
+    fn parses_live_translation_arrays_and_code_fences() {
+        assert_eq!(
+            parse_translation_array("[\"Hello\",\"world\"]", 2).unwrap(),
+            ["Hello", "world"]
+        );
+        assert_eq!(
+            parse_translation_array("```json\n[\"你好\"]\n```", 1).unwrap(),
+            ["你好"]
+        );
+        assert!(parse_translation_array("[\"one\"]", 2).is_err());
     }
 }

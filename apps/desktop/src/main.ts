@@ -19,6 +19,13 @@ let livePollHandle: number | undefined;
 let livePollBusy = false;
 let liveSegments: TranscriptSegment[] = [];
 let liveError: string | undefined;
+let liveTranslations: string[] = [];
+let liveTranslatedCount = 0;
+let liveTranslationBusy = false;
+let liveTranslationError: string | undefined;
+let liveTranslationRetryAfter = 0;
+let liveTranslationGeneration = 0;
+let liveAiProvider: AiResponse["provider"] = "minimax";
 let settings: AppSettings = {
   microphoneId: null,
   systemOutputId: null,
@@ -28,6 +35,8 @@ let settings: AppSettings = {
   liveCaptions: false,
   asrProvider: "minimax",
   asrProfiles: {},
+  autoCleanupDays: 0,
+  storageQuotaMb: 0,
 };
 
 function applySettings(next: AppSettings): void {
@@ -42,6 +51,10 @@ function applySettings(next: AppSettings): void {
     if (select.dataset.option === "translation") select.value = next.translation;
     if (select.dataset.option === "audio") select.value = next.retainAudio ? "retain" : "discard";
   });
+  const autoCleanup = app.querySelector<HTMLSelectElement>(".auto-cleanup-days");
+  if (autoCleanup) autoCleanup.value = String(next.autoCleanupDays);
+  const quota = app.querySelector<HTMLSelectElement>(".storage-quota");
+  if (quota) quota.value = String(next.storageQuotaMb);
   setLiveIndicator(false);
 }
 
@@ -54,6 +67,8 @@ async function persistSettings(): Promise<void> {
   settings.translation = view.translation;
   settings.retainAudio = view.retainAudio;
   settings.liveCaptions = liveDesired;
+  settings.autoCleanupDays = Number(app.querySelector<HTMLSelectElement>(".auto-cleanup-days")?.value ?? 0);
+  settings.storageQuotaMb = Number(app.querySelector<HTMLSelectElement>(".storage-quota")?.value ?? 0);
   try {
     settings = await invoke<AppSettings>("save_settings", { settings });
   } catch (error) {
@@ -84,7 +99,10 @@ function applySavedDevices(): void {
 const liveButton = app.querySelector<HTMLButtonElement>(".live-caption")!;
 function setLiveIndicator(active: boolean): void {
   liveButton.classList.toggle("active", active);
-  liveButton.querySelector<HTMLElement>(".live-state")!.textContent = active ? "开" : "关";
+  const translated = settings.translation === "none" ? "" : ` · ${translationLabel(settings.translation)}`;
+  liveButton.querySelector<HTMLElement>(".live-state")!.textContent = active
+    ? `开${translated}`
+    : (liveDesired ? `下次开启${translated}` : "关");
 }
 
 function renderLive(): void {
@@ -110,6 +128,23 @@ function renderLive(): void {
     segments: liveSegments,
     createdAtEpochMs: 0,
   });
+  body.querySelectorAll<HTMLElement>(".transcript-line").forEach((line, index) => {
+    const translation = liveTranslations[index];
+    if (!translation) return;
+    const translated = document.createElement("span");
+    translated.className = "live-translation-text";
+    translated.lang = settings.translation === "zh-CN" ? "zh-CN" : "en";
+    translated.textContent = translation;
+    line.append(translated);
+  });
+  if (settings.translation !== "none" && (liveTranslationBusy || liveTranslationError)) {
+    const status = document.createElement("p");
+    status.className = liveTranslationError ? "live-error" : "live-translation-status";
+    status.textContent = liveTranslationError
+      ? `实时翻译错误：${liveTranslationError}`
+      : `AI 正在翻译为${translationLabel(settings.translation)}…`;
+    body.append(status);
+  }
   if (liveError) {
     const failure = document.createElement("p");
     failure.className = "live-error";
@@ -117,6 +152,40 @@ function renderLive(): void {
     body.append(failure);
   }
   body.scrollTop = body.scrollHeight;
+}
+
+function translationLabel(value: string): string {
+  return value === "zh-CN" ? "中文" : "English";
+}
+
+async function translateNewLiveSegments(): Promise<void> {
+  if (settings.translation === "none" || liveTranslationBusy || Date.now() < liveTranslationRetryAfter) return;
+  if (liveSegments.length <= liveTranslatedCount) return;
+  const start = liveTranslatedCount;
+  const pendingSegments = liveSegments.slice(start, start + 32);
+  const generation = liveTranslationGeneration;
+  const target = settings.translation;
+  liveTranslationBusy = true;
+  liveTranslationError = undefined;
+  renderLive();
+  try {
+    const translated = await invoke<string[]>("translate_live_segments", {
+      segments: pendingSegments.map((segment) => segment.text),
+      targetLanguage: translationLabel(target),
+      provider: liveAiProvider,
+    });
+    if (generation !== liveTranslationGeneration || target !== settings.translation) return;
+    liveTranslations.splice(start, translated.length, ...translated);
+    liveTranslatedCount = start + translated.length;
+    liveTranslationRetryAfter = 0;
+  } catch (error) {
+    liveTranslationError = error instanceof Error ? error.message : String(error);
+    liveTranslationRetryAfter = Date.now() + 15_000;
+  } finally {
+    liveTranslationBusy = false;
+    renderLive();
+    if (liveSegments.length > liveTranslatedCount && !liveTranslationError) void translateNewLiveSegments();
+  }
 }
 
 async function pollLive(): Promise<void> {
@@ -127,6 +196,7 @@ async function pollLive(): Promise<void> {
     liveSegments = live.segments;
     liveError = live.error;
     renderLive();
+    void translateNewLiveSegments();
   } catch {
     // A later poll retries; recording must not be interrupted by ASR errors.
   } finally {
@@ -147,10 +217,19 @@ function stopLivePolling(): void {
 
 async function beginLive(): Promise<void> {
   try {
-    const configurations = await invoke<AsrConfiguration[]>("get_asr_configurations");
+    const [configurations, aiConfigurations] = await Promise.all([
+      invoke<AsrConfiguration[]>("get_asr_configurations"),
+      invoke<AiConfiguration[]>("get_ai_configurations"),
+    ]);
     const provider = configurations.find((item) => item.provider === "minimax" && item.configured)?.provider
       ?? configurations.find((item) => item.configured)?.provider
       ?? "minimax";
+    liveAiProvider = aiConfigurations.find((item) => item.configured)?.provider ?? "minimax";
+    liveTranslations = [];
+    liveTranslatedCount = 0;
+    liveTranslationError = undefined;
+    liveTranslationRetryAfter = 0;
+    liveTranslationGeneration += 1;
     const live = await invoke<LiveTranscript>("start_live_transcription", {
       provider,
       language: view.language,
@@ -196,6 +275,10 @@ function syncBackend(next: SessionState): void {
     stopHealthPolling();
     liveSegments = [];
     liveError = undefined;
+    liveTranslations = [];
+    liveTranslatedCount = 0;
+    liveTranslationError = undefined;
+    liveTranslationGeneration += 1;
     liveDesired = false;
     setLiveIndicator(false);
     currentTranscript = null;
@@ -844,12 +927,25 @@ titleInput.addEventListener("keydown", (event) => {
 
 app.querySelectorAll<HTMLSelectElement>("select[data-option]").forEach((select) => select.addEventListener("change", () => {
   if (select.dataset.option === "language") view.language = select.value;
-  if (select.dataset.option === "translation") view.translation = select.value;
+  if (select.dataset.option === "translation") {
+    view.translation = select.value;
+    liveTranslations = [];
+    liveTranslatedCount = 0;
+    liveTranslationError = undefined;
+    liveTranslationRetryAfter = 0;
+    liveTranslationGeneration += 1;
+    setLiveIndicator(livePollHandle !== undefined);
+    renderLive();
+    void translateNewLiveSegments();
+  }
   if (select.dataset.option === "audio") view.retainAudio = select.value === "retain";
   void persistSettings();
 }));
 
 for (const selector of [".microphone-select", ".system-output-select"]) {
+  app.querySelector<HTMLSelectElement>(selector)!.addEventListener("change", () => void persistSettings());
+}
+for (const selector of [".auto-cleanup-days", ".storage-quota"]) {
   app.querySelector<HTMLSelectElement>(selector)!.addEventListener("change", () => void persistSettings());
 }
 

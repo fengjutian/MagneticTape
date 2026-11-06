@@ -60,6 +60,8 @@ struct AppSettings {
     live_captions: bool,
     asr_provider: String,
     asr_profiles: HashMap<String, AsrProfile>,
+    auto_cleanup_days: u32,
+    storage_quota_mb: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -91,6 +93,8 @@ impl Default for AppSettings {
             live_captions: false,
             asr_provider: "minimax".into(),
             asr_profiles: HashMap::new(),
+            auto_cleanup_days: 0,
+            storage_quota_mb: 0,
         }
     }
 }
@@ -105,6 +109,12 @@ impl AppSettings {
         }
         if !matches!(self.asr_provider.as_str(), "minimax" | "silicon_flow") {
             self.asr_provider = "minimax".into();
+        }
+        if !matches!(self.auto_cleanup_days, 0 | 30 | 90 | 180) {
+            self.auto_cleanup_days = 0;
+        }
+        if self.storage_quota_mb > 1_048_576 {
+            self.storage_quota_mb = 0;
         }
         self.microphone_id = self
             .microphone_id
@@ -1034,6 +1044,56 @@ fn get_library_stats(app: tauri::AppHandle) -> Result<LibraryStats, String> {
     library_stats(&recordings_root(&app)?)
 }
 
+/// Drops the oldest transcript-bearing audio until the library fits the quota.
+fn enforce_storage_quota(
+    root: &Path,
+    quota_bytes: u64,
+    active_session: Option<&str>,
+) -> Result<CleanupResult, String> {
+    let mut result = CleanupResult {
+        sessions: 0,
+        bytes_freed: 0,
+    };
+    if quota_bytes == 0 || !root.exists() {
+        return Ok(result);
+    }
+    let mut total = 0_u64;
+    let mut candidates = Vec::new();
+    for entry in fs::read_dir(root).map_err(|error| error.to_string())? {
+        let directory = entry.map_err(|error| error.to_string())?.path();
+        let Some(session_id) = directory.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        let size = directory_size(&directory);
+        total += size;
+        if active_session == Some(session_id)
+            || directory.join(AUDIO_DISCARDED).is_file()
+            || !directory.join(TRANSCRIPT_FILE).is_file()
+            || !has_audio_files(&directory)
+        {
+            continue;
+        }
+        let started_at = load_session(&directory)
+            .map(|session| session.started_at_epoch_ms)
+            .unwrap_or(0);
+        candidates.push((started_at, session_id.to_owned(), directory));
+    }
+    if total <= quota_bytes {
+        return Ok(result);
+    }
+    candidates.sort_by_key(|(started_at, _, _)| *started_at);
+    for (_, _, directory) in candidates {
+        if total <= quota_bytes {
+            break;
+        }
+        let freed = discard_audio_files(&directory)?;
+        total = total.saturating_sub(freed);
+        result.bytes_freed += freed;
+        result.sessions += 1;
+    }
+    Ok(result)
+}
+
 #[tauri::command]
 fn cleanup_audio_older_than(
     days: u32,
@@ -1960,6 +2020,29 @@ pub fn run() {
                     );
                 }
             }
+            if settings.auto_cleanup_days > 0 {
+                let cutoff =
+                    epoch_ms().saturating_sub(u64::from(settings.auto_cleanup_days) * 86_400_000);
+                match cleanup_old_audio(&recordings, cutoff, None) {
+                    Ok(result) if result.sessions > 0 => eprintln!(
+                        "auto cleanup removed audio from {} sessions ({} bytes)",
+                        result.sessions, result.bytes_freed
+                    ),
+                    Ok(_) => {}
+                    Err(error) => eprintln!("auto cleanup failed: {error}"),
+                }
+            }
+            if settings.storage_quota_mb > 0 {
+                let quota = u64::from(settings.storage_quota_mb) * 1_048_576;
+                match enforce_storage_quota(&recordings, quota, None) {
+                    Ok(result) if result.sessions > 0 => eprintln!(
+                        "quota cleanup removed audio from {} sessions ({} bytes)",
+                        result.sessions, result.bytes_freed
+                    ),
+                    Ok(_) => {}
+                    Err(error) => eprintln!("quota cleanup failed: {error}"),
+                }
+            }
             app.manage(Mutex::new(settings));
             Ok(())
         })
@@ -1985,6 +2068,7 @@ pub fn run() {
             ai::clear_ai,
             ai::test_ai,
             ai::generate_ai,
+            ai::translate_live_segments,
             asr::configure_asr,
             asr::get_asr_configurations,
             asr::clear_asr,
@@ -2283,6 +2367,62 @@ mod tests {
         assert_eq!(stats.session_count, 2);
         assert_eq!(stats.transcript_only_count, 1);
         assert!(stats.audio_bytes > 0);
+    }
+
+    #[test]
+    fn quota_cleanup_drops_the_oldest_audio_first() {
+        let root = tempfile::tempdir().unwrap();
+        let transcript = serde_json::to_vec(&asr::Transcript {
+            provider: "minimax".into(),
+            model: "asr-1.0".into(),
+            language: "zh-CN".into(),
+            duration_ms: 5_000,
+            text: "hello".into(),
+            segments: Vec::new(),
+            created_at_epoch_ms: 0,
+        })
+        .unwrap();
+        let mut total = 0_u64;
+        for (name, started_at, audio_len) in [
+            ("0000000000000001", 1_000_u64, 100_usize),
+            ("0000000000000002", 2_000, 200),
+            ("0000000000000003", 3_000, 300),
+        ] {
+            let directory = root.path().join(name);
+            fs::create_dir_all(&directory).unwrap();
+            fs::write(
+                directory.join(LEGACY_MARKER),
+                format!(r#"{{"startedAtEpochMs":{started_at},"title":"{name}"}}"#),
+            )
+            .unwrap();
+            fs::write(directory.join(TRANSCRIPT_FILE), &transcript).unwrap();
+            fs::write(directory.join("mic-00000.ogg"), vec![0_u8; audio_len]).unwrap();
+            fs::write(directory.join("mic-00000.json"), b"{}").unwrap();
+            total += directory_size(&directory);
+        }
+        // Freeing the oldest 100 byte chunk is enough to get back under quota.
+        let quota = total.saturating_sub(50);
+        let result = enforce_storage_quota(root.path(), quota, None).unwrap();
+        assert_eq!(result.sessions, 1);
+        assert!(
+            !root
+                .path()
+                .join("0000000000000001")
+                .join("mic-00000.ogg")
+                .exists()
+        );
+        assert!(
+            root.path()
+                .join("0000000000000002")
+                .join("mic-00000.ogg")
+                .exists()
+        );
+        assert!(
+            root.path()
+                .join("0000000000000003")
+                .join("mic-00000.ogg")
+                .exists()
+        );
     }
 
     #[test]
