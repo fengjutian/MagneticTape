@@ -34,6 +34,7 @@ mod ai;
 mod asr;
 mod export;
 mod local_whisper;
+mod logging;
 use ai::AiState;
 use asr::AsrState;
 use local_whisper::LocalWhisperState;
@@ -812,7 +813,10 @@ fn finalize_session(
         snapshot,
     );
     if let Err(error) = write_checkpoint(directory, &manifest) {
-        eprintln!("failed to write final session checkpoint: {error}");
+        logging::warn(
+            "recording",
+            &format!("failed to write final checkpoint: {error}"),
+        );
     }
     recorded
 }
@@ -842,7 +846,10 @@ fn spawn_checkpointer(
                     if active.health().needs_rebuild()
                         && let Err(error) = active.rebuild()
                     {
-                        eprintln!("failed to rebuild audio streams: {error}");
+                        logging::warn(
+                            "audio",
+                            &format!("failed to rebuild audio streams: {error}"),
+                        );
                     }
                 }
                 let snapshot = active.snapshot();
@@ -860,7 +867,7 @@ fn spawn_checkpointer(
                     &snapshot,
                 );
                 if let Err(error) = write_checkpoint(&directory, &manifest) {
-                    eprintln!("failed to write session checkpoint: {error}");
+                    logging::warn("recording", &format!("failed to write checkpoint: {error}"));
                 }
             }
         })
@@ -1721,6 +1728,15 @@ async fn transcribe_session(
         return Err("当前会话没有可转写的 Opus 分片".into());
     }
     let cancel = transcription.begin()?;
+    logging::info(
+        "transcribe",
+        &format!(
+            "start provider={} session={} chunks={}",
+            provider.as_str(),
+            session_id,
+            chunks.len()
+        ),
+    );
     let on_progress = |done: usize, total: usize| {
         let _ = app.emit(
             "transcription-progress",
@@ -1785,7 +1801,28 @@ async fn transcribe_session(
             .await
     };
     transcription.clear();
-    let transcript = result?;
+    let transcript = match result {
+        Ok(transcript) => transcript,
+        Err(error) => {
+            logging::error(
+                "transcribe",
+                &format!(
+                    "failed provider={} session={session_id}: {error}",
+                    provider.as_str()
+                ),
+            );
+            return Err(error);
+        }
+    };
+    logging::info(
+        "transcribe",
+        &format!(
+            "finished provider={} session={} segments={}",
+            provider.as_str(),
+            session_id,
+            transcript.segments.len()
+        ),
+    );
     write_transcript(&directory, &transcript)?;
     // A new transcript invalidates translations of the old text.
     clear_translations(&directory);
@@ -2633,6 +2670,52 @@ fn reveal_export(path: PathBuf, app: tauri::AppHandle) -> Result<(), String> {
     }
 }
 
+#[tauri::command]
+fn open_log_directory(app: tauri::AppHandle) -> Result<(), String> {
+    let directory = logging::logs_dir(
+        &app.path()
+            .app_data_dir()
+            .map_err(|error| format!("无法定位应用数据目录：{error}"))?,
+    );
+    fs::create_dir_all(&directory).map_err(|error| format!("无法创建日志目录：{error}"))?;
+    #[cfg(target_os = "windows")]
+    {
+        Command::new("explorer.exe")
+            .arg(&directory)
+            .spawn()
+            .map(|_| ())
+            .map_err(|error| format!("无法打开日志目录：{error}"))
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = directory;
+        Err("当前平台暂不支持打开日志目录".into())
+    }
+}
+
+#[tauri::command]
+fn export_diagnostics(app: tauri::AppHandle) -> Result<String, String> {
+    let app_data = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("无法定位应用数据目录：{error}"))?;
+    let summary = format!(
+        "MagneticTape {}\nOS: {} {}\nlog dir: {}\nexported at (epoch ms): {}\n",
+        env!("CARGO_PKG_VERSION"),
+        std::env::consts::OS,
+        std::env::consts::ARCH,
+        logging::logs_dir(&app_data).display(),
+        epoch_ms()
+    );
+    let destination = exports_root(&app)?.join(format!("diagnostics-{}.zip", epoch_ms()));
+    let path = logging::write_diagnostics(&app_data, &destination, &summary)?;
+    logging::info(
+        "diagnostics",
+        &format!("diagnostics exported to {}", path.display()),
+    );
+    Ok(path.display().to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -2645,6 +2728,16 @@ pub fn run() {
         .manage(Mutex::new(LiveTranscriptionState::default()))
         .setup(|app| {
             let data_directory = app.path().app_data_dir()?;
+            logging::init(&data_directory);
+            logging::info(
+                "app",
+                &format!(
+                    "MagneticTape {} starting on {} {}",
+                    env!("CARGO_PKG_VERSION"),
+                    std::env::consts::OS,
+                    std::env::consts::ARCH
+                ),
+            );
             let recordings = data_directory.join("recordings");
             fs::create_dir_all(&recordings)?;
             app.asset_protocol_scope()
@@ -2671,23 +2764,33 @@ pub fn run() {
                 let cutoff =
                     epoch_ms().saturating_sub(u64::from(settings.auto_cleanup_days) * 86_400_000);
                 match cleanup_old_audio(&recordings, cutoff, None) {
-                    Ok(result) if result.sessions > 0 => eprintln!(
-                        "auto cleanup removed audio from {} sessions ({} bytes)",
-                        result.sessions, result.bytes_freed
+                    Ok(result) if result.sessions > 0 => logging::info(
+                        "storage",
+                        &format!(
+                            "auto cleanup removed audio from {} sessions ({} bytes)",
+                            result.sessions, result.bytes_freed
+                        ),
                     ),
                     Ok(_) => {}
-                    Err(error) => eprintln!("auto cleanup failed: {error}"),
+                    Err(error) => {
+                        logging::error("storage", &format!("auto cleanup failed: {error}"))
+                    }
                 }
             }
             if settings.storage_quota_mb > 0 {
                 let quota = u64::from(settings.storage_quota_mb) * 1_048_576;
                 match enforce_storage_quota(&recordings, quota, None) {
-                    Ok(result) if result.sessions > 0 => eprintln!(
-                        "quota cleanup removed audio from {} sessions ({} bytes)",
-                        result.sessions, result.bytes_freed
+                    Ok(result) if result.sessions > 0 => logging::info(
+                        "storage",
+                        &format!(
+                            "quota cleanup removed audio from {} sessions ({} bytes)",
+                            result.sessions, result.bytes_freed
+                        ),
                     ),
                     Ok(_) => {}
-                    Err(error) => eprintln!("quota cleanup failed: {error}"),
+                    Err(error) => {
+                        logging::error("storage", &format!("quota cleanup failed: {error}"))
+                    }
                 }
             }
             app.manage(Mutex::new(settings));
@@ -2740,7 +2843,9 @@ pub fn run() {
             local_whisper::get_local_whisper_status,
             local_whisper::download_local_whisper_engine,
             local_whisper::download_local_whisper_model,
-            local_whisper::delete_local_whisper_model
+            local_whisper::delete_local_whisper_model,
+            open_log_directory,
+            export_diagnostics
         ])
         .run(tauri::generate_context!())
         .expect("error while running MagneticTape desktop application");

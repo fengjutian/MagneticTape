@@ -1,4 +1,5 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
+import { formatPlaybackTime, locateChunk } from "./timeline";
 import type { PlaybackChunk, PlaybackTracks } from "./types";
 
 /// One recording track: its chunk timeline plus the `<audio>` element that
@@ -15,34 +16,6 @@ interface Track {
 export interface TimelinePlayerOptions {
   /// Called on every playhead update with the position and playing state.
   onPosition?: (positionMs: number, playing: boolean) => void;
-}
-
-function locate(chunks: PlaybackChunk[], positionMs: number): number {
-  let low = 0;
-  let high = chunks.length - 1;
-  while (low <= high) {
-    const middle = (low + high) >> 1;
-    const chunk = chunks[middle];
-    if (positionMs < chunk.startMs) {
-      high = middle - 1;
-    } else if (positionMs >= chunk.startMs + chunk.durationMs) {
-      low = middle + 1;
-    } else {
-      return middle;
-    }
-  }
-  return -1;
-}
-
-function formatTime(milliseconds: number): string {
-  const total = Math.max(0, Math.floor(milliseconds / 1000));
-  const hours = Math.floor(total / 3600);
-  const minutes = Math.floor((total % 3600) / 60);
-  const seconds = total % 60;
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return hours > 0
-    ? `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`
-    : `${pad(minutes)}:${pad(seconds)}`;
 }
 
 /// Plays the microphone and system tracks as one continuous timeline built
@@ -227,7 +200,7 @@ export class TimelinePlayer {
       return;
     }
     if (track.pending && !force) return;
-    const index = locate(track.chunks, this.positionMs);
+    const index = locateChunk(track.chunks, this.positionMs);
     if (index < 0) {
       track.index = -1;
       track.pending = false;
@@ -314,8 +287,8 @@ export class TimelinePlayer {
       const label = this.toggle.querySelector("span");
       if (label) label.textContent = this.playing ? "暂停" : "播放";
     }
-    if (this.currentLabel) this.currentLabel.textContent = formatTime(this.positionMs);
-    if (this.totalLabel) this.totalLabel.textContent = formatTime(this.durationMs);
+    if (this.currentLabel) this.currentLabel.textContent = formatPlaybackTime(this.positionMs);
+    if (this.totalLabel) this.totalLabel.textContent = formatPlaybackTime(this.durationMs);
     if (this.seekInput && document.activeElement !== this.seekInput) {
       this.seekInput.value =
         this.durationMs > 0

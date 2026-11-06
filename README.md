@@ -55,13 +55,14 @@ MagneticTape 是一个面向 Windows 的本地优先会议录音与转写工具�
 - 本地 Whisper（离线）：whisper.cpp 引擎与 GGML 模型按需下载并做 SHA-256 校验，录后转写完全在本机完成，无需 API Key 与网络。
 - 本地实时字幕：录音中按 5 秒分片用 tiny/base 模型增量推理，单窗口串行调度；支持热词/初始提示词。
 - GPU 加速（可选）：`nvidia-smi` 自动探测 NVIDIA GPU，已安装 CUDA 引擎时优先使用，否则回退 CPU 引擎。
+- 本地日志与诊断：滚动日志（10 MB × 5，保留 7 天）、崩溃报告文件、打开日志目录、一键导出诊断包（不含音频、密钥与转写正文）。
 - 可交互的双栏桌面录音页面。
 
 尚未实现：
 
 - 说话人分离（需要额外的 diarization 模型）与内嵌 whisper.cpp 绑定（当前为子进程）。
-- 代码签名、自动更新与崩溃上报。
-- 端到端 UI 自动化测试。
+- 代码签名、自动更新与远程崩溃上报（本地日志/崩溃报告已实现）。
+- 端到端 UI 自动化测试（前端单元测试已接入 `npm test`，覆盖时间轴与转写渲染）。
 
 完整清单、优先级与里程碑见 [功能规划（未完成项）](doc/功能规划.md)。
 
@@ -114,18 +115,21 @@ npm run tauri dev
 
 ## 测试与质量检查
 
-运行 Rust 格式检查、Clippy、全部单元测试和前端生产构建：
+运行 Rust 格式检查、Clippy、全部单元测试、前端单元测试和前端生产构建：
 
 ```powershell
 ./scripts/check.ps1
 ```
 
-也可以分别检查 Rust workspace：
+也可以分别检查 Rust workspace 与前端：
 
 ```powershell
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace --all-targets
+
+cd apps/desktop
+npm test
 ```
 
 ## 构建安装包

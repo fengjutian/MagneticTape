@@ -720,6 +720,29 @@ app.querySelector<HTMLButtonElement>(".cleanup-audio")!.addEventListener("click"
     button.disabled = false;
   }
 });
+app.querySelector<HTMLButtonElement>(".open-logs")!.addEventListener("click", async () => {
+  const state = app.querySelector<HTMLElement>(".diagnostics-state")!;
+  try {
+    await invoke("open_log_directory");
+    state.textContent = "已打开日志目录";
+  } catch (error) {
+    state.textContent = `无法打开日志目录：${error instanceof Error ? error.message : String(error)}`;
+  }
+});
+app.querySelector<HTMLButtonElement>(".export-diagnostics")!.addEventListener("click", async () => {
+  const button = app.querySelector<HTMLButtonElement>(".export-diagnostics")!;
+  const state = app.querySelector<HTMLElement>(".diagnostics-state")!;
+  button.disabled = true;
+  state.textContent = "正在生成诊断包…";
+  try {
+    const path = await invoke<string>("export_diagnostics");
+    state.textContent = `诊断包已导出：${path}`;
+  } catch (error) {
+    state.textContent = `导出失败：${error instanceof Error ? error.message : String(error)}`;
+  } finally {
+    button.disabled = false;
+  }
+});
 historySearch.addEventListener("input", () => {
   const query = historySearch.value.trim().toLocaleLowerCase("zh-CN");
   historyList.querySelectorAll<HTMLElement>(".history-item").forEach((item) => {

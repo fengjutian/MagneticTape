@@ -119,6 +119,10 @@ button:disabled, select:disabled { cursor: not-allowed; }
 .cleanup-row select, .cleanup-row button { border: 0; border-radius: 7px; padding: 7px 9px; font-size: 11px; }
 .cleanup-row select { background: #f0f2f5; color: #4e5969; }
 .cleanup-audio { background: #fff0f0; color: #b42318; }
+.diagnostics-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: 100%; }
+.diagnostics-row button { border: 0; border-radius: 7px; padding: 7px 9px; background: #f0f2f5; color: #4e5969; font-size: 11px; }
+.diagnostics-row button:disabled { opacity: .6; }
+.diagnostics-state { color: #8f959e; font-size: 11px; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .ai-form { display: grid; gap: 17px; padding: 26px; }
 .ai-form header, .ai-form footer { display: flex; align-items: center; justify-content: space-between; }
 .ai-form h2 { margin: 0; font-size: 21px; }

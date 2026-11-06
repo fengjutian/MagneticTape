@@ -345,7 +345,11 @@ pub async fn download_local_whisper_engine(
     }
     let archive = root(&app_data).join(format!("whisper-bin-{}.zip", spec.id));
     fs::create_dir_all(root(&app_data)).map_err(|error| error.to_string())?;
-    download_file(
+    crate::logging::info(
+        "whisper",
+        &format!("downloading {} engine ({} bytes)", spec.id, spec.size_bytes),
+    );
+    if let Err(error) = download_file(
         &app,
         spec.url,
         &archive,
@@ -354,13 +358,21 @@ pub async fn download_local_whisper_engine(
         "engine",
         None,
     )
-    .await?;
+    .await
+    {
+        crate::logging::error(
+            "whisper",
+            &format!("{} engine download failed: {error}", spec.id),
+        );
+        return Err(error);
+    }
     let extracted = extract_engine(&archive, &engine);
     let _ = fs::remove_file(&archive);
     extracted?;
     if !engine.join(ENGINE_FILE).is_file() {
         return Err(format!("解压后未找到 {ENGINE_FILE}"));
     }
+    crate::logging::info("whisper", &format!("{} engine installed", spec.id));
     Ok(status_for(
         &app_data,
         &selected_model(&local_settings(&settings)),
@@ -384,7 +396,11 @@ pub async fn download_local_whisper_model(
     }
     fs::create_dir_all(models_dir(&app_data)).map_err(|error| error.to_string())?;
     let url = model_url(spec.id);
-    download_file(
+    crate::logging::info(
+        "whisper",
+        &format!("downloading model {} ({} bytes)", spec.id, spec.size_bytes),
+    );
+    if let Err(error) = download_file(
         &app,
         &url,
         &destination,
@@ -393,7 +409,15 @@ pub async fn download_local_whisper_model(
         "model",
         Some(spec.id.to_owned()),
     )
-    .await?;
+    .await
+    {
+        crate::logging::error(
+            "whisper",
+            &format!("model {} download failed: {error}", spec.id),
+        );
+        return Err(error);
+    }
+    crate::logging::info("whisper", &format!("model {} installed", spec.id));
     Ok(status_for(&app_data, &selected))
 }
 
@@ -599,6 +623,15 @@ pub fn transcribe(
     if !model_file.is_file() {
         return Err(format!("本地 Whisper 模型未下载：{}", spec.label));
     }
+    crate::logging::info(
+        "whisper",
+        &format!(
+            "transcribe start engine={} model={} chunks={}",
+            engine.id,
+            spec.id,
+            chunks.len()
+        ),
+    );
     let working =
         std::env::temp_dir().join(format!("magnetic-tape-whisper-{session_id}-{}", epoch_ms()));
     let job = LocalJob {
@@ -679,7 +712,10 @@ fn transcribe_in(job: &LocalJob<'_>, chunks: &[AudioChunkRef]) -> Result<Transcr
                     });
                 }
             }
-            Err(error) => failures.push(format!("第 {} 段：{error}", index + 1)),
+            Err(error) => {
+                crate::logging::warn("whisper", &format!("segment {} failed: {error}", index + 1));
+                failures.push(format!("第 {} 段：{error}", index + 1));
+            }
         }
         (job.on_progress)(index + 1, total);
     }

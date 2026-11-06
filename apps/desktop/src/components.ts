@@ -163,6 +163,11 @@ export function renderApp(): string {
             </select>
             <button class="cleanup-audio" type="button">清理旧音频</button>
           </div>
+          <div class="diagnostics-row">
+            <button class="open-logs" type="button">打开日志目录</button>
+            <button class="export-diagnostics" type="button">导出诊断包</button>
+            <span class="diagnostics-state" aria-live="polite"></span>
+          </div>
         </footer>
       </section>
     </dialog>

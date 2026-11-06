@@ -22,6 +22,8 @@ try {
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     npm run build
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    npm test
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 } finally {
     Pop-Location
 }
