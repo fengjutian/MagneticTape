@@ -71,6 +71,7 @@ struct AppSettings {
     asr_provider: String,
     asr_profiles: HashMap<String, AsrProfile>,
     local_whisper_model: String,
+    whisper_hotwords: String,
     auto_cleanup_days: u32,
     storage_quota_mb: u32,
 }
@@ -105,6 +106,7 @@ impl Default for AppSettings {
             asr_provider: "minimax".into(),
             asr_profiles: HashMap::new(),
             local_whisper_model: local_whisper::DEFAULT_MODEL.into(),
+            whisper_hotwords: String::new(),
             auto_cleanup_days: 0,
             storage_quota_mb: 0,
         }
@@ -128,6 +130,12 @@ impl AppSettings {
         if !local_whisper::is_known_model(&self.local_whisper_model) {
             self.local_whisper_model = local_whisper::DEFAULT_MODEL.into();
         }
+        self.whisper_hotwords = self
+            .whisper_hotwords
+            .trim()
+            .chars()
+            .take(512)
+            .collect::<String>();
         if !matches!(self.auto_cleanup_days, 0 | 30 | 90 | 180) {
             self.auto_cleanup_days = 0;
         }
@@ -1728,11 +1736,12 @@ async fn transcribe_session(
             .path()
             .app_data_dir()
             .map_err(|error| format!("无法定位应用数据目录：{error}"))?;
-        let (model, settings_language) = {
+        let (model, settings_language, hotwords) = {
             let settings = settings.lock().expect("settings state poisoned");
             (
                 settings.local_whisper_model.clone(),
                 settings.language.clone(),
+                settings.whisper_hotwords.clone(),
             )
         };
         let local_language = language
@@ -1742,12 +1751,16 @@ async fn transcribe_session(
         let cancel_flag = Arc::clone(&cancel);
         let progress_app = app.clone();
         tauri::async_runtime::spawn_blocking(move || {
+            let options = local_whisper::LocalOptions {
+                model: &model,
+                language: &local_language,
+                initial_prompt: &hotwords,
+            };
             local_whisper::transcribe(
                 &app_data,
                 &chunks,
                 &local_session,
-                &model,
-                &local_language,
+                &options,
                 &cancel_flag,
                 &move |done, total| {
                     let _ = progress_app.emit(
@@ -2078,9 +2091,6 @@ async fn start_live_transcription(
     asr_state: tauri::State<'_, AsrState>,
     live: tauri::State<'_, Mutex<LiveTranscriptionState>>,
 ) -> Result<LiveTranscriptView, String> {
-    if provider == asr::AsrProvider::LocalWhisper {
-        return Err("本地 Whisper 暂不支持实时字幕，请使用云端服务或录音后转写".into());
-    }
     let session_id = {
         let state = state.lock().expect("session state poisoned");
         if state.status != RecorderStatus::Recording {
@@ -2091,12 +2101,32 @@ async fn start_live_transcription(
             .clone()
             .ok_or_else(|| "当前没有录音会话".to_owned())?
     };
-    let config = asr_state.credential(provider)?;
-    let stream_tx = if provider == asr::AsrProvider::OpenAiRealtime {
-        let directory = recordings_root(&app)?.join(&session_id);
-        Some(start_openai_realtime(app, config.clone(), directory)?)
+    let (model, resolved_language, stream_tx) = if provider == asr::AsrProvider::LocalWhisper {
+        let app_data = app
+            .path()
+            .app_data_dir()
+            .map_err(|error| format!("无法定位应用数据目录：{error}"))?;
+        let model = local_whisper::pick_live_model(&app_data)?;
+        let language = language
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or_else(|| "auto".to_owned());
+        (model, language, None)
     } else {
-        None
+        let config = asr_state.credential(provider)?;
+        let stream_tx = if provider == asr::AsrProvider::OpenAiRealtime {
+            let directory = recordings_root(&app)?.join(&session_id);
+            Some(start_openai_realtime(
+                app.clone(),
+                config.clone(),
+                directory,
+            )?)
+        } else {
+            None
+        };
+        let language = language
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or_else(|| config.language.clone());
+        (config.model, language, stream_tx)
     };
     let mut live = live.lock().expect("live transcription state poisoned");
     *live = LiveTranscriptionState {
@@ -2107,10 +2137,8 @@ async fn start_live_transcription(
         first_seen: HashMap::new(),
         segments: Vec::new(),
         provider: Some(provider),
-        model: config.model,
-        language: language
-            .filter(|value| !value.trim().is_empty())
-            .unwrap_or(config.language),
+        model,
+        language: resolved_language,
         error: None,
         partial_text: String::new(),
         stream_tx,
@@ -2200,8 +2228,13 @@ fn poll_live_inner(
 
     let (ready, provider, language) = {
         let mut live = live.lock().expect("live transcription state poisoned");
-        const MAX_INFLIGHT: usize = 2;
-        let capacity = MAX_INFLIGHT.saturating_sub(live.inflight.len());
+        // Local inference is CPU bound, so run a single window at a time.
+        let max_inflight: usize = if live.provider == Some(asr::AsrProvider::LocalWhisper) {
+            1
+        } else {
+            2
+        };
+        let capacity = max_inflight.saturating_sub(live.inflight.len());
         if capacity == 0 {
             return Ok(());
         }
@@ -2257,57 +2290,125 @@ fn poll_live_inner(
         return Ok(());
     }
     let provider = provider.ok_or_else(|| "实时转写未配置服务商".to_owned())?;
-    let mut config = match asr_state.credential(provider) {
-        Ok(config) => config,
-        Err(error) => {
-            let mut live = live.lock().expect("live transcription state poisoned");
-            for (slot, _, _) in &ready {
-                live.inflight.remove(slot);
-                live.processed.remove(&(0, *slot));
-                live.processed.remove(&(1, *slot));
+    let local = if provider == asr::AsrProvider::LocalWhisper {
+        let app_data = app
+            .path()
+            .app_data_dir()
+            .map_err(|error| format!("无法定位应用数据目录：{error}"))?;
+        match local_whisper::pick_live_model(&app_data) {
+            Ok(model) => Some((app_data, model)),
+            Err(error) => {
+                reset_live_inflight(live, &ready);
+                return Err(error);
             }
-            return Err(error);
         }
+    } else {
+        None
     };
-    if !language.is_empty() {
-        config.language = language;
-    }
+    let config = if local.is_none() {
+        match asr_state.credential(provider) {
+            Ok(mut config) => {
+                if !language.is_empty() {
+                    config.language = language.clone();
+                }
+                Some(config)
+            }
+            Err(error) => {
+                reset_live_inflight(live, &ready);
+                return Err(error);
+            }
+        }
+    } else {
+        None
+    };
     for (slot, microphone, system) in ready {
         let task_app = app.clone();
         let task_session = session_id.clone();
         let task_directory = directory.clone();
-        let task_config = config.clone();
-        tauri::async_runtime::spawn(async move {
-            let result =
-                asr::transcribe_pair(microphone, system, &task_config, &task_session).await;
-            let live_state = task_app.state::<Mutex<LiveTranscriptionState>>();
-            let mut live = live_state
-                .lock()
-                .expect("live transcription state poisoned");
-            live.inflight.remove(&slot);
-            if live.session_id.as_deref() != Some(task_session.as_str()) {
-                return;
-            }
-            match result {
-                Ok(transcript) => {
-                    merge_live_transcript(&mut live, transcript);
-                }
-                Err(error) => {
-                    // A transient provider/network failure must not permanently
-                    // discard this audio window. The next poll can retry it.
-                    live.processed.remove(&(0, slot));
-                    live.processed.remove(&(1, slot));
-                    live.error = Some(error);
-                }
-            }
-            persist_live_transcript(&task_directory, &live);
-            if !live.active && !live.segments.is_empty() {
-                let transcript = live_transcript(&live);
-                let _ = write_transcript(&task_directory, &transcript);
-            }
-        });
+        if let Some((app_data, model)) = local.clone() {
+            let chunks: Vec<asr::AudioChunkRef> = microphone.into_iter().chain(system).collect();
+            let language = language.clone();
+            tauri::async_runtime::spawn(async move {
+                let session = task_session.clone();
+                let result = tauri::async_runtime::spawn_blocking(move || {
+                    let options = local_whisper::LocalOptions {
+                        model: &model,
+                        language: if language.is_empty() {
+                            "auto"
+                        } else {
+                            language.as_str()
+                        },
+                        initial_prompt: "",
+                    };
+                    local_whisper::transcribe(
+                        &app_data,
+                        &chunks,
+                        &session,
+                        &options,
+                        &AtomicBool::new(false),
+                        &|_, _| {},
+                    )
+                })
+                .await
+                .map_err(|error| format!("本地实时转写任务失败：{error}"))
+                .and_then(|result| result);
+                apply_live_result(&task_app, slot, &task_session, &task_directory, result);
+            });
+        } else {
+            let Some(task_config) = config.clone() else {
+                continue;
+            };
+            tauri::async_runtime::spawn(async move {
+                let result =
+                    asr::transcribe_pair(microphone, system, &task_config, &task_session).await;
+                apply_live_result(&task_app, slot, &task_session, &task_directory, result);
+            });
+        }
     }
     Ok(())
+}
+
+fn reset_live_inflight(
+    live: &tauri::State<'_, Mutex<LiveTranscriptionState>>,
+    ready: &[(u64, Option<asr::AudioChunkRef>, Option<asr::AudioChunkRef>)],
+) {
+    let mut live = live.lock().expect("live transcription state poisoned");
+    for (slot, _, _) in ready {
+        live.inflight.remove(slot);
+        live.processed.remove(&(0, *slot));
+        live.processed.remove(&(1, *slot));
+    }
+}
+
+fn apply_live_result(
+    app: &tauri::AppHandle,
+    slot: u64,
+    session: &str,
+    directory: &Path,
+    result: Result<asr::Transcript, String>,
+) {
+    let live_state = app.state::<Mutex<LiveTranscriptionState>>();
+    let mut live = live_state
+        .lock()
+        .expect("live transcription state poisoned");
+    live.inflight.remove(&slot);
+    if live.session_id.as_deref() != Some(session) {
+        return;
+    }
+    match result {
+        Ok(transcript) => merge_live_transcript(&mut live, transcript),
+        Err(error) => {
+            // A transient failure must not permanently discard this window.
+            live.processed.remove(&(0, slot));
+            live.processed.remove(&(1, slot));
+            live.error = Some(error);
+        }
+    }
+    persist_live_transcript(directory, &live);
+    if !live.active && !live.segments.is_empty() {
+        let transcript = live_transcript(&live);
+        let _ = write_transcript(directory, &transcript);
+    }
 }
 
 #[tauri::command]

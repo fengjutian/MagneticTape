@@ -111,10 +111,20 @@ export interface WhisperModelStatus {
   installed: boolean;
 }
 
+export interface WhisperEngineStatus {
+  id: "cpu" | "cuda";
+  label: string;
+  sizeBytes: number;
+  installed: boolean;
+}
+
 export interface LocalWhisperStatus {
   engineInstalled: boolean;
   engineBytes: number;
   engineVersion: string;
+  engine: string;
+  engines: WhisperEngineStatus[];
+  gpuName: string | null;
   model: string;
   modelInstalled: boolean;
   models: WhisperModelStatus[];
@@ -156,6 +166,7 @@ export interface AppSettings {
   asrProvider: AsrProviderId;
   asrProfiles: Record<string, AsrProfile>;
   localWhisperModel: string;
+  whisperHotwords: string;
   autoCleanupDays: number;
   storageQuotaMb: number;
 }

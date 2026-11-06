@@ -26,13 +26,37 @@ use tokio::io::AsyncWriteExt;
 
 pub const DEFAULT_MODEL: &str = "small";
 const ENGINE_TAG: &str = "b5454";
-const ENGINE_URL: &str =
-    "https://github.com/ggml-org/whisper.cpp/releases/download/b5454/whisper-bin-x64.zip";
-const ENGINE_SIZE: u64 = 8_928_640;
-const ENGINE_SHA256: &str = "6ba69e3482d7826214f90a6a9c84ca07782aec1e1d0c6a7c30c994fd5d816ccb";
 const ENGINE_FILE: &str = "whisper-cli.exe";
 const MODEL_DIR: &str = "models";
 const WAV_SEGMENT_SECONDS: u64 = 480;
+
+struct EngineSpec {
+    id: &'static str,
+    label: &'static str,
+    url: &'static str,
+    size_bytes: u64,
+    sha256: &'static str,
+    dir: &'static str,
+}
+
+const ENGINES: &[EngineSpec] = &[
+    EngineSpec {
+        id: "cpu",
+        label: "CPU 引擎（约 9 MB）",
+        url: "https://github.com/ggml-org/whisper.cpp/releases/download/b5454/whisper-bin-x64.zip",
+        size_bytes: 8_928_640,
+        sha256: "6ba69e3482d7826214f90a6a9c84ca07782aec1e1d0c6a7c30c994fd5d816ccb",
+        dir: "engine",
+    },
+    EngineSpec {
+        id: "cuda",
+        label: "CUDA 引擎（约 272 MB）",
+        url: "https://github.com/ggml-org/whisper.cpp/releases/download/b5454/whisper-bin-win-cuda-11.8.0-x64.zip",
+        size_bytes: 284_761_231,
+        sha256: "e81c86c542be6e3d7b7245392d4e1c52ab6e5c61dbe38721754bc0ab59d4d027",
+        dir: "engine-cuda",
+    },
+];
 
 struct ModelSpec {
     id: &'static str,
@@ -42,6 +66,12 @@ struct ModelSpec {
 }
 
 const MODELS: &[ModelSpec] = &[
+    ModelSpec {
+        id: "tiny",
+        label: "Tiny（实时字幕）",
+        size_bytes: 77_691_713,
+        sha256: "be07e048e1e599ad46341c8d2a135645097a538221678b7acdd1b1919c6e1b21",
+    },
     ModelSpec {
         id: "base",
         label: "Base（快）",
@@ -77,10 +107,22 @@ pub struct WhisperModelStatus {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct EngineStatus {
+    id: String,
+    label: String,
+    size_bytes: u64,
+    installed: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LocalWhisperStatus {
     engine_installed: bool,
     engine_bytes: u64,
     engine_version: &'static str,
+    engine: String,
+    engines: Vec<EngineStatus>,
+    gpu_name: Option<String>,
     model: String,
     model_installed: bool,
     models: Vec<WhisperModelStatus>,
@@ -108,21 +150,67 @@ fn root(app_data: &Path) -> PathBuf {
     app_data.join("local-whisper")
 }
 
-fn engine_dir(app_data: &Path) -> PathBuf {
-    root(app_data).join("engine")
+fn engine_spec(id: &str) -> Option<&'static EngineSpec> {
+    ENGINES.iter().find(|engine| engine.id == id)
 }
 
-fn engine_exe(app_data: &Path) -> PathBuf {
-    engine_dir(app_data).join(ENGINE_FILE)
+fn engine_dir(app_data: &Path, spec: &EngineSpec) -> PathBuf {
+    root(app_data).join(spec.dir)
+}
+
+fn engine_exe(app_data: &Path, spec: &EngineSpec) -> PathBuf {
+    engine_dir(app_data, spec).join(ENGINE_FILE)
 }
 
 /// The CLI is useless without its runtime DLLs, so treat a partial
 /// extraction as not installed.
-fn engine_ready(app_data: &Path) -> bool {
-    let directory = engine_dir(app_data);
+fn engine_ready(app_data: &Path, spec: &EngineSpec) -> bool {
+    let directory = engine_dir(app_data, spec);
     directory.join(ENGINE_FILE).is_file()
         && directory.join("whisper.dll").is_file()
         && directory.join("ggml.dll").is_file()
+}
+
+/// Prefers the CUDA engine when installed and a GPU is present, otherwise CPU.
+fn active_engine(app_data: &Path) -> Option<&'static EngineSpec> {
+    if gpu_name().is_some()
+        && let Some(cuda) = ENGINES
+            .iter()
+            .find(|spec| spec.id == "cuda" && engine_ready(app_data, spec))
+    {
+        return Some(cuda);
+    }
+    ENGINES
+        .iter()
+        .find(|spec| spec.id == "cpu" && engine_ready(app_data, spec))
+}
+
+/// Cached GPU detection: hardware does not change while the app runs, and the
+/// live path consults this on every poll.
+fn gpu_name() -> Option<String> {
+    static CACHE: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+    CACHE.get_or_init(detect_gpu).clone()
+}
+
+/// Detects an NVIDIA GPU through `nvidia-smi`; CUDA builds need one.
+fn detect_gpu() -> Option<String> {
+    let mut command = Command::new("nvidia-smi");
+    command.args(["--query-gpu=name", "--format=csv,noheader"]);
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x0800_0000);
+    }
+    let output = command.output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let name = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .next()?
+        .trim()
+        .to_owned();
+    (!name.is_empty()).then_some(name)
 }
 
 fn models_dir(app_data: &Path) -> PathBuf {
@@ -143,8 +231,8 @@ fn app_data_dir(app: &AppHandle) -> Result<PathBuf, String> {
         .map_err(|error| format!("无法定位应用数据目录：{error}"))
 }
 
-fn engine_bytes(app_data: &Path) -> u64 {
-    let directory = engine_dir(app_data);
+fn engine_bytes(app_data: &Path, spec: &EngineSpec) -> u64 {
+    let directory = engine_dir(app_data, spec);
     let Ok(entries) = fs::read_dir(&directory) else {
         return 0;
     };
@@ -157,7 +245,24 @@ fn engine_bytes(app_data: &Path) -> u64 {
 }
 
 fn status_for(app_data: &Path, selected: &str) -> LocalWhisperStatus {
-    let mut total_bytes = engine_bytes(app_data);
+    let active = active_engine(app_data);
+    let mut total_bytes = 0_u64;
+    let engines = ENGINES
+        .iter()
+        .map(|spec| {
+            let installed = engine_ready(app_data, spec);
+            let bytes = engine_bytes(app_data, spec);
+            if installed {
+                total_bytes += bytes;
+            }
+            EngineStatus {
+                id: spec.id.to_owned(),
+                label: spec.label.to_owned(),
+                size_bytes: spec.size_bytes,
+                installed,
+            }
+        })
+        .collect::<Vec<_>>();
     let model = if is_known_model(selected) {
         selected.to_owned()
     } else {
@@ -179,9 +284,15 @@ fn status_for(app_data: &Path, selected: &str) -> LocalWhisperStatus {
         })
         .collect();
     LocalWhisperStatus {
-        engine_installed: engine_ready(app_data),
-        engine_bytes: engine_bytes(app_data),
+        engine_installed: active.is_some(),
+        engine_bytes: ENGINES
+            .iter()
+            .map(|spec| engine_bytes(app_data, spec))
+            .sum(),
         engine_version: ENGINE_TAG,
+        engine: active.map(|spec| spec.id.to_owned()).unwrap_or_default(),
+        engines,
+        gpu_name: gpu_name(),
         model_installed: model_path(app_data, &model).is_file(),
         model,
         models,
@@ -213,27 +324,33 @@ pub fn get_local_whisper_status(
 
 #[tauri::command]
 pub async fn download_local_whisper_engine(
+    variant: Option<String>,
     app: AppHandle,
     state: tauri::State<'_, LocalWhisperState>,
     settings: tauri::State<'_, Mutex<crate::AppSettings>>,
 ) -> Result<LocalWhisperStatus, String> {
-    let _guard = begin_download(&state, "engine")?;
+    let spec = engine_spec(variant.as_deref().unwrap_or("cpu"))
+        .ok_or_else(|| "未知的本地 Whisper 引擎类型".to_owned())?;
+    let _guard = begin_download(&state, spec.id)?;
     let app_data = app_data_dir(&app)?;
-    let engine = engine_dir(&app_data);
-    if engine_ready(&app_data) {
+    let engine = engine_dir(&app_data, spec);
+    if engine_ready(&app_data, spec) {
         return Ok(status_for(
             &app_data,
             &selected_model(&local_settings(&settings)),
         ));
     }
-    let archive = root(&app_data).join("whisper-bin-x64.zip");
+    if spec.id == "cuda" && gpu_name().is_none() {
+        return Err("未检测到 NVIDIA GPU，无法使用 CUDA 引擎".into());
+    }
+    let archive = root(&app_data).join(format!("whisper-bin-{}.zip", spec.id));
     fs::create_dir_all(root(&app_data)).map_err(|error| error.to_string())?;
     download_file(
         &app,
-        ENGINE_URL,
+        spec.url,
         &archive,
-        ENGINE_SIZE,
-        ENGINE_SHA256,
+        spec.size_bytes,
+        spec.sha256,
         "engine",
         None,
     )
@@ -442,6 +559,14 @@ fn extract_engine(archive: &Path, engine: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// Options shared by batch and live local transcription.
+pub struct LocalOptions<'a> {
+    pub model: &'a str,
+    pub language: &'a str,
+    /// Whisper initial prompt, used for hotwords and punctuation hints.
+    pub initial_prompt: &'a str,
+}
+
 /// Everything one local transcription run needs besides the audio chunks.
 struct LocalJob<'a> {
     working: &'a Path,
@@ -449,6 +574,7 @@ struct LocalJob<'a> {
     model_file: &'a Path,
     spec: &'a ModelSpec,
     language: &'a str,
+    initial_prompt: &'a str,
     cancel: &'a AtomicBool,
     on_progress: &'a (dyn Fn(usize, usize) + Sync),
 }
@@ -459,17 +585,16 @@ pub fn transcribe(
     app_data: &Path,
     chunks: &[AudioChunkRef],
     session_id: &str,
-    model: &str,
-    language: &str,
+    options: &LocalOptions<'_>,
     cancel: &AtomicBool,
     on_progress: &(dyn Fn(usize, usize) + Sync),
 ) -> Result<Transcript, String> {
-    let spec = model_spec(model)
+    let spec = model_spec(options.model)
         .ok_or_else(|| "未知的本地 Whisper 模型，请在转写设置中重新选择".to_owned())?;
-    let exe = engine_exe(app_data);
-    if !engine_ready(app_data) {
+    let Some(engine) = active_engine(app_data) else {
         return Err("本地 Whisper 引擎未安装，请在转写设置中下载".into());
-    }
+    };
+    let exe = engine_exe(app_data, engine);
     let model_file = model_path(app_data, spec.id);
     if !model_file.is_file() {
         return Err(format!("本地 Whisper 模型未下载：{}", spec.label));
@@ -481,13 +606,27 @@ pub fn transcribe(
         exe: &exe,
         model_file: &model_file,
         spec,
-        language,
+        language: options.language,
+        initial_prompt: options.initial_prompt,
         cancel,
         on_progress,
     };
     let result = transcribe_in(&job, chunks);
     let _ = fs::remove_dir_all(&working);
     result
+}
+
+/// Picks the smallest installed model suitable for live captions.
+pub fn pick_live_model(app_data: &Path) -> Result<String, String> {
+    if active_engine(app_data).is_none() {
+        return Err("本地 Whisper 引擎未安装，请在转写设置中下载".into());
+    }
+    for id in ["tiny", "base", "small", "large-v3-turbo-q5_0"] {
+        if model_path(app_data, id).is_file() {
+            return Ok(id.to_owned());
+        }
+    }
+    Err("本地实时字幕需要先下载 tiny 或 base 模型（转写设置 → 本地 Whisper）".into())
 }
 
 fn transcribe_in(job: &LocalJob<'_>, chunks: &[AudioChunkRef]) -> Result<Transcript, String> {
@@ -511,7 +650,14 @@ fn transcribe_in(job: &LocalJob<'_>, chunks: &[AudioChunkRef]) -> Result<Transcr
             return Err(asr::CANCELLED.into());
         }
         let prefix = job.working.join(format!("result-{index:03}"));
-        match run_segment(job.exe, job.model_file, segment, job.language, &prefix) {
+        match run_segment(
+            job.exe,
+            job.model_file,
+            segment,
+            job.language,
+            job.initial_prompt,
+            &prefix,
+        ) {
             Ok(lines) => {
                 transcript.duration_ms = transcript
                     .duration_ms
@@ -551,6 +697,7 @@ fn run_segment(
     model: &Path,
     segment: &asr::AudioSegment,
     language: &str,
+    initial_prompt: &str,
     prefix: &Path,
 ) -> Result<Vec<(u64, u64, String)>, String> {
     let mut command = Command::new(exe);
@@ -560,7 +707,13 @@ fn run_segment(
         .arg("-f")
         .arg(&segment.path)
         .arg("-l")
-        .arg(whisper_language(language))
+        .arg(whisper_language(language));
+    if !initial_prompt.trim().is_empty() {
+        // whisper-cli only exposes the long form; "-p" is not a valid flag and
+        // makes this build abort.
+        command.arg("--prompt").arg(initial_prompt.trim());
+    }
+    command
         .arg("-oj")
         .arg("-of")
         .arg(prefix)
@@ -681,6 +834,7 @@ mod tests {
     #[test]
     fn model_catalog_is_stable_and_safe() {
         assert!(is_known_model("small"));
+        assert!(is_known_model("tiny"));
         assert!(is_known_model("base"));
         assert!(is_known_model("large-v3-turbo-q5_0"));
         assert!(!is_known_model("../evil"));
@@ -699,6 +853,19 @@ mod tests {
         let app_data = Path::new("C:/data");
         let path = model_path(app_data, "small");
         assert!(path.ends_with("local-whisper/models/ggml-small.bin"));
+    }
+
+    #[test]
+    fn engine_catalog_uses_separate_directories() {
+        let cpu = engine_spec("cpu").unwrap();
+        let cuda = engine_spec("cuda").unwrap();
+        assert!(engine_spec("../cpu").is_none());
+        assert_eq!(cpu.dir, "engine");
+        assert_eq!(cuda.dir, "engine-cuda");
+        let app_data = Path::new("C:/data");
+        assert!(engine_dir(app_data, cpu).ends_with("local-whisper/engine"));
+        assert!(engine_dir(app_data, cuda).ends_with("local-whisper/engine-cuda"));
+        assert_eq!(engine_exe(app_data, cuda).file_name().unwrap(), ENGINE_FILE);
     }
 
     #[test]
@@ -770,17 +937,28 @@ mod tests {
             start_frame: 0,
             frames: 144_000,
         };
+        let prompt = std::env::var("WHISPER_PROMPT").unwrap_or_default();
+        let options = LocalOptions {
+            model: "base",
+            language: "auto",
+            initial_prompt: if prompt.is_empty() {
+                ""
+            } else {
+                prompt.as_str()
+            },
+        };
         let transcript = transcribe(
             app_data.path(),
             &[chunk],
             "smoke",
-            "base",
-            "auto",
+            &options,
             &AtomicBool::new(false),
             &|_, _| {},
         )
         .unwrap();
-        assert!(!transcript.text.trim().is_empty());
-        assert!(!transcript.segments.is_empty());
+        if prompt.is_empty() {
+            assert!(!transcript.text.trim().is_empty());
+            assert!(!transcript.segments.is_empty());
+        }
     }
 }

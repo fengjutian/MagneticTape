@@ -46,6 +46,7 @@ let settings: AppSettings = {
   asrProvider: "minimax",
   asrProfiles: {},
   localWhisperModel: "small",
+  whisperHotwords: "",
   autoCleanupDays: 0,
   storageQuotaMb: 0,
 };
@@ -255,21 +256,16 @@ function stopLivePolling(): void {
 }
 
 async function beginLive(): Promise<void> {
-  if (settings.asrProvider === "local_whisper") {
-    liveDesired = false;
-    setLiveIndicator(false);
-    view.errorMessage = "本地 Whisper 暂不支持实时字幕，请使用云端服务或录音后转写";
-    applyView(app, view);
-    return;
-  }
   try {
     const [configurations, aiConfigurations] = await Promise.all([
       invoke<AsrConfiguration[]>("get_asr_configurations"),
       invoke<AiConfiguration[]>("get_ai_configurations"),
     ]);
-    const provider = configurations.find((item) => item.provider === settings.asrProvider && item.configured)?.provider
-      ?? configurations.find((item) => item.configured)?.provider
-      ?? "minimax";
+    const provider = settings.asrProvider === "local_whisper"
+      ? "local_whisper" as const
+      : configurations.find((item) => item.provider === settings.asrProvider && item.configured)?.provider
+        ?? configurations.find((item) => item.configured)?.provider
+        ?? "minimax";
     liveAiProvider = aiConfigurations.find((item) => item.configured)?.provider ?? "minimax";
     liveTranslations = [];
     liveTranslatedCount = 0;
@@ -904,6 +900,7 @@ app.querySelector<HTMLButtonElement>(".asr-save")!.addEventListener("click", asy
     try {
       settings.asrProvider = "local_whisper";
       settings.localWhisperModel = localModelSelect.value || settings.localWhisperModel;
+      settings.whisperHotwords = localHotwords.value.trim();
       await persistSettings();
       asrResult.className = "asr-result success";
       asrResult.textContent = "本地 Whisper 配置已保存";
@@ -954,10 +951,12 @@ app.querySelector<HTMLButtonElement>(".asr-clear")!.addEventListener("click", as
 const asrRemote = app.querySelector<HTMLElement>(".asr-remote")!;
 const localPanel = app.querySelector<HTMLElement>(".local-whisper")!;
 const localModelSelect = app.querySelector<HTMLSelectElement>(".local-model")!;
+const localHotwords = app.querySelector<HTMLTextAreaElement>(".local-hotwords")!;
 const localStatus = app.querySelector<HTMLElement>(".local-whisper-status")!;
 const localDownloadEngine = app.querySelector<HTMLButtonElement>(".local-download-engine")!;
 const localDownloadModel = app.querySelector<HTMLButtonElement>(".local-download-model")!;
 const localDeleteModel = app.querySelector<HTMLButtonElement>(".local-delete-model")!;
+const localDownloadCuda = app.querySelector<HTMLButtonElement>(".local-download-engine-cuda")!;
 let localWhisperStatus: LocalWhisperStatus | null = null;
 let localWhisperBusy = false;
 
@@ -965,7 +964,10 @@ function syncAsrMode(): void {
   const local = asrDialogProvider.value === "local_whisper";
   asrRemote.hidden = local;
   localPanel.hidden = !local;
-  if (local) void refreshLocalWhisper();
+  if (local) {
+    localHotwords.value = settings.whisperHotwords;
+    void refreshLocalWhisper();
+  }
 }
 
 function renderLocalWhisper(): void {
@@ -983,15 +985,21 @@ function renderLocalWhisper(): void {
   }
   localModelSelect.value = status.model;
   const current = status.models.find((model) => model.id === status.model);
+  const cpu = status.engines.find((engine) => engine.id === "cpu");
+  const cuda = status.engines.find((engine) => engine.id === "cuda");
+  const engineLabel = status.engine === "cuda" ? "CUDA" : status.engine === "cpu" ? "CPU" : "未安装";
   localStatus.textContent = [
-    status.engineInstalled ? `引擎已安装（${formatBytes(status.engineBytes)}）` : "引擎未安装",
+    status.gpuName ? `GPU：${status.gpuName}` : "未检测到 NVIDIA GPU",
+    status.engineInstalled ? `引擎：${engineLabel}（${formatBytes(status.engineBytes)}）` : "引擎未安装",
     current ? `${current.label}：${current.installed ? "已下载" : "未下载"}` : "",
     `本地占用 ${formatBytes(status.totalBytes)}`,
   ]
     .filter(Boolean)
     .join(" · ");
-  localDownloadEngine.hidden = status.engineInstalled;
+  localDownloadEngine.hidden = !cpu || cpu.installed;
   localDownloadEngine.disabled = localWhisperBusy;
+  localDownloadCuda.hidden = !cuda || cuda.installed || !status.gpuName;
+  localDownloadCuda.disabled = localWhisperBusy;
   localDownloadModel.hidden = !current || current.installed;
   localDownloadModel.disabled = localWhisperBusy || !status.engineInstalled;
   localDownloadModel.textContent = status.engineInstalled ? "下载模型" : "请先下载引擎";
@@ -1014,14 +1022,14 @@ localModelSelect.addEventListener("change", () => {
   void persistSettings().then(() => refreshLocalWhisper());
 });
 
-localDownloadEngine.addEventListener("click", async () => {
+async function downloadLocalEngine(variant: "cpu" | "cuda"): Promise<void> {
   localWhisperBusy = true;
-  localStatus.textContent = "正在下载本地引擎…";
+  localStatus.textContent = variant === "cuda" ? "正在下载 CUDA 引擎…" : "正在下载 CPU 引擎…";
   renderLocalWhisper();
   try {
-    localWhisperStatus = await invoke<LocalWhisperStatus>("download_local_whisper_engine");
+    localWhisperStatus = await invoke<LocalWhisperStatus>("download_local_whisper_engine", { variant });
     asrResult.className = "asr-result success";
-    asrResult.textContent = "本地引擎已安装";
+    asrResult.textContent = variant === "cuda" ? "CUDA 引擎已安装" : "CPU 引擎已安装";
   } catch (error) {
     asrResult.className = "asr-result failure";
     asrResult.textContent = `引擎下载失败：${error instanceof Error ? error.message : String(error)}`;
@@ -1030,7 +1038,10 @@ localDownloadEngine.addEventListener("click", async () => {
     if (localWhisperStatus) renderLocalWhisper();
     else void refreshLocalWhisper();
   }
-});
+}
+
+localDownloadEngine.addEventListener("click", () => void downloadLocalEngine("cpu"));
+localDownloadCuda.addEventListener("click", () => void downloadLocalEngine("cuda"));
 
 localDownloadModel.addEventListener("click", async () => {
   const model = localModelSelect.value;

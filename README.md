@@ -53,13 +53,17 @@ MagneticTape 是一个面向 Windows 的本地优先会议录音与转写工具�
 - 自动清理与存储上限：可设置启动时清理 30/90/180 天前音频，或按 5/10/20 GB 上限从最旧会话开始删除音频（保留转写）。
 - NSIS 安装包配置、`scripts/build.ps1` 与 GitHub Release 工作流。
 - 本地 Whisper（离线）：whisper.cpp 引擎与 GGML 模型按需下载并做 SHA-256 校验，录后转写完全在本机完成，无需 API Key 与网络。
+- 本地实时字幕：录音中按 5 秒分片用 tiny/base 模型增量推理，单窗口串行调度；支持热词/初始提示词。
+- GPU 加速（可选）：`nvidia-smi` 自动探测 NVIDIA GPU，已安装 CUDA 引擎时优先使用，否则回退 CPU 引擎。
 - 可交互的双栏桌面录音页面。
 
 尚未实现：
 
-- 本地 Whisper 的实时字幕与 GPU 加速（v1 仅支持录后转写，实时字幕仍走云端）。
+- 说话人分离（需要额外的 diarization 模型）与内嵌 whisper.cpp 绑定（当前为子进程）。
 - 代码签名、自动更新与崩溃上报。
 - 端到端 UI 自动化测试。
+
+完整清单、优先级与里程碑见 [功能规划（未完成项）](doc/功能规划.md)。
 
 ## 项目结构
 
@@ -150,6 +154,7 @@ cargo test --workspace --all-targets
 - [UI 设计规范](doc/UI设计规范.md)
 - [录音页面布局需求](doc/录音页面布局需求.md)
 - [本地 Whisper 转写需求](doc/本地Whisper转写需求.md)
+- [功能规划（未完成项）](doc/功能规划.md)
 - [飞书妙记录音逆向分析](doc/飞书妙记录音-逆向分析.md)
 
 ## 许可证

@@ -129,13 +129,15 @@ export function renderApp(): string {
         </div>
         <section class="local-whisper" hidden aria-label="本地 Whisper">
           <label><span>本地模型</span><select class="local-model" aria-label="本地 Whisper 模型"></select></label>
+          <label><span>热词 / 提示词（可选）</span><textarea class="local-hotwords" rows="2" maxlength="512" placeholder="专有名词、产品名、参会人姓名，用逗号或顿号分隔"></textarea></label>
           <p class="local-whisper-status" aria-live="polite">正在读取本地引擎状态…</p>
           <div class="local-whisper-actions">
-            <button class="local-download-engine" type="button">下载引擎</button>
+            <button class="local-download-engine" type="button">下载 CPU 引擎</button>
+            <button class="local-download-engine-cuda" type="button">下载 CUDA 引擎</button>
             <button class="local-download-model" type="button">下载模型</button>
             <button class="local-delete-model" type="button">删除模型</button>
           </div>
-          <p class="ai-privacy">本地转写完全离线、不需要 API Key；引擎与模型保存在应用数据目录，删除模型不影响引擎。</p>
+          <p class="ai-privacy">本地转写完全离线、不需要 API Key；检测到 NVIDIA GPU 时可下载 CUDA 引擎加速。引擎与模型保存在应用数据目录，删除模型不影响引擎。</p>
         </section>
         <output class="asr-result" aria-live="polite"></output>
         <footer><button value="cancel">取消</button><button class="asr-save" type="button">保存配置</button></footer>
