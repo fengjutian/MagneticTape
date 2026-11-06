@@ -22,7 +22,7 @@ try {
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     npm run build
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    npm test
+    npm run test:coverage
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 } finally {
     Pop-Location

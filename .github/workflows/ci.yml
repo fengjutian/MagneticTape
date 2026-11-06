@@ -33,9 +33,9 @@ jobs:
         working-directory: apps/desktop
         run: npm run build
 
-      - name: Test frontend
+      - name: Test frontend (with coverage thresholds)
         working-directory: apps/desktop
-        run: npm test
+        run: npm run test:coverage
 
       - name: Check Rust formatting
         run: cargo fmt --all --check

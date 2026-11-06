@@ -2,9 +2,37 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { applyAudioDevices, applyView, formatElapsed, renderApp, renderTranscript } from "./components";
 import { TimelinePlayer } from "./player";
+import {
+  mergeSettings,
+  resolveLiveProvider,
+  settingsFromUi,
+  viewSettings,
+  withCloudProfile,
+  withLocalWhisper,
+} from "./settings";
+import {
+  applyTranscriptionProgress,
+  beginTranscription,
+  canCancelTranscription,
+  idleTranscription,
+  isTranscriptionBusy,
+  requestTranscriptionCancel,
+  transcriptionError,
+  transcriptionFailed,
+  transcriptionStatus,
+  transcriptionSucceeded,
+  type TranscriptionState,
+} from "./transcription";
 import "@awesome.me/webawesome/dist/components/button/button.js";
 import type { AiConfiguration, AiResponse, AppSettings, AsrConfiguration, AudioDeviceSnapshot, AudioHealth, AudioLevels, CleanupResult, ExportResult, JobProgress, LibraryStats, LiveTranscript, LocalWhisperStatus, PlaybackTracks, RecorderViewState, RecordingListItem, SessionState, Transcript, TranscriptSegment, WhisperDownloadProgress } from "./types";
 import "./styles.css";
+
+// Playwright runs the real UI in Chromium; install the in-memory Tauri bridge
+// before any command is invoked.
+if (import.meta.env.VITE_E2E === "1") {
+  const { installTauriMock } = await import("./e2e/mock-tauri");
+  installTauriMock();
+}
 
 const appElement = document.querySelector<HTMLElement>("#app");
 if (!appElement) throw new Error("Missing application root");
@@ -18,6 +46,7 @@ let levelHandle: number | undefined;
 let healthHandle: number | undefined;
 let currentTranscript: Transcript | null = null;
 let currentTranslation: { code: string; content: string } | null = null;
+let transcription: TranscriptionState = idleTranscription;
 let playbackPlayer: TimelinePlayer | null = null;
 let playbackRequest = 0;
 let activeTranscriptLine: HTMLElement | null = null;
@@ -52,21 +81,22 @@ let settings: AppSettings = {
 };
 
 function applySettings(next: AppSettings): void {
-  settings = next;
-  view.language = next.language;
-  view.translation = next.translation;
-  view.retainAudio = next.retainAudio;
-  liveDesired = next.liveCaptions;
+  settings = mergeSettings(settings, next);
+  const snapshot = viewSettings(settings);
+  view.language = snapshot.language;
+  view.translation = snapshot.translation;
+  view.retainAudio = snapshot.retainAudio;
+  liveDesired = snapshot.liveCaptions;
   const selects = app.querySelectorAll<HTMLSelectElement>("select[data-option]");
   selects.forEach((select) => {
-    if (select.dataset.option === "language") select.value = next.language;
-    if (select.dataset.option === "translation") select.value = next.translation;
-    if (select.dataset.option === "audio") select.value = next.retainAudio ? "retain" : "discard";
+    if (select.dataset.option === "language") select.value = settings.language;
+    if (select.dataset.option === "translation") select.value = settings.translation;
+    if (select.dataset.option === "audio") select.value = settings.retainAudio ? "retain" : "discard";
   });
   const autoCleanup = app.querySelector<HTMLSelectElement>(".auto-cleanup-days");
-  if (autoCleanup) autoCleanup.value = String(next.autoCleanupDays);
+  if (autoCleanup) autoCleanup.value = String(settings.autoCleanupDays);
   const quota = app.querySelector<HTMLSelectElement>(".storage-quota");
-  if (quota) quota.value = String(next.storageQuotaMb);
+  if (quota) quota.value = String(settings.storageQuotaMb);
   syncAsrProviderSelect();
   setLiveIndicator(false);
 }
@@ -82,16 +112,19 @@ function syncAsrProviderSelect(): void {
 async function persistSettings(): Promise<void> {
   const microphone = app.querySelector<HTMLSelectElement>(".microphone-select");
   const system = app.querySelector<HTMLSelectElement>(".system-output-select");
-  settings.microphoneId = microphone?.value || null;
-  settings.systemOutputId = system?.value || null;
-  settings.language = view.language;
-  settings.translation = view.translation;
-  settings.retainAudio = view.retainAudio;
-  settings.liveCaptions = liveDesired;
-  settings.autoCleanupDays = Number(app.querySelector<HTMLSelectElement>(".auto-cleanup-days")?.value ?? 0);
-  settings.storageQuotaMb = Number(app.querySelector<HTMLSelectElement>(".storage-quota")?.value ?? 0);
+  settings = settingsFromUi(settings, {
+    microphoneId: microphone?.value || null,
+    systemOutputId: system?.value || null,
+    language: view.language,
+    translation: view.translation,
+    retainAudio: view.retainAudio,
+    liveCaptions: liveDesired,
+    autoCleanupDays: Number(app.querySelector<HTMLSelectElement>(".auto-cleanup-days")?.value ?? 0),
+    storageQuotaMb: Number(app.querySelector<HTMLSelectElement>(".storage-quota")?.value ?? 0),
+  });
   try {
-    settings = await invoke<AppSettings>("save_settings", { settings });
+    const saved = await invoke<AppSettings>("save_settings", { settings });
+    settings = mergeSettings(settings, saved);
   } catch (error) {
     view.errorMessage = `无法保存设置：${error instanceof Error ? error.message : String(error)}`;
     applyView(app, view);
@@ -261,11 +294,7 @@ async function beginLive(): Promise<void> {
       invoke<AsrConfiguration[]>("get_asr_configurations"),
       invoke<AiConfiguration[]>("get_ai_configurations"),
     ]);
-    const provider = settings.asrProvider === "local_whisper"
-      ? "local_whisper" as const
-      : configurations.find((item) => item.provider === settings.asrProvider && item.configured)?.provider
-        ?? configurations.find((item) => item.configured)?.provider
-        ?? "minimax";
+    const provider = resolveLiveProvider(settings, configurations);
     liveAiProvider = aiConfigurations.find((item) => item.configured)?.provider ?? "minimax";
     liveTranslations = [];
     liveTranslatedCount = 0;
@@ -312,11 +341,16 @@ liveButton.addEventListener("click", () => {
 let view: RecorderViewState = { title: "新录音", status: "idle", elapsedMs: 0, language: "auto", translation: "none", retainAudio: true, volumeLevel: 0, sessionId: null, microphoneChunks: [], systemChunks: [] };
 
 function syncBackend(next: SessionState): void {
+  const sessionChanged = backendState?.sessionId !== next.sessionId;
   backendState = next;
   view = { ...view, title: next.title, status: next.status, elapsedMs: next.elapsedMs, sessionId: next.sessionId, microphonePath: next.microphonePath, systemPath: next.systemPath, microphoneChunks: next.microphoneChunks, systemChunks: next.systemChunks, droppedBlocks: next.droppedBlocks, recovered: next.recovered, errorMessage: undefined };
   restartClock();
   applyView(app, view);
   syncAsrProviderSelect();
+  if (sessionChanged || next.status !== "finished") {
+    transcription = idleTranscription;
+  }
+  renderTranscriptionState();
   if (next.status === "finished") {
     stopLivePolling();
     stopHealthPolling();
@@ -464,17 +498,31 @@ async function loadTranscript(): Promise<void> {
 
 /// Applies backend job progress to the matching status line.
 function applyJobProgress(progress: JobProgress): void {
+  if (progress.stage === "transcribe") {
+    transcription = applyTranscriptionProgress(transcription, progress);
+    renderTranscriptionState();
+    return;
+  }
   const selector = progress.stage === "summarize" ? ".notes-state" : ".transcript-state";
   const status = app.querySelector<HTMLElement>(selector);
   if (!status) return;
-  const label =
-    progress.stage === "transcribe"
-      ? "正在转写"
-      : progress.stage === "translate"
-        ? "AI 正在翻译"
-        : "AI 正在整理";
+  const label = progress.stage === "translate" ? "AI 正在翻译" : "AI 正在整理";
   const counter = progress.total > 0 ? ` ${progress.done}/${progress.total}` : "";
   status.textContent = `${label}${counter} 段`;
+}
+
+/// Reflects the transcription state machine in the workbench controls.
+function renderTranscriptionState(): void {
+  const button = app.querySelector<HTMLButtonElement>(".transcribe");
+  const cancel = app.querySelector<HTMLButtonElement>(".cancel-transcribe");
+  const status = app.querySelector<HTMLElement>(".transcript-state");
+  if (button) button.disabled = isTranscriptionBusy(transcription);
+  if (cancel) {
+    cancel.hidden = !canCancelTranscription(transcription);
+    cancel.disabled = transcription.phase === "cancelling";
+  }
+  const text = transcriptionStatus(transcription);
+  if (status && text !== null) status.textContent = text;
 }
 
 function restartClock(): void {
@@ -921,9 +969,11 @@ app.querySelector<HTMLButtonElement>(".asr-save")!.addEventListener("click", asy
     asrResult.className = "asr-result pending";
     asrResult.textContent = "正在保存…";
     try {
-      settings.asrProvider = "local_whisper";
-      settings.localWhisperModel = localModelSelect.value || settings.localWhisperModel;
-      settings.whisperHotwords = localHotwords.value.trim();
+      settings = withLocalWhisper(
+        settings,
+        localModelSelect.value,
+        localHotwords.value,
+      );
       await persistSettings();
       asrResult.className = "asr-result success";
       asrResult.textContent = "本地 Whisper 配置已保存";
@@ -947,12 +997,7 @@ app.querySelector<HTMLButtonElement>(".asr-save")!.addEventListener("click", asy
     asrKey.value = "";
     asrResult.className = "asr-result success";
     asrResult.textContent = `${configuration.model} 配置已保存`;
-    settings.asrProvider = configuration.provider;
-    settings.asrProfiles[configuration.provider] = {
-      endpoint: configuration.endpoint,
-      model: configuration.model,
-      language: configuration.language,
-    };
+    settings = withCloudProfile(settings, configuration);
     await persistSettings();
     await refreshAsrConfiguration();
   } catch (error) {
@@ -1110,45 +1155,41 @@ app.addEventListener("click", async (event) => {
   const status = app.querySelector<HTMLElement>(".transcript-state");
   const provider = app.querySelector<HTMLSelectElement>(".asr-provider")?.value ?? "minimax";
   if (!status) return;
-  const cancelButton = app.querySelector<HTMLButtonElement>(".cancel-transcribe");
-  button.disabled = true;
-  if (cancelButton) {
-    cancelButton.hidden = false;
-    cancelButton.disabled = false;
-  }
-  status.textContent = "正在解码并混音…";
+  transcription = beginTranscription();
+  renderTranscriptionState();
   try {
     const transcript = await invoke<Transcript>("transcribe_session", { provider, language: null });
+    transcription = transcriptionSucceeded(transcription);
     currentTranscript = transcript;
     currentTranslation = null;
     renderTranscriptBody();
     setTranscriptStatus();
+    renderTranscriptionState();
     // The retention policy may have deleted the audio after transcription.
     syncBackend(await invoke<SessionState>("get_session_state"));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    const cancelled = message.includes("已取消");
-    status.textContent = cancelled ? "已取消转写" : "转写失败";
-    if (!cancelled) {
-      view.errorMessage = `转写失败：${message}`;
+    transcription = transcriptionFailed(transcription, message);
+    const errorMessage = transcriptionError(transcription);
+    if (errorMessage) {
+      view.errorMessage = errorMessage;
       applyView(app, view);
     }
-  } finally {
-    button.disabled = false;
-    if (cancelButton) cancelButton.hidden = true;
+    renderTranscriptionState();
   }
 });
 app.addEventListener("click", async (event) => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>(".cancel-transcribe");
   if (!button) return;
-  button.disabled = true;
-  const status = app.querySelector<HTMLElement>(".transcript-state");
-  if (status) status.textContent = "正在取消…";
+  transcription = requestTranscriptionCancel(transcription);
+  renderTranscriptionState();
   try {
     await invoke<boolean>("cancel_transcription");
   } catch (error) {
-    if (status) status.textContent = `取消失败：${error instanceof Error ? error.message : String(error)}`;
-    button.disabled = false;
+    const status = app.querySelector<HTMLElement>(".transcript-state");
+    if (status) {
+      status.textContent = `取消失败：${error instanceof Error ? error.message : String(error)}`;
+    }
   }
 });
 app.addEventListener("click", async (event) => {

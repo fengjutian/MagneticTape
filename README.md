@@ -129,8 +129,10 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace --all-targets
 
 cd apps/desktop
-npm test
+npm run test:coverage
 ```
+
+前端覆盖率门禁：时间轴、设置合并、转写状态机三个模块要求行/函数/语句 ≥ 85%、分支 ≥ 80%。
 
 ## 构建安装包
 
