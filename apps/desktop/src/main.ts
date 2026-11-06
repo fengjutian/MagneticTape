@@ -1,7 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { applyAudioDevices, applyView, formatElapsed, renderApp, renderTranscript } from "./components";
-import type { AiConfiguration, AiResponse, AppSettings, AsrConfiguration, AudioDeviceSnapshot, AudioHealth, AudioLevels, CleanupResult, ExportResult, JobProgress, LibraryStats, LiveTranscript, RecorderViewState, RecordingListItem, SessionState, Transcript, TranscriptSegment } from "./types";
+import { TimelinePlayer } from "./player";
+import type { AiConfiguration, AiResponse, AppSettings, AsrConfiguration, AudioDeviceSnapshot, AudioHealth, AudioLevels, CleanupResult, ExportResult, JobProgress, LibraryStats, LiveTranscript, PlaybackTracks, RecorderViewState, RecordingListItem, SessionState, Transcript, TranscriptSegment } from "./types";
 import "./styles.css";
 
 const appElement = document.querySelector<HTMLElement>("#app");
@@ -16,6 +17,8 @@ let levelHandle: number | undefined;
 let healthHandle: number | undefined;
 let currentTranscript: Transcript | null = null;
 let currentTranslation: { code: string; content: string } | null = null;
+let playbackPlayer: TimelinePlayer | null = null;
+let activeTranscriptLine: HTMLElement | null = null;
 let liveDesired = false;
 let livePollHandle: number | undefined;
 let livePollBusy = false;
@@ -292,10 +295,66 @@ function syncBackend(next: SessionState): void {
     liveDesired = false;
     setLiveIndicator(false);
     currentTranscript = null;
+    activeTranscriptLine = null;
+    void ensurePlayback();
     void loadSessionNotes();
     void loadTranscript();
+  } else {
+    playbackPlayer?.dispose();
+    playbackPlayer = null;
+    activeTranscriptLine = null;
   }
   renderLive();
+}
+
+/// Loads (or reloads) the unified playback timeline for the finished session.
+async function ensurePlayback(): Promise<void> {
+  const container = app.querySelector<HTMLElement>(".playback");
+  if (view.status !== "finished" || !container) {
+    playbackPlayer?.dispose();
+    playbackPlayer = null;
+    return;
+  }
+  if (playbackPlayer && playbackPlayer.root === container) return;
+  playbackPlayer?.dispose();
+  playbackPlayer = null;
+  try {
+    const tracks = await invoke<PlaybackTracks>("get_session_playback");
+    if (view.status !== "finished") return;
+    if (app.querySelector<HTMLElement>(".playback") !== container) return;
+    playbackPlayer = new TimelinePlayer(container, tracks, {
+      onPosition: (positionMs) => highlightTranscript(positionMs),
+    });
+  } catch (error) {
+    const hint = container.querySelector<HTMLElement>(".playback-hint");
+    if (hint) hint.textContent = `无法加载回放时间轴：${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+/// Highlights the subtitle line that contains `positionMs` and keeps it in
+/// view without fighting the user's manual scrolling.
+function highlightTranscript(positionMs: number): void {
+  const body = app.querySelector<HTMLElement>(".transcript-body");
+  if (!body) return;
+  let active: HTMLElement | null = null;
+  for (const line of body.querySelectorAll<HTMLElement>(".transcript-line[data-start-ms]")) {
+    const start = Number(line.dataset.startMs ?? 0);
+    if (start <= positionMs + 400) active = line;
+  }
+  if (active === activeTranscriptLine) return;
+  activeTranscriptLine?.classList.remove("active");
+  active?.classList.add("active");
+  activeTranscriptLine = active;
+  active?.scrollIntoView({ block: "nearest" });
+}
+
+function seekFromTranscript(target: HTMLElement): void {
+  const line = target.closest<HTMLElement>(".transcript-line[data-start-ms]");
+  if (!line || !playbackPlayer) return;
+  const start = Number(line.dataset.startMs);
+  if (!Number.isFinite(start)) return;
+  playbackPlayer.seek(start);
+  highlightTranscript(start);
 }
 
 async function loadSessionNotes(): Promise<void> {
@@ -979,6 +1038,17 @@ app.addEventListener("click", async (event) => {
   } finally {
     button.disabled = false;
   }
+});
+
+app.addEventListener("click", (event) => {
+  seekFromTranscript(event.target as HTMLElement);
+});
+app.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  const line = (event.target as HTMLElement).closest<HTMLElement>(".transcript-line[data-start-ms]");
+  if (!line) return;
+  event.preventDefault();
+  seekFromTranscript(line);
 });
 
 const titleDisplay = app.querySelector<HTMLButtonElement>(".title-display")!;
