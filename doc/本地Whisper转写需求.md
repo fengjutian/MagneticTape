@@ -166,6 +166,7 @@ transcript.json / transcript.md（现有格式不变）
 - 下载源仅限上表固定 URL；模型文件名由白名单映射，不接受路径分隔符。
 - 解压时拒绝绝对路径与 `..`（zip slip），只允许 `Release/` 前缀。
 - 引擎与模型不写入安装目录，卸载应用不删除用户模型（文档中说明）。
+- whisper.cpp 及其官方发布二进制、Whisper 模型权重均为 MIT 许可，允许随应用下载与本地运行。
 
 ## 10. 验收标准
 
@@ -192,11 +193,15 @@ transcript.json / transcript.md（现有格式不变）
 | `cargo clippy --workspace --all-targets -D warnings` | 通过 |
 | `cargo test --workspace --all-targets` | 30 个桌面端测试 + 11 个 crate 测试通过 |
 | `npm run build`（tsc + vite） | 通过 |
+| 引擎压缩包解压冒烟（`--ignored` 测试，真实 zip） | 通过：仅提取 `Release/`，exe 与 DLL 就位，无嵌套目录 |
 | 真实引擎冒烟（`--ignored` 测试，`doc/chunk_00000.ogg`） | 通过：解码 → 混音 → 16 kHz 分段 → whisper-cli → JSON 解析，2.75 秒完成 3 秒音频 |
 
 真实引擎冒烟测试命令：
 
 ```powershell
+$env:WHISPER_ARCHIVE = '<whisper-bin-x64.zip>'
+cargo test -p magnetic-tape-desktop extracts_the_downloaded_engine_archive -- --ignored
+
 $env:WHISPER_ENGINE_DIR = '<解压后的 whisper.cpp Release 目录>'
 $env:WHISPER_MODEL = '<ggml-tiny.bin 或 ggml-base.bin>'
 cargo test -p magnetic-tape-desktop transcribes_a_real_chunk_with_the_downloaded_engine -- --ignored
