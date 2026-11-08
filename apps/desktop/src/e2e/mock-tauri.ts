@@ -36,6 +36,7 @@ const defaultSettings: AppSettings = {
   translation: "none",
   retainAudio: true,
   liveCaptions: false,
+  liveStreaming: true,
   asrProvider: "minimax",
   asrProfiles: {},
   localWhisperModel: "small",
@@ -164,7 +165,7 @@ export function installTauriMock(): void {
       case "get_settings":
         return structuredClone(state.settings);
       case "save_settings":
-        state.settings = structuredClone(args.settings as AppSettings);
+        state.settings = { ...state.settings, ...structuredClone(args.settings as Partial<AppSettings>) };
         return structuredClone(state.settings);
       case "list_audio_devices":
         return audioDevices();
@@ -261,6 +262,23 @@ export function installTauriMock(): void {
       case "download_local_whisper_model":
       case "delete_local_whisper_model":
         return localWhisperStatus();
+      case "get_sherpa_status":
+      case "download_sherpa":
+        return {
+          engineInstalled: true,
+          engineBytes: 24_139_676,
+          engineVersion: "1.12.9",
+          asrModelInstalled: true,
+          asrModel: "zh-14m",
+          asrModelLabel: "中文流式 Zipformer 14M",
+          asrModelBytes: 74_004_050,
+          speakerModelInstalled: true,
+          speakerModelBytes: 28_281_138,
+          diarizationInstalled: true,
+          diarizationModelBytes: 6_958_444,
+          totalBytes: 133_384_308,
+          ready: true,
+        };
       case "start_live_transcription":
         return {
           active: true,
@@ -270,6 +288,7 @@ export function installTauriMock(): void {
           model: "E2E",
           language: "auto",
           partialText: "",
+          streaming: true,
         };
       case "get_live_transcript":
       case "poll_live_transcription":
@@ -281,6 +300,7 @@ export function installTauriMock(): void {
           model: "E2E",
           language: "auto",
           partialText: "",
+          streaming: true,
         };
       case "stop_live_transcription":
         return null;

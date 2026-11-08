@@ -6,6 +6,9 @@ import type {
   Transcript,
   TranscriptSegment,
 } from "./types";
+import { confirmationEntry, confirmationKey, effectiveText, type ConfirmationMap } from "./confirmations";
+import { deriveInsights, parseTasks } from "./insights";
+import { speakerKey, speakerLabel, type SpeakerNames } from "./session-prefs";
 import {
   AudioLines,
   BookOpen,
@@ -59,6 +62,7 @@ export interface InsightInput {
   status: RecorderStatus;
   segments: TranscriptSegment[];
   notes: string;
+  confirmations?: ConfirmationMap;
 }
 
 const iconSet = { pause: Pause, play: Play, stop: Square } as const;
@@ -175,14 +179,14 @@ export function renderApp(): string {
 
               <details class="config-group">
                 <summary>
-                  <span class="config-icon iris-config">${iconNode(Settings2)}</span>
+                  <span class="config-icon ai-config">${iconNode(Settings2)}</span>
                   <span class="config-copy"><strong>AI 配置</strong><small class="ai-model-summary">MiniMax · 高速版</small></span>
                   <span class="config-status-dot" title="AI 服务状态"></span>
                   <span class="config-chevron">${iconNode(ChevronDown)}</span>
                 </summary>
                 <div class="config-body">
                   <button class="config-action ai-settings" type="button" title="配置 AI Provider">${iconNode(Sparkles)}<span>AI 服务与密钥</span><small>MiniMax / DeepSeek</small></button>
-                  <button class="config-action live-caption" type="button" title="录音时约每 5 秒生成实时字幕和增量译文">${iconNode(Captions)}<span>实时字幕</span><small class="live-state">关</small></button>
+                  <button class="config-action live-caption" type="button" title="录音时实时生成字幕和增量译文（本地流式引擎就绪时约 1 秒出字）">${iconNode(Captions)}<span>实时字幕</span><small class="live-state">关</small></button>
                 </div>
               </details>
             </div>
@@ -190,7 +194,7 @@ export function renderApp(): string {
             <section class="record-card status-area" aria-live="polite">
               <div class="record-card-top">
                 <span class="record-state-badge"><i></i><span class="record-state-label">待机</span></span>
-                <span class="record-safety">${iconNode(Check)}本地安全保存</span>
+                <span class="record-safety">${iconNode(Check)}本地安全保存 · <span class="chunk-count">0</span> 片</span>
               </div>
               <time class="elapsed" datetime="PT0S">00:00</time>
               <h3 class="status-title">等待开始录音</h3>
@@ -215,7 +219,6 @@ export function renderApp(): string {
               </div>
               <p class="device-warning" role="status" hidden></p>
             </section>
-            <p class="panel-foot">${iconNode(Check)}本地安全保存 · 已写入 <span class="chunk-count">0</span> 个分片</p>
           </div>
         </section>
 
@@ -307,6 +310,76 @@ export function renderApp(): string {
         </aside>
       </div>
 
+      <section class="review-view" aria-labelledby="review-title" hidden>
+        <header class="review-header">
+          <button class="review-back" type="button" title="返回工作台">${iconNode(ChevronRight)}<span>工作台</span></button>
+          <div class="review-heading">
+            <h1 id="review-title" class="review-title">录音复盘</h1>
+            <p class="review-meta">
+              <span class="review-date">—</span>
+              <span class="review-duration">—</span>
+              <span class="review-scene">—</span>
+            </p>
+          </div>
+          <div class="review-header-actions">
+            <button class="review-export action-button primary" type="button">${iconNode(Download)}<span>导出</span></button>
+            <button class="review-more panel-icon-button" type="button" title="更多操作" aria-label="更多操作">${iconNode(MoreHorizontal)}</button>
+          </div>
+        </header>
+
+        <div class="review-body">
+          <main class="review-main">
+            <section class="review-card review-summary">
+              <header><h2>录音摘要</h2><span class="review-badge ai">AI 总结 · 待确认</span></header>
+              <p class="review-summary-text">尚未生成摘要，可在 AI 分析中生成纪要。</p>
+            </section>
+
+            <section class="review-card review-points">
+              <header><h2>关键观点</h2><span class="review-count">0 条</span></header>
+              <ul class="review-point-list"><li class="review-empty">转写后自动提炼关键观点</li></ul>
+            </section>
+
+            <section class="review-card review-decisions">
+              <header><h2>决策记录</h2><span class="review-count" data-review-count="decisions">0 条待确认</span></header>
+              <ul class="review-decision-list"><li class="review-empty">尚未形成明确决策</li></ul>
+            </section>
+
+            <section class="review-card review-tasks">
+              <header><h2>待办事项</h2><span class="review-count" data-review-count="tasks">0 条待确认</span></header>
+              <div class="review-task-list"><p class="review-empty">暂未识别到待办</p></div>
+            </section>
+
+            <section class="review-card review-transcript-card">
+              <header>
+                <h2>完整转录</h2>
+                <span class="review-count review-transcript-count">0 段</span>
+                <button class="review-transcript-toggle" type="button">展开全文</button>
+              </header>
+              <div class="review-transcript-body transcript-body"></div>
+            </section>
+          </main>
+
+          <aside class="review-side">
+            <section class="review-card review-pending">
+              <header><h2>待确认队列</h2><span class="review-pending-count">0</span></header>
+              <ul class="review-pending-list"><li class="review-empty">暂无待确认内容</li></ul>
+              <button class="review-confirm-all" type="button" disabled>全部确认…</button>
+            </section>
+
+            <section class="review-card review-chat-entry">
+              <header><h2>AI 对话</h2></header>
+              <p>基于本次录音继续追问，回答会引用原始片段。</p>
+              <button class="review-open-chat" type="button">${iconNode(MessageSquareText)}<span>打开 AI 对话</span></button>
+            </section>
+
+            <section class="review-card review-info">
+              <header><h2>录音信息</h2></header>
+              <dl class="review-info-list"></dl>
+            </section>
+          </aside>
+        </div>
+      </section>
+
       <footer class="player-bar playback" aria-label="全局播放器">
         <button class="playback-toggle" type="button" disabled aria-label="播放录音">${icon("play", "ui-icon play")}${icon("pause", "ui-icon pause")}<span class="playback-toggle-label">播放</span></button>
         <div class="player-time">
@@ -360,6 +433,17 @@ export function renderApp(): string {
             <button class="local-delete-model" type="button">删除模型</button>
           </div>
           <p class="ai-privacy">本地转写完全离线、不需要 API Key；检测到 NVIDIA GPU 时可下载 CUDA 引擎加速。引擎与模型保存在应用数据目录，删除模型不影响引擎。</p>
+        </section>
+        <section class="sherpa-live" aria-label="本地流式字幕">
+          <label class="sherpa-toggle"><input class="live-streaming-toggle" type="checkbox" checked /><span>本地流式实时字幕</span></label>
+          <p class="sherpa-status" aria-live="polite">正在读取本地流式引擎状态…</p>
+          <div class="sherpa-actions">
+            <button class="sherpa-download-engine" type="button">下载流式引擎（24 MB）</button>
+            <button class="sherpa-download-asr" type="button">下载中文流式模型（74 MB）</button>
+            <button class="sherpa-download-speaker" type="button">下载声纹模型（28 MB）</button>
+            <button class="sherpa-download-diarization" type="button">下载分离模型（7 MB）</button>
+          </div>
+          <p class="ai-privacy">流式识别完全离线，字幕约 0.5–1 秒出字；声纹模型用来区分不同发言人，未安装时只显示“发言人”。录后仍会用所选转写服务生成定稿。</p>
         </section>
         <output class="asr-result" aria-live="polite"></output>
         <footer><button value="cancel">取消</button><button class="asr-save" type="button">保存配置</button></footer>
@@ -684,6 +768,7 @@ function finishedTranscriptPanel(state: RecorderViewState): string {
             <button class="action-button asr-settings" type="button">${iconNode(Settings2)}<span>转写设置</span></button>
             <select class="translate-target" aria-label="翻译语言"><option value="zh">中文</option><option value="en">English</option></select>
             <button class="action-button translate-transcript" type="button">${iconNode(Languages)}<span>AI 翻译</span></button>
+            <button class="action-button enter-review" type="button">${iconNode(FileText)}<span>进入复盘</span></button>
             <button class="action-button export-session" type="button">${iconNode(Download)}<span>导出资料</span></button>
             <span class="export-state"></span>
           </div>
@@ -695,21 +780,21 @@ function finishedTranscriptPanel(state: RecorderViewState): string {
 
 function translationPanel(status: RecorderStatus): string {
   if (status === "finished") {
-    return `<div class="translation-layout"><div class="translation-source"><span class="translation-label">原文</span><div class="transcript-body translation-original"><p class="transcript-empty">完成转写后可生成双语翻译。</p></div></div><div class="translation-result"><span class="translation-label iris-label">${iconNode(Languages)}译文</span><div class="translation-content"><p class="transcript-empty">译文会显示在这里，并保留原文与时间戳。</p></div></div></div>`;
+    return `<div class="translation-layout"><div class="translation-source"><span class="translation-label">原文</span><div class="transcript-body translation-original"><p class="transcript-empty">完成转写后可生成双语翻译。</p></div></div><div class="translation-result"><span class="translation-label ai-label">${iconNode(Languages)}译文</span><div class="translation-content"><p class="transcript-empty">译文会显示在这里，并保留原文与时间戳。</p></div></div></div>`;
   }
   if (status === "recording" || status === "paused") {
-    return `<div class="live-translation-panel"><div class="live-translation-list"><div class="panel-state"><span class="empty-illustration iris-bg">${iconNode(Languages)}</span><h3>双语翻译</h3><p>录音中的 AI 同传结果会在这里按段显示；开启实时字幕后自动生成。</p></div></div></div>`;
+    return `<div class="live-translation-panel"><div class="live-translation-list"><div class="panel-state"><span class="empty-illustration ai-bg">${iconNode(Languages)}</span><h3>双语翻译</h3><p>录音中的 AI 同传结果会在这里按段显示；开启实时字幕后自动生成。</p></div></div></div>`;
   }
   return `<div class="panel-state">${translationEmpty()}</div>`;
 }
 
 function translationEmpty(): string {
-  return `<span class="empty-illustration iris-bg">${iconNode(Languages)}</span><h3>还没有可翻译的内容</h3><p>完成录音和转写后，可生成中文或英文译文。</p>`;
+  return `<span class="empty-illustration ai-bg">${iconNode(Languages)}</span><h3>还没有可翻译的内容</h3><p>完成录音和转写后，可生成中文或英文译文。</p>`;
 }
 
 function analysisPanel(state: RecorderViewState): string {
   if (state.status !== "finished") {
-    return `<div class="panel-state"><span class="empty-illustration iris-bg">${iconNode(Sparkles)}</span><h3>AI 分析等待内容</h3><p>录音转写完成后，这里会整理主题、关键观点、待办事项与会议摘要。</p></div>`;
+    return `<div class="panel-state"><span class="empty-illustration ai-bg">${iconNode(Sparkles)}</span><h3>AI 分析等待内容</h3><p>录音转写完成后，这里会整理主题、关键观点、待办事项与会议摘要。</p></div>`;
   }
   return `
     <div class="analysis-layout">
@@ -743,63 +828,178 @@ function workspaceChatPanel(): string {
     </div>`;
 }
 
+interface TranscriptRenderOptions {
+  partial?: boolean;
+  pinned?: Set<number>;
+  speakerNames?: SpeakerNames;
+}
+
+const VIRTUAL_THRESHOLD = 300;
+const VIRTUAL_ROW_HEIGHT = 112;
+const virtualCleanup = new WeakMap<HTMLElement, () => void>();
+
+function buildTranscriptLine(
+  segment: TranscriptSegment,
+  index: number,
+  total: number,
+  options: TranscriptRenderOptions,
+): HTMLElement {
+  const line = document.createElement("article");
+  line.className = "transcript-line";
+  if (options.partial && index === total - 1) line.classList.add("partial");
+  const pinned = options.pinned?.has(segment.startMs) ?? false;
+  if (pinned) line.classList.add("pinned");
+  line.dataset.startMs = String(segment.startMs);
+  line.tabIndex = 0;
+  line.setAttribute("role", "button");
+  line.title = "跳转到这段录音";
+
+  const meta = document.createElement("header");
+  meta.className = "transcript-meta";
+  const dot = document.createElement("span");
+  dot.className = `speaker-dot speaker-${index % 4}`;
+  const speaker = document.createElement("strong");
+  speaker.className = "transcript-speaker speaker-editable";
+  speaker.textContent = speakerLabel(segment, index, options.speakerNames);
+  speaker.dataset.speakerKey = speakerKey(segment, index);
+  speaker.title = "重命名说话人";
+  speaker.setAttribute("role", "button");
+  speaker.tabIndex = 0;
+  const time = document.createElement("time");
+  time.textContent = formatElapsed(segment.startMs);
+  const state = document.createElement("span");
+  state.className = "recognized-pill";
+  state.textContent = options.partial && index === total - 1 ? "识别中" : "已识别";
+  meta.append(dot, speaker, time, state);
+
+  const content = document.createElement("p");
+  content.className = "transcript-content";
+  content.textContent = segment.text;
+
+  const actions = document.createElement("div");
+  actions.className = "segment-actions";
+  actions.setAttribute("role", "group");
+  actions.setAttribute("aria-label", "片段操作");
+  actions.innerHTML = `
+    <button class="segment-action segment-play" type="button" title="播放这一段" aria-label="播放这一段">${icon("play")}</button>
+    <button class="segment-action segment-edit" type="button" title="编辑文本" aria-label="编辑文本">${iconNode(Pencil)}</button>
+    <button class="segment-action segment-copy" type="button" title="复制" aria-label="复制这段文字">${iconNode(Copy)}</button>
+    <button class="segment-action segment-pin${pinned ? " active" : ""}" type="button" title="${pinned ? "取消固定" : "固定片段"}" aria-label="${pinned ? "取消固定" : "固定片段"}" aria-pressed="${pinned}">${iconNode(Star)}</button>
+    <button class="segment-action segment-delete" type="button" title="删除片段" aria-label="删除片段">${iconNode(Trash2)}</button>`;
+  meta.append(actions);
+  line.append(meta, content);
+  return line;
+}
+
+function findScrollParent(element: HTMLElement): HTMLElement | null {
+  let node: HTMLElement | null = element;
+  while (node) {
+    const overflow = getComputedStyle(node).overflowY;
+    if (overflow === "auto" || overflow === "scroll") return node;
+    node = node.parentElement;
+  }
+  return null;
+}
+
+function renderVirtualTranscript(
+  container: HTMLElement,
+  transcript: Transcript,
+  options: TranscriptRenderOptions,
+): void {
+  const { segments } = transcript;
+  container.classList.add("virtualized-transcript");
+  const wrapper = document.createElement("div");
+  wrapper.className = "virtual-transcript";
+  wrapper.style.height = `${segments.length * VIRTUAL_ROW_HEIGHT}px`;
+  container.append(wrapper);
+
+  const scroller = findScrollParent(container);
+  let first = -1;
+  let last = -1;
+  let frame = 0;
+
+  const bounds = (): { start: number; end: number } => {
+    if (!scroller) return { start: 0, end: Math.min(segments.length, 12) };
+    const containerRect = container.getBoundingClientRect();
+    const scrollerRect = scroller.getBoundingClientRect();
+    const offset = container === scroller
+      ? 0
+      : containerRect.top - scrollerRect.top + scroller.scrollTop;
+    const viewTop = Math.max(0, scroller.scrollTop - offset);
+    const viewHeight = scroller.clientHeight || 640;
+    return {
+      start: Math.max(0, Math.floor(viewTop / VIRTUAL_ROW_HEIGHT) - 3),
+      end: Math.min(segments.length, Math.ceil((viewTop + viewHeight) / VIRTUAL_ROW_HEIGHT) + 3),
+    };
+  };
+
+  const paint = (): void => {
+    const { start, end } = bounds();
+    if (start === first && end === last) return;
+    first = start;
+    last = end;
+    const fragment = document.createDocumentFragment();
+    for (let index = start; index < end; index += 1) {
+      const row = buildTranscriptLine(segments[index], index, segments.length, options);
+      row.classList.add("virtual-row");
+      row.style.top = `${index * VIRTUAL_ROW_HEIGHT}px`;
+      fragment.append(row);
+    }
+    wrapper.replaceChildren(fragment);
+  };
+
+  paint();
+  if (!scroller) return;
+
+  const onScroll = (): void => {
+    if (frame) return;
+    frame = window.requestAnimationFrame(() => {
+      frame = 0;
+      paint();
+    });
+  };
+  scroller.addEventListener("scroll", onScroll, { passive: true });
+  let observer: ResizeObserver | undefined;
+  if (typeof ResizeObserver !== "undefined") {
+    observer = new ResizeObserver(() => paint());
+    observer.observe(scroller);
+  }
+  virtualCleanup.set(container, () => {
+    scroller.removeEventListener("scroll", onScroll);
+    observer?.disconnect();
+    if (frame) window.cancelAnimationFrame(frame);
+  });
+}
+
 /// Renders provider segments with timestamps and speaker labels. When a saved
 /// translation exists it is appended below the source text instead of
-/// replacing it.
+/// replacing it. Transcripts over 300 segments are windowed: only the visible
+/// rows (plus overscan) exist in the DOM.
 export function renderTranscript(
   container: HTMLElement,
   transcript: Transcript,
   translation?: { label: string; content: string },
-  options: { partial?: boolean; pinned?: Set<number> } = {},
+  options: { partial?: boolean; pinned?: Set<number>; speakerNames?: SpeakerNames } = {},
 ): void {
+  virtualCleanup.get(container)?.();
+  virtualCleanup.delete(container);
   container.replaceChildren();
+  container.classList.remove("virtualized-transcript");
+
   if (transcript.segments.length === 0) {
     const paragraph = document.createElement("p");
     paragraph.textContent = transcript.text;
     container.append(paragraph);
+  } else if (transcript.segments.length > VIRTUAL_THRESHOLD) {
+    renderVirtualTranscript(container, transcript, options);
   } else {
+    const fragment = document.createDocumentFragment();
     transcript.segments.forEach((segment, index) => {
-      const line = document.createElement("article");
-      line.className = "transcript-line";
-      if (options.partial && index === transcript.segments.length - 1) line.classList.add("partial");
-      const pinned = options.pinned?.has(segment.startMs) ?? false;
-      if (pinned) line.classList.add("pinned");
-      line.dataset.startMs = String(segment.startMs);
-      line.tabIndex = 0;
-      line.setAttribute("role", "button");
-      line.title = "跳转到这段录音";
-
-      const meta = document.createElement("header");
-      meta.className = "transcript-meta";
-      const dot = document.createElement("span");
-      dot.className = `speaker-dot speaker-${index % 4}`;
-      const speaker = document.createElement("strong");
-      speaker.className = "transcript-speaker";
-      speaker.textContent = speakerLabel(segment.speaker, index);
-      const time = document.createElement("time");
-      time.textContent = formatElapsed(segment.startMs);
-      const state = document.createElement("span");
-      state.className = "recognized-pill";
-      state.textContent = options.partial && index === transcript.segments.length - 1 ? "识别中" : "已识别";
-      meta.append(dot, speaker, time, state);
-
-      const content = document.createElement("p");
-      content.className = "transcript-content";
-      content.textContent = segment.text;
-
-      const actions = document.createElement("div");
-      actions.className = "segment-actions";
-      actions.setAttribute("role", "group");
-      actions.setAttribute("aria-label", "片段操作");
-      actions.innerHTML = `
-        <button class="segment-action segment-play" type="button" title="播放这一段" aria-label="播放这一段">${icon("play")}</button>
-        <button class="segment-action segment-edit" type="button" title="编辑文本" aria-label="编辑文本">${iconNode(Pencil)}</button>
-        <button class="segment-action segment-copy" type="button" title="复制" aria-label="复制这段文字">${iconNode(Copy)}</button>
-        <button class="segment-action segment-pin${pinned ? " active" : ""}" type="button" title="${pinned ? "取消固定" : "固定片段"}" aria-label="${pinned ? "取消固定" : "固定片段"}" aria-pressed="${pinned}">${iconNode(Star)}</button>`;
-      line.append(meta, content, actions);
-      container.append(line);
+      fragment.append(buildTranscriptLine(segment, index, transcript.segments.length, options));
     });
+    container.append(fragment);
   }
+
   if (!translation || !translation.content.trim()) return;
   const section = document.createElement("section");
   section.className = "transcript-translation-block";
@@ -810,13 +1010,6 @@ export function renderTranscript(
   body.textContent = translation.content;
   section.append(heading, body);
   container.append(section);
-}
-
-function speakerLabel(speaker: string | undefined, index: number): string {
-  if (!speaker) return `发言人 ${String.fromCharCode(65 + (index % 4))}`;
-  const match = /^S(\d+)$/i.exec(speaker);
-  if (match) return `发言人 ${String.fromCharCode(64 + Number(match[1]))}`;
-  return speaker;
 }
 
 export function applyInsights(root: HTMLElement, input: InsightInput): void {
@@ -830,7 +1023,8 @@ export function applyInsights(root: HTMLElement, input: InsightInput): void {
   if (!topic || !points || !todos || !decisions || !questions) return;
 
   const hasSegments = input.segments.length > 0;
-  const recent = input.segments.slice(-3);
+  const derived = deriveInsights(input.notes, input.segments);
+  const confirmations = input.confirmations ?? {};
   if (input.status === "idle") {
     topic.textContent = "开始录音后自动识别主题";
   } else if (input.status === "finished") {
@@ -839,48 +1033,63 @@ export function applyInsights(root: HTMLElement, input: InsightInput): void {
     topic.textContent = input.title && input.title !== "新录音" ? input.title : (hasSegments ? "实时主题识别中" : "等待首段转写");
   }
 
-  if (recent.length === 0) {
+  if (derived.points.length === 0) {
     points.innerHTML = `<li class="insight-placeholder">转写后自动提炼关键观点</li>`;
   } else {
-    points.innerHTML = recent.map((segment) => {
-      const text = truncate(segment.text.replace(/\s+/g, " ").trim(), 52);
-      const time = formatElapsed(segment.startMs);
-      return `<li><p>${escapeHtml(text)}</p><button class="insight-source" type="button" data-start-ms="${segment.startMs}" title="跳转到这段录音">${escapeHtml(time)}</button></li>`;
+    points.innerHTML = derived.points.map((point) => {
+      const time = point.startMs === undefined ? "" : formatElapsed(point.startMs);
+      const source = point.startMs === undefined
+        ? ""
+        : `<button class="insight-source" type="button" data-start-ms="${point.startMs}" title="跳转到这段录音">${escapeHtml(time)}</button>`;
+      return `<li><p>${escapeHtml(point.text)}</p>${source}</li>`;
     }).join("");
   }
 
-  const noteLines = noteBullets(input.notes);
-  const parsedTasks = parseTasks(input.notes);
+  const parsedTasks = derived.tasks;
   todoCount!.textContent = `${parsedTasks.length} 项`;
   todos.innerHTML = parsedTasks.length > 0
-    ? parsedTasks.slice(0, 4).map((task) => `<li><span class="task-check">${iconNode(Check)}</span><p>${escapeHtml(task.text)}</p>${task.done ? `<span class="task-status">已完成</span>` : `<button class="insight-confirm" type="button">确认</button>`}</li>`).join("")
+    ? parsedTasks.slice(0, 4).map((task) => {
+      const entry = confirmationEntry(confirmations, "task", task.text);
+      const text = effectiveText(entry, task.text);
+      const status = task.done
+        ? `<span class="task-status">已完成</span>`
+        : entry?.state === "confirmed"
+          ? `<span class="task-status confirmed">已确认</span>`
+          : entry?.state === "ignored"
+            ? `<span class="task-status ignored">已忽略</span>`
+            : confirmButton("task", task.text);
+      return `<li data-confirm-key="${confirmationKey("task", task.text)}"><span class="task-check">${iconNode(Check)}</span><p>${escapeHtml(text)}</p>${status}</li>`;
+    }).join("")
     : `<li class="insight-placeholder">${input.status === "finished" ? "暂未识别到待办" : "录音结束后提取待办"}</li>`;
 
-  const decisionLines = noteLines.filter((line) => /(决策|决定|结论)/.test(line));
-  decisions.innerHTML = decisionLines.length > 0
-    ? decisionLines.slice(0, 3).map((line) => `<li><p>${escapeHtml(truncate(line, 90))}</p><span class="insight-badge pending">待确认</span><button class="insight-confirm" type="button">确认</button></li>`).join("")
+  decisions.innerHTML = derived.decisions.length > 0
+    ? derived.decisions.slice(0, 3).map((line) => {
+      const entry = confirmationEntry(confirmations, "decision", line);
+      const text = effectiveText(entry, line);
+      const trailing = entry?.state === "confirmed"
+        ? `<span class="insight-badge confirmed">已确认</span>`
+        : entry?.state === "ignored"
+          ? `<span class="insight-badge ignored">已忽略</span>`
+          : `<span class="insight-badge pending">待确认</span>${confirmButton("decision", line)}`;
+      return `<li data-confirm-key="${confirmationKey("decision", line)}"><p>${escapeHtml(text)}</p>${trailing}</li>`;
+    }).join("")
     : `<li class="insight-placeholder">尚未形成明确决策</li>`;
 
-  const disputeLines = noteLines.filter((line) => /(分歧|争议)/.test(line));
   if (disputes) {
-    disputes.textContent = disputeLines.length > 0
-      ? truncate(disputeLines[0], 100)
+    disputes.textContent = derived.disputes.length > 0
+      ? derived.disputes[0]
       : "目前尚未检测到明确分歧。";
   }
 
-  const questionLines = noteLines.filter((line) => /[?？]\s*$/.test(line));
-  questions.innerHTML = questionLines.length > 0
-    ? questionLines.slice(0, 3).map((line) => `<li><p>${escapeHtml(truncate(line, 90))}</p></li>`).join("")
+  questions.innerHTML = derived.questions.length > 0
+    ? derived.questions.slice(0, 3).map((line) => `<li><p>${escapeHtml(line)}</p></li>`).join("")
     : `<li class="insight-placeholder">${hasSegments ? "暂无待确认问题" : "录音开始后提取待确认问题"}</li>`;
 
-  root.querySelector<HTMLElement>(".insight-panel")?.classList.toggle("has-content", hasSegments || noteLines.length > 0);
+  root.querySelector<HTMLElement>(".insight-panel")?.classList.toggle("has-content", hasSegments || derived.highlights.length > 0);
 }
 
-function noteBullets(notes: string): string[] {
-  return notes
-    .split(/\r?\n/)
-    .map((line) => line.replace(/^#{1,6}\s*/, "").replace(/^\s*[-*]\s*(\[[ xX]\]\s*)?/, "").trim())
-    .filter((line) => line.length > 0);
+function confirmButton(kind: "decision" | "task", text: string): string {
+  return `<button class="insight-confirm" type="button" data-confirm-kind="${kind}" data-confirm-text="${escapeHtml(text)}" data-confirm-state="confirmed">确认</button>`;
 }
 
 export function applyTasks(root: HTMLElement, notes: string): void {
@@ -892,19 +1101,6 @@ export function applyTasks(root: HTMLElement, notes: string): void {
   empty.hidden = tasks.length > 0;
   if (tasks.length === 0) return;
   content.innerHTML = `<ul>${tasks.map((task) => `<li class="${task.done ? "done" : ""}"><span>${iconNode(Check)}</span><p>${escapeHtml(task.text)}</p><small>${task.done ? "已完成" : "待确认"}</small></li>`).join("")}</ul>`;
-}
-
-function parseTasks(notes: string): Array<{ text: string; done: boolean }> {
-  return notes
-    .split(/\r?\n/)
-    .map((line) => /^\s*[-*]\s*\[([ xX])\]\s+(.+)$/.exec(line))
-    .filter((match): match is RegExpExecArray => match !== null)
-    .map((match) => ({ done: match[1].toLowerCase() === "x", text: match[2].trim() }))
-    .filter((task) => task.text.length > 0);
-}
-
-function truncate(value: string, max: number): string {
-  return value.length > max ? `${value.slice(0, max)}…` : value;
 }
 
 function escapeHtml(value: string): string {

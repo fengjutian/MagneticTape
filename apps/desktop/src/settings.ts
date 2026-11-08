@@ -19,6 +19,7 @@ export interface SettingsUiSnapshot {
   translation: string;
   retainAudio: boolean;
   liveCaptions: boolean;
+  liveStreaming: boolean;
   autoCleanupDays: number;
   storageQuotaMb: number;
 }
@@ -41,6 +42,7 @@ export function mergeSettings(
     translation,
     retainAudio: next.retainAudio !== false,
     liveCaptions: Boolean(next.liveCaptions),
+    liveStreaming: next.liveStreaming !== false,
     asrProvider,
     asrProfiles: next.asrProfiles ?? {},
     localWhisperModel: next.localWhisperModel || "small",
@@ -109,5 +111,6 @@ export function viewSettings(settings: AppSettings) {
     translation: settings.translation,
     retainAudio: settings.retainAudio,
     liveCaptions: settings.liveCaptions,
+    liveStreaming: settings.liveStreaming,
   };
 }

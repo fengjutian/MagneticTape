@@ -14,6 +14,28 @@ import {
 } from "./components";
 import { TimelinePlayer } from "./player";
 import {
+  clearConfirmation,
+  confirmationEntry,
+  effectiveText,
+  loadConfirmations,
+  saveConfirmations,
+  setConfirmation,
+  type ConfirmationEntry,
+  type ConfirmationKind,
+  type ConfirmationMap,
+  type ConfirmationState,
+} from "./confirmations";
+import { deriveInsights } from "./insights";
+import {
+  filterDeletedSegments,
+  loadDeletedSegments,
+  loadSpeakerNames,
+  saveDeletedSegments,
+  saveSpeakerNames,
+  type DeletedSegment,
+  type SpeakerNames,
+} from "./session-prefs";
+import {
   mergeSettings,
   resolveLiveProvider,
   settingsFromUi,
@@ -35,9 +57,10 @@ import {
   type TranscriptionState,
 } from "./transcription";
 import "@awesome.me/webawesome/dist/components/button/button.js";
-import type { AiConfiguration, AiResponse, AppSettings, AsrConfiguration, AudioDeviceSnapshot, AudioHealth, AudioLevels, CleanupResult, ExportResult, JobProgress, LibraryStats, LiveTranscript, LocalWhisperStatus, PlaybackTracks, RecorderViewState, RecordingListItem, SessionState, Transcript, TranscriptSegment, WhisperDownloadProgress } from "./types";
+import type { AiConfiguration, AiResponse, AppSettings, AsrConfiguration, AudioDeviceSnapshot, AudioHealth, AudioLevels, CleanupResult, ExportResult, JobProgress, LibraryStats, LiveTranscript, LocalWhisperStatus, PlaybackTracks, RecorderViewState, RecordingListItem, SessionState, SherpaDownloadProgress, SherpaStatus, Transcript, TranscriptSegment, WhisperDownloadProgress } from "./types";
 import "./styles.css";
 import "./workspace-v2.css";
+import "./review.css";
 
 // Playwright runs the real UI in Chromium; install the in-memory Tauri bridge
 // before any command is invoked.
@@ -70,6 +93,7 @@ let liveProcessedChunks = 0;
 let livePartialText = "";
 let liveSegments: TranscriptSegment[] = [];
 let liveError: string | undefined;
+let liveStreamingActive = false;
 let liveTranslations: string[] = [];
 let liveTranslatedCount = 0;
 let liveTranslationBusy = false;
@@ -83,6 +107,12 @@ let liveAutoFollow = true;
 let liveUnread = 0;
 let lastLiveSegmentCount = 0;
 let pinnedSegments = new Set<number>();
+let confirmations: ConfirmationMap = {};
+let speakerNames: SpeakerNames = {};
+let deletedSegments: DeletedSegment[] = [];
+let lastDeletedSegment: { segment: TranscriptSegment; index: number } | null = null;
+let reviewMode = false;
+let reviewTranscriptExpanded = false;
 let chatBusy = false;
 let chatMessages: Array<{ role: "user" | "assistant"; text: string; pending?: boolean }> = [];
 let settings: AppSettings = {
@@ -92,6 +122,7 @@ let settings: AppSettings = {
   translation: "none",
   retainAudio: true,
   liveCaptions: false,
+  liveStreaming: true,
   asrProvider: "minimax",
   asrProfiles: {},
   localWhisperModel: "small",
@@ -113,6 +144,8 @@ function applySettings(next: AppSettings): void {
     if (select.dataset.option === "translation") select.value = settings.translation;
     if (select.dataset.option === "audio") select.value = settings.retainAudio ? "retain" : "discard";
   });
+  const streamingToggle = app.querySelector<HTMLInputElement>(".live-streaming-toggle");
+  if (streamingToggle) streamingToggle.checked = settings.liveStreaming;
   const autoCleanup = app.querySelector<HTMLSelectElement>(".auto-cleanup-days");
   if (autoCleanup) autoCleanup.value = String(settings.autoCleanupDays);
   const quota = app.querySelector<HTMLSelectElement>(".storage-quota");
@@ -139,6 +172,7 @@ async function persistSettings(): Promise<void> {
     translation: view.translation,
     retainAudio: view.retainAudio,
     liveCaptions: liveDesired,
+    liveStreaming: app.querySelector<HTMLInputElement>(".live-streaming-toggle")?.checked ?? settings.liveStreaming,
     autoCleanupDays: Number(app.querySelector<HTMLSelectElement>(".auto-cleanup-days")?.value ?? 0),
     storageQuotaMb: Number(app.querySelector<HTMLSelectElement>(".storage-quota")?.value ?? 0),
   });
@@ -196,7 +230,11 @@ function renderLive(): void {
           : (view.status === "paused" ? "转录已暂停" : "正在聆听…");
         placeholder.querySelector("p")!.textContent = livePendingChunks > 0 && liveProcessedChunks > 0
           ? `已完成 ${liveProcessedChunks} 个分片，正在等待最新结果。`
-          : "实时字幕将在识别到语音后显示；开启 AI 同传可同步生成译文。";
+          : liveStreamingActive
+            ? "本地流式识别中，说完一句约 0.8 秒出字；开启 AI 同传可同步生成译文。"
+            : settings.liveStreaming
+              ? "本地流式引擎未就绪，将按当前转写服务生成字幕；可在「转写服务」里下载引擎与流式模型。"
+              : "实时字幕将在识别到语音后显示；开启 AI 同传可同步生成译文。";
       }
     }
     if (recognition) recognition.hidden = true;
@@ -223,7 +261,7 @@ function renderLive(): void {
     text: "",
     segments,
     createdAtEpochMs: 0,
-  }, undefined, { partial: Boolean(livePartialText), pinned: pinnedSegments });
+  }, undefined, { partial: Boolean(livePartialText), pinned: pinnedSegments, speakerNames });
   stream.querySelectorAll<HTMLElement>(".transcript-line").forEach((line, index) => {
     const translation = liveTranslations[index];
     if (!translation) return;
@@ -276,7 +314,7 @@ function renderLiveTranslationSummary(): void {
   if (liveSegments.length === 0) return;
   list.innerHTML = liveSegments.map((segment, index) => `
     <article class="live-translation-item">
-      <header><span>${escapeForHtml(speakerName(segment.speaker, index))}</span><time>${formatElapsed(segment.startMs)}</time></header>
+      <header><span>${escapeForHtml(speakerName(segment.speaker))}</span><time>${formatElapsed(segment.startMs)}</time></header>
       <p>${escapeForHtml(segment.text)}</p>
       <div class="translation-text">${escapeForHtml(liveTranslations[index] ?? "等待 AI 译文…")}</div>
     </article>`).join("");
@@ -287,8 +325,8 @@ function escapeForHtml(value: string): string {
   return value.replace(/[&<>"']/g, (character) => replacements[character]);
 }
 
-function speakerName(speaker: string | undefined, index: number): string {
-  if (!speaker) return `发言人 ${String.fromCharCode(65 + (index % 4))}`;
+function speakerName(speaker: string | undefined): string {
+  if (!speaker) return "发言人";
   const match = /^S(\d+)$/i.exec(speaker);
   return match ? `发言人 ${String.fromCharCode(64 + Number(match[1]))}` : speaker;
 }
@@ -343,6 +381,7 @@ async function pollLive(): Promise<void> {
     liveProcessedChunks = live.processedChunks;
     livePartialText = live.partialText;
     liveError = live.error;
+    liveStreamingActive = live.streaming;
     renderLive();
     void translateNewLiveSegments();
   } catch {
@@ -385,6 +424,7 @@ async function beginLive(): Promise<void> {
     liveProcessedChunks = live.processedChunks;
     livePartialText = live.partialText;
     liveError = live.error;
+    liveStreamingActive = live.streaming;
     setLiveIndicator(true);
     startLivePolling();
   } catch (error) {
@@ -441,7 +481,13 @@ function syncBackend(next: SessionState): void {
   const sessionChanged = backendState?.sessionId !== next.sessionId;
   backendState = next;
   view = { ...view, title: next.title, status: next.status, elapsedMs: next.elapsedMs, sessionId: next.sessionId, microphonePath: next.microphonePath, systemPath: next.systemPath, microphoneChunks: next.microphoneChunks, systemChunks: next.systemChunks, droppedBlocks: next.droppedBlocks, recovered: next.recovered, errorMessage: undefined };
-  if (sessionChanged) loadPins();
+  if (sessionChanged) {
+    loadPins();
+    confirmations = loadConfirmations(next.sessionId);
+    speakerNames = loadSpeakerNames(next.sessionId);
+    deletedSegments = loadDeletedSegments(next.sessionId);
+  }
+  if (next.status !== "finished" && reviewMode) setReviewMode(false);
   restartClock();
   applyView(app, view);
   syncAsrProviderSelect();
@@ -551,7 +597,7 @@ function highlightTranscript(positionMs: number): void {
 }
 
 function seekFromTranscript(target: HTMLElement): void {
-  if (target.closest("button, [contenteditable=true]")) return;
+  if (target.closest("button, [contenteditable=true], .transcript-speaker, .speaker-name-input")) return;
   const line = target.closest<HTMLElement>(".transcript-line[data-start-ms]");
   if (!line || !playbackPlayer) return;
   const start = Number(line.dataset.startMs);
@@ -581,11 +627,178 @@ function updateInsights(): void {
     status: view.status,
     segments,
     notes: sessionNotes,
+    confirmations,
   });
   applyTasks(app, sessionNotes);
   const topicStatus = app.querySelector<HTMLElement>(".insight-panel");
   if (topicStatus) topicStatus.classList.toggle("live", view.status === "recording");
+  if (reviewMode) renderReview();
 }
+
+function cleanNotesSummary(notes: string): string {
+  const lines = notes.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const paragraphs = lines.filter((line) => !/^#{1,6}\s/.test(line) && !/^[-*]\s/.test(line));
+  if (paragraphs.length > 0) return paragraphs.join(" ");
+  const derived = deriveInsights(notes, []);
+  return [...derived.highlights.slice(0, 2), ...derived.decisions.slice(0, 1)].join("；");
+}
+
+interface ReviewItem {
+  kind: ConfirmationKind;
+  original: string;
+  text: string;
+  state: ConfirmationState | "pending";
+  done: boolean;
+}
+
+function reviewItems(): { derived: ReturnType<typeof deriveInsights>; items: ReviewItem[] } {
+  const derived = deriveInsights(sessionNotes, currentTranscript?.segments ?? liveSegments);
+  const items: ReviewItem[] = [];
+  const push = (kind: ConfirmationKind, original: string, done = false): void => {
+    const entry = confirmationEntry(confirmations, kind, original);
+    items.push({
+      kind,
+      original,
+      text: effectiveText(entry, original),
+      state: entry?.state ?? "pending",
+      done,
+    });
+  };
+  derived.decisions.forEach((text) => push("decision", text));
+  derived.tasks.forEach((task) => push("task", task.text, task.done));
+  derived.questions.forEach((text) => push("question", text));
+  return { derived, items };
+}
+
+function reviewKindLabel(kind: ConfirmationKind): string {
+  return kind === "decision" ? "决策" : kind === "task" ? "待办" : "问题";
+}
+
+function reviewItemHtml(item: ReviewItem): string {
+  const actions = item.done
+    ? `<span class="review-state confirmed">已完成</span>`
+    : item.state === "confirmed"
+      ? `<span class="review-state confirmed">已确认</span><button class="review-reopen" type="button">撤销</button>`
+      : item.state === "ignored"
+        ? `<span class="review-state ignored">已忽略</span><button class="review-reopen" type="button">恢复</button>`
+        : `<button class="review-confirm" type="button">确认</button><button class="review-edit" type="button">编辑</button><button class="review-ignore" type="button">忽略</button>`;
+  return `<li class="review-item state-${item.done ? "done" : item.state}" data-kind="${item.kind}" data-original="${escapeForHtml(item.original)}">
+    <div class="review-item-head"><span class="review-kind">${reviewKindLabel(item.kind)}</span>${item.done ? "" : item.state === "pending" ? `<span class="review-state pending">待确认</span>` : ""}</div>
+    <p class="review-item-text">${escapeForHtml(item.text)}</p>
+    <div class="review-item-actions">${actions}</div>
+  </li>`;
+}
+
+function renderReview(): void {
+  if (!reviewMode) return;
+  const viewElement = app.querySelector<HTMLElement>(".review-view");
+  if (!viewElement) return;
+  const segments = currentTranscript?.segments ?? [];
+  const { derived, items } = reviewItems();
+  const scene = app.querySelector<HTMLElement>(".scene-card.selected span")?.textContent ?? "会议";
+  const createdAt = currentTranscript?.createdAtEpochMs ?? Date.now();
+  const duration = currentTranscript?.durationMs ?? view.elapsedMs;
+  const speakerCount = new Set(segments.map((segment, index) => segment.speaker ?? `index-${index}`)).size;
+
+  viewElement.querySelector<HTMLElement>(".review-title")!.textContent = view.title || "本次录音";
+  viewElement.querySelector<HTMLElement>(".review-date")!.textContent = new Date(createdAt).toLocaleString("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  viewElement.querySelector<HTMLElement>(".review-duration")!.textContent = formatElapsed(duration);
+  viewElement.querySelector<HTMLElement>(".review-scene")!.textContent = `${scene}${speakerCount > 0 ? ` · ${speakerCount} 位说话人` : ""}`;
+
+  const summary = cleanNotesSummary(sessionNotes);
+  viewElement.querySelector<HTMLElement>(".review-summary-text")!.textContent = summary
+    ? `${summary.slice(0, 520)}${summary.length > 520 ? "…" : ""}`
+    : "尚未生成摘要，可在 AI 分析中生成纪要。";
+  viewElement.querySelector<HTMLElement>(".review-summary .review-badge")!.textContent = summary ? "AI 总结 · 待确认" : "待生成";
+
+  const points = [
+    ...derived.points.map((point) => ({ text: point.text, startMs: point.startMs })),
+    ...derived.highlights.slice(0, 4).map((text) => ({ text, startMs: undefined })),
+  ];
+  const pointList = viewElement.querySelector<HTMLElement>(".review-point-list")!;
+  pointList.innerHTML = points.length > 0
+    ? points.slice(0, 8).map((point) => `<li><p>${escapeForHtml(point.text)}</p>${point.startMs === undefined ? "" : `<button class="review-source insight-source" type="button" data-start-ms="${point.startMs}">${formatElapsed(point.startMs)}</button>`}</li>`).join("")
+    : `<li class="review-empty">转写后自动提炼关键观点</li>`;
+  viewElement.querySelector<HTMLElement>(".review-points .review-count")!.textContent = `${points.length} 条`;
+
+  const decisions = items.filter((item) => item.kind === "decision");
+  const tasks = items.filter((item) => item.kind === "task");
+  const questions = items.filter((item) => item.kind === "question");
+  const pendingDecisions = decisions.filter((item) => item.state === "pending").length;
+  const pendingTasks = tasks.filter((item) => item.state === "pending" && !item.done).length;
+  const pendingItems = items.filter((item) => item.state === "pending" && !item.done);
+
+  const decisionList = viewElement.querySelector<HTMLElement>(".review-decision-list")!;
+  decisionList.innerHTML = decisions.length > 0
+    ? decisions.map(reviewItemHtml).join("")
+    : `<li class="review-empty">尚未形成明确决策</li>`;
+  viewElement.querySelector<HTMLElement>('[data-review-count="decisions"]')!.textContent = `${pendingDecisions} 条待确认`;
+
+  const taskList = viewElement.querySelector<HTMLElement>(".review-task-list")!;
+  taskList.innerHTML = tasks.length > 0
+    ? `<ul class="review-task-items">${tasks.map(reviewItemHtml).join("")}</ul>`
+    : `<p class="review-empty">暂未识别到待办</p>`;
+  viewElement.querySelector<HTMLElement>('[data-review-count="tasks"]')!.textContent = `${pendingTasks} 条待确认`;
+
+  const pendingList = viewElement.querySelector<HTMLElement>(".review-pending-list")!;
+  pendingList.innerHTML = pendingItems.length > 0
+    ? pendingItems.map(reviewItemHtml).join("")
+    : `<li class="review-empty">暂无待确认内容</li>`;
+  viewElement.querySelector<HTMLElement>(".review-pending-count")!.textContent = String(pendingItems.length);
+  const confirmAll = viewElement.querySelector<HTMLButtonElement>(".review-confirm-all")!;
+  confirmAll.disabled = pendingItems.length === 0;
+  confirmAll.dataset.armed = "false";
+  confirmAll.textContent = pendingItems.length > 0 ? `全部确认（${pendingItems.length}）` : "暂无待确认";
+
+  const transcriptBody = viewElement.querySelector<HTMLElement>(".review-transcript-body")!;
+  const transcriptCount = viewElement.querySelector<HTMLElement>(".review-transcript-count")!;
+  const transcriptToggle = viewElement.querySelector<HTMLButtonElement>(".review-transcript-toggle")!;
+  transcriptCount.textContent = `${segments.length} 段`;
+  if (currentTranscript && segments.length > 0) {
+    const shown = reviewTranscriptExpanded
+      ? currentTranscript
+      : { ...currentTranscript, segments: currentTranscript.segments.slice(0, 8) };
+    renderTranscript(transcriptBody, shown, undefined, { pinned: pinnedSegments, speakerNames });
+    transcriptToggle.hidden = segments.length <= 8;
+    transcriptToggle.textContent = reviewTranscriptExpanded ? "收起" : `展开全文（${segments.length} 段）`;
+  } else {
+    transcriptBody.innerHTML = `<p class="review-empty">${view.status === "finished" ? "尚未转写，可在工作台开始转写。" : "录音结束后生成完整转录。"}</p>`;
+    transcriptToggle.hidden = true;
+  }
+
+  const info = viewElement.querySelector<HTMLElement>(".review-info-list")!;
+  info.innerHTML = `
+    <div><dt>日期</dt><dd>${new Date(createdAt).toLocaleDateString("zh-CN")}</dd></div>
+    <div><dt>时长</dt><dd>${formatElapsed(duration)}</dd></div>
+    <div><dt>场景</dt><dd>${escapeForHtml(scene)}</dd></div>
+    <div><dt>说话人</dt><dd>${speakerCount > 0 ? `${speakerCount} 位` : "待识别"}</dd></div>
+    <div><dt>本地音频</dt><dd>${view.microphonePath || view.systemPath ? "已保存" : "仅转写"}</dd></div>
+    <div><dt>会话</dt><dd class="review-session-id">${escapeForHtml((view.sessionId ?? "—").slice(0, 16))}</dd></div>`;
+}
+
+function setReviewMode(active: boolean): void {
+  const shell = app.querySelector<HTMLElement>(".app-shell");
+  const viewElement = app.querySelector<HTMLElement>(".review-view");
+  if (!shell || !viewElement) return;
+  reviewMode = active;
+  shell.classList.toggle("review-mode", active);
+  viewElement.hidden = !active;
+  if (active) {
+    reviewTranscriptExpanded = false;
+    renderReview();
+    viewElement.scrollTop = 0;
+    if (location.hash !== "#review") history.replaceState(null, "", "#review");
+  } else if (location.hash === "#review") {
+    history.replaceState(null, "", location.pathname + location.search);
+  }
+}
+
 
 function renderTranslationPanel(): void {
   const result = app.querySelector<HTMLElement>(".translation-content");
@@ -618,7 +831,7 @@ function renderTranscriptBody(): void {
     currentTranslation && currentTranslation.code === code
       ? { label: translationLabel(code), content: currentTranslation.content }
       : undefined;
-  renderTranscript(body, currentTranscript, translation, { pinned: pinnedSegments });
+  renderTranscript(body, currentTranscript, translation, { pinned: pinnedSegments, speakerNames });
 }
 
 function setTranscriptStatus(suffix?: string): void {
@@ -655,7 +868,10 @@ async function loadTranscript(): Promise<void> {
   try {
     const transcript = await invoke<Transcript | null>("get_transcript");
     if (!transcript) return;
-    currentTranscript = transcript;
+    currentTranscript = {
+      ...transcript,
+      segments: filterDeletedSegments(transcript.segments, deletedSegments),
+    };
     renderTranscriptBody();
     setTranscriptStatus();
     syncTranscriptActions(app);
@@ -1157,8 +1373,10 @@ function openAsrSettings(): void {
   asrDialogProvider.value = settings.asrProvider;
   syncAsrMode();
   applyAsrDefaults();
+  liveStreamingToggle.checked = settings.liveStreaming;
   asrDialog.showModal();
   void refreshAsrConfiguration();
+  void refreshSherpaStatus();
 }
 
 app.addEventListener("click", (event) => {
@@ -1354,6 +1572,92 @@ localDeleteModel.addEventListener("click", async () => {
     else void refreshLocalWhisper();
   }
 });
+
+// ----- Local streaming captions (sherpa-onnx) --------------------------------
+
+const sherpaStatusLine = app.querySelector<HTMLElement>(".sherpa-status")!;
+const sherpaEngineButton = app.querySelector<HTMLButtonElement>(".sherpa-download-engine")!;
+const sherpaAsrButton = app.querySelector<HTMLButtonElement>(".sherpa-download-asr")!;
+const sherpaSpeakerButton = app.querySelector<HTMLButtonElement>(".sherpa-download-speaker")!;
+const sherpaDiarizationButton = app.querySelector<HTMLButtonElement>(".sherpa-download-diarization")!;
+const liveStreamingToggle = app.querySelector<HTMLInputElement>(".live-streaming-toggle")!;
+let sherpaStatus: SherpaStatus | null = null;
+let sherpaBusy = false;
+
+const SHERPA_KIND_LABELS: Record<SherpaDownloadProgress["kind"], string> = {
+  engine: "流式引擎",
+  asr: "中文流式模型",
+  speaker: "声纹模型",
+  diarization: "说话人分离模型",
+};
+
+function renderSherpaStatus(): void {
+  if (!sherpaStatus) {
+    sherpaStatusLine.textContent = "正在读取本地流式引擎状态…";
+    return;
+  }
+  const status = sherpaStatus;
+  sherpaStatusLine.textContent = [
+    status.engineInstalled ? `引擎 ${status.engineVersion}（${formatBytes(status.engineBytes)}）` : "引擎未安装",
+    status.asrModelInstalled ? `${status.asrModelLabel}（${formatBytes(status.asrModelBytes)}）` : "流式模型未安装",
+    status.speakerModelInstalled ? `声纹模型（${formatBytes(status.speakerModelBytes)}）` : "声纹模型未安装",
+    status.diarizationInstalled ? `分离模型（${formatBytes(status.diarizationModelBytes)}）` : "分离模型未安装",
+    status.ready ? "流式字幕已就绪" : "下载引擎与流式模型后启用",
+  ].join(" · ");
+  sherpaEngineButton.hidden = status.engineInstalled;
+  sherpaAsrButton.hidden = status.asrModelInstalled;
+  sherpaSpeakerButton.hidden = status.speakerModelInstalled;
+  sherpaDiarizationButton.hidden = status.diarizationInstalled;
+  for (const button of [sherpaEngineButton, sherpaAsrButton, sherpaSpeakerButton, sherpaDiarizationButton]) {
+    button.disabled = sherpaBusy;
+  }
+}
+
+async function refreshSherpaStatus(): Promise<void> {
+  try {
+    sherpaStatus = await invoke<SherpaStatus>("get_sherpa_status");
+    renderSherpaStatus();
+  } catch (error) {
+    sherpaStatusLine.textContent = `无法读取本地流式引擎：${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+async function downloadSherpa(kind: SherpaDownloadProgress["kind"]): Promise<void> {
+  sherpaBusy = true;
+  renderSherpaStatus();
+  sherpaStatusLine.textContent = `正在下载${SHERPA_KIND_LABELS[kind]}…`;
+  try {
+    sherpaStatus = await invoke<SherpaStatus>("download_sherpa", { kind });
+    asrResult.className = "asr-result success";
+    asrResult.textContent = `${SHERPA_KIND_LABELS[kind]}已安装`;
+  } catch (error) {
+    asrResult.className = "asr-result failure";
+    asrResult.textContent = `${SHERPA_KIND_LABELS[kind]}下载失败：${error instanceof Error ? error.message : String(error)}`;
+  } finally {
+    sherpaBusy = false;
+    renderSherpaStatus();
+  }
+}
+
+sherpaEngineButton.addEventListener("click", () => void downloadSherpa("engine"));
+sherpaAsrButton.addEventListener("click", () => void downloadSherpa("asr"));
+sherpaSpeakerButton.addEventListener("click", () => void downloadSherpa("speaker"));
+sherpaDiarizationButton.addEventListener("click", () => void downloadSherpa("diarization"));
+
+liveStreamingToggle.addEventListener("change", () => {
+  settings = mergeSettings(settings, { liveStreaming: liveStreamingToggle.checked });
+  void persistSettings();
+});
+
+void listen<SherpaDownloadProgress>("sherpa-download", (event) => {
+  const { kind, downloaded, total } = event.payload;
+  if (!total) return;
+  const percent = Math.min(100, Math.round((downloaded / total) * 100));
+  sherpaStatusLine.textContent = `正在下载${SHERPA_KIND_LABELS[kind]}：${percent}%（${formatBytes(downloaded)} / ${formatBytes(total)}）`;
+});
+
+renderSherpaStatus();
+
 app.addEventListener("click", async (event) => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>(".transcribe");
   if (!button) return;
@@ -1773,6 +2077,83 @@ app.querySelector<HTMLButtonElement>(".edit-transcript")!.addEventListener("clic
 
 // ----- Segment actions ------------------------------------------------------
 
+function refreshTranscriptView(): void {
+  if (view.status === "recording" || view.status === "paused") {
+    renderLive();
+    return;
+  }
+  renderTranscriptBody();
+  updateInsights();
+}
+
+function beginSpeakerRename(element: HTMLElement): void {
+  const key = element.dataset.speakerKey;
+  if (!key || element.querySelector("input")) return;
+  const input = document.createElement("input");
+  input.className = "speaker-name-input";
+  input.maxLength = 24;
+  input.value = element.textContent?.trim() ?? "";
+  input.setAttribute("aria-label", "说话人名称");
+  element.replaceWith(input);
+  input.focus();
+  input.select();
+  let finished = false;
+  const finish = (cancel = false): void => {
+    if (finished) return;
+    finished = true;
+    const value = input.value.trim();
+    if (!cancel) {
+      if (value) speakerNames[key] = value;
+      else delete speakerNames[key];
+      saveSpeakerNames(view.sessionId, speakerNames);
+    }
+    refreshTranscriptView();
+  };
+  input.addEventListener("blur", () => finish(false));
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      input.blur();
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      finished = true;
+      refreshTranscriptView();
+    }
+  });
+}
+
+function showDeleteToast(): void {
+  app.querySelector(".transcript-undo")?.remove();
+  const panel = reviewMode
+    ? app.querySelector<HTMLElement>(".review-view")
+    : app.querySelector<HTMLElement>(".transcript-panel");
+  if (!panel) return;
+  const toast = document.createElement("div");
+  toast.className = "transcript-undo";
+  toast.innerHTML = `<span>已删除片段</span><button class="undo-delete" type="button">撤销</button>`;
+  panel.append(toast);
+  window.setTimeout(() => toast.remove(), 6000);
+}
+
+function deleteTranscriptSegment(line: HTMLElement): void {
+  const start = Number(line.dataset.startMs);
+  const segments = currentTranscript?.segments ?? liveSegments;
+  const index = segments.findIndex((segment) => segment.startMs === start);
+  if (index < 0) return;
+  const [segment] = segments.splice(index, 1);
+  lastDeletedSegment = { segment, index };
+  if (currentTranscript) {
+    deletedSegments = [
+      ...deletedSegments,
+      { startMs: segment.startMs, endMs: segment.endMs, text: segment.text },
+    ];
+    saveDeletedSegments(view.sessionId, deletedSegments);
+  }
+  refreshTranscriptView();
+  showDeleteToast();
+}
+
 function beginSegmentEdit(line: HTMLElement): void {
   const content = line.querySelector<HTMLElement>(".transcript-content");
   if (!content || content.isContentEditable) return;
@@ -1850,6 +2231,10 @@ app.addEventListener("click", async (event) => {
     }
     return;
   }
+  if (action.classList.contains("segment-delete")) {
+    deleteTranscriptSegment(line);
+    return;
+  }
   if (action.classList.contains("segment-pin")) {
     const active = !pinnedSegments.has(start);
     if (active) pinnedSegments.add(start);
@@ -1864,6 +2249,31 @@ app.addEventListener("click", async (event) => {
 });
 
 // ----- AI chat --------------------------------------------------------------
+
+app.addEventListener("click", (event) => {
+  const speaker = (event.target as HTMLElement).closest<HTMLElement>(".transcript-speaker");
+  if (!speaker) return;
+  event.preventDefault();
+  beginSpeakerRename(speaker);
+});
+
+app.addEventListener("click", (event) => {
+  const undo = (event.target as HTMLElement).closest<HTMLButtonElement>(".undo-delete");
+  if (!undo || !lastDeletedSegment) return;
+  const { segment, index } = lastDeletedSegment;
+  lastDeletedSegment = null;
+  if (currentTranscript) {
+    currentTranscript.segments.splice(Math.min(index, currentTranscript.segments.length), 0, segment);
+    deletedSegments = deletedSegments.filter(
+      (item) => !(item.startMs === segment.startMs && item.text === segment.text),
+    );
+    saveDeletedSegments(view.sessionId, deletedSegments);
+  } else {
+    liveSegments.splice(Math.min(index, liveSegments.length), 0, segment);
+  }
+  app.querySelector(".transcript-undo")?.remove();
+  refreshTranscriptView();
+});
 
 function renderChatThreads(): void {
   app.querySelectorAll<HTMLElement>(".chat-thread").forEach((thread) => {
@@ -2115,14 +2525,13 @@ app.addEventListener("click", (event) => {
   }
   const confirm = target.closest<HTMLButtonElement>(".insight-confirm");
   if (confirm) {
-    confirm.classList.add("confirmed");
-    confirm.textContent = "已确认";
-    confirm.disabled = true;
-    const badge = confirm.closest(".insight-card")?.querySelector<HTMLElement>(".insight-badge.pending");
-    if (badge) {
-      badge.textContent = "已确认";
-      badge.classList.remove("pending");
-      badge.classList.add("summary");
+    const kind = confirm.dataset.confirmKind as ConfirmationKind | undefined;
+    const text = confirm.dataset.confirmText ?? "";
+    if (kind && text) {
+      const state = (confirm.dataset.confirmState as ConfirmationState | undefined) ?? "confirmed";
+      confirmations = setConfirmation(confirmations, kind, text, state);
+      saveConfirmations(view.sessionId, confirmations);
+      updateInsights();
     }
     return;
   }
@@ -2133,6 +2542,141 @@ app.addEventListener("click", (event) => {
       playbackPlayer.seek(start);
       highlightTranscript(start);
     }
+  }
+});
+
+function beginReviewEdit(item: HTMLElement): void {
+  const textElement = item.querySelector<HTMLElement>(".review-item-text");
+  if (!textElement || textElement.isContentEditable) return;
+  const kind = item.dataset.kind as ConfirmationKind | undefined;
+  const original = item.dataset.original ?? "";
+  if (!kind || !original) return;
+  textElement.contentEditable = "plaintext-only";
+  textElement.classList.add("editing");
+  textElement.focus();
+  const range = document.createRange();
+  range.selectNodeContents(textElement);
+  const selection = window.getSelection();
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+  let finished = false;
+  const finish = (cancel = false): void => {
+    if (finished) return;
+    finished = true;
+    textElement.contentEditable = "false";
+    textElement.classList.remove("editing");
+    const text = (textElement.textContent ?? "").trim();
+    if (cancel || !text) {
+      renderReview();
+      return;
+    }
+    confirmations = setConfirmation(confirmations, kind, original, "confirmed", text);
+    saveConfirmations(view.sessionId, confirmations);
+    updateInsights();
+  };
+  textElement.addEventListener("blur", () => finish(false), { once: true });
+  textElement.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      textElement.blur();
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      finish(true);
+    }
+  });
+}
+
+async function exportFromReview(button: HTMLButtonElement): Promise<void> {
+  const label = button.querySelector<HTMLElement>("span");
+  button.disabled = true;
+  if (label) label.textContent = "正在导出…";
+  try {
+    const result = await invoke<ExportResult>("export_session");
+    if (label) label.textContent = `已导出 ${result.files.length} 个`;
+    try {
+      await invoke("reveal_export", { path: result.directory });
+    } catch {
+      // Opening Explorer is best effort.
+    }
+  } catch (error) {
+    if (label) label.textContent = "导出失败";
+    view.errorMessage = `导出失败：${error instanceof Error ? error.message : String(error)}`;
+    applyView(app, view);
+  } finally {
+    window.setTimeout(() => {
+      button.disabled = false;
+      if (label) label.textContent = "导出";
+    }, 2200);
+  }
+}
+
+app.addEventListener("click", (event) => {
+  const target = event.target as HTMLElement;
+  if (target.closest(".enter-review")) {
+    setReviewMode(true);
+    return;
+  }
+  if (target.closest(".review-back")) {
+    setReviewMode(false);
+    return;
+  }
+  if (target.closest(".review-transcript-toggle")) {
+    reviewTranscriptExpanded = !reviewTranscriptExpanded;
+    renderReview();
+    return;
+  }
+  if (target.closest(".review-open-chat")) {
+    setReviewMode(false);
+    selectTab("chat");
+    window.setTimeout(() => app.querySelector<HTMLInputElement>(".workspace-chat-form .chat-input")?.focus(), 60);
+    return;
+  }
+  const exportButton = target.closest<HTMLButtonElement>(".review-export");
+  if (exportButton) {
+    void exportFromReview(exportButton);
+    return;
+  }
+  const item = target.closest<HTMLElement>(".review-item");
+  if (item) {
+    if (target.closest(".review-edit")) {
+      beginReviewEdit(item);
+      return;
+    }
+    const kind = item.dataset.kind as ConfirmationKind | undefined;
+    const original = item.dataset.original ?? "";
+    if (!kind || !original) return;
+    if (target.closest(".review-confirm")) {
+      confirmations = setConfirmation(confirmations, kind, original, "confirmed");
+    } else if (target.closest(".review-ignore")) {
+      confirmations = setConfirmation(confirmations, kind, original, "ignored");
+    } else if (target.closest(".review-reopen")) {
+      confirmations = clearConfirmation(confirmations, kind, original);
+    } else {
+      return;
+    }
+    saveConfirmations(view.sessionId, confirmations);
+    updateInsights();
+    return;
+  }
+  const confirmAll = target.closest<HTMLButtonElement>(".review-confirm-all");
+  if (confirmAll) {
+    if (confirmAll.disabled) return;
+    const pending = reviewItems().items.filter((row) => row.state === "pending" && !row.done);
+    if (pending.length === 0) return;
+    if (confirmAll.dataset.armed !== "true") {
+      confirmAll.dataset.armed = "true";
+      confirmAll.textContent = `再次点击确认 ${pending.length} 项`;
+      window.setTimeout(() => {
+        if (reviewMode) renderReview();
+      }, 4000);
+      return;
+    }
+    for (const row of pending) {
+      confirmations = setConfirmation(confirmations, row.kind, row.original, "confirmed");
+    }
+    saveConfirmations(view.sessionId, confirmations);
+    updateInsights();
   }
 });
 

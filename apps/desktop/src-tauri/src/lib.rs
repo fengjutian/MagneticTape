@@ -35,6 +35,7 @@ mod asr;
 mod export;
 mod local_whisper;
 mod logging;
+mod sherpa;
 use ai::AiState;
 use asr::AsrState;
 use local_whisper::LocalWhisperState;
@@ -69,6 +70,8 @@ struct AppSettings {
     translation: String,
     retain_audio: bool,
     live_captions: bool,
+    /// Prefer the local sherpa-onnx streaming recognizer for live captions.
+    live_streaming: bool,
     asr_provider: String,
     asr_profiles: HashMap<String, AsrProfile>,
     local_whisper_model: String,
@@ -104,6 +107,7 @@ impl Default for AppSettings {
             translation: "none".into(),
             retain_audio: true,
             live_captions: false,
+            live_streaming: true,
             asr_provider: "minimax".into(),
             asr_profiles: HashMap::new(),
             local_whisper_model: local_whisper::DEFAULT_MODEL.into(),
@@ -345,6 +349,9 @@ struct LiveTranscriptionState {
     error: Option<String>,
     partial_text: String,
     stream_tx: Option<mpsc::UnboundedSender<Vec<i16>>>,
+    /// True when captions come from the local sherpa-onnx streaming engine
+    /// instead of five-second chunk uploads.
+    streaming: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -359,6 +366,7 @@ struct LiveTranscriptView {
     language: String,
     error: Option<String>,
     partial_text: String,
+    streaming: bool,
 }
 
 fn live_view(state: &LiveTranscriptionState) -> LiveTranscriptView {
@@ -372,7 +380,17 @@ fn live_view(state: &LiveTranscriptionState) -> LiveTranscriptView {
         language: state.language.clone(),
         error: state.error.clone(),
         partial_text: state.partial_text.clone(),
+        streaming: state.streaming,
     }
+}
+
+/// Live state owned by the local streaming engine. It lives behind its own
+/// lock so polling never holds the chunk state while the model decodes.
+struct SherpaLive {
+    session_id: String,
+    asr: sherpa::StreamingAsr,
+    speaker: Option<sherpa::SpeakerEngine>,
+    gallery: sherpa::SpeakerGallery,
 }
 
 fn live_transcript(state: &LiveTranscriptionState) -> asr::Transcript {
@@ -392,7 +410,13 @@ fn live_transcript(state: &LiveTranscriptionState) -> asr::Transcript {
         provider: state
             .provider
             .map(|provider| provider.as_str().to_owned())
-            .unwrap_or_else(|| "minimax".into()),
+            .unwrap_or_else(|| {
+                if state.streaming {
+                    "sherpa".into()
+                } else {
+                    "minimax".into()
+                }
+            }),
         model: state.model.clone(),
         language: state.language.clone(),
         duration_ms,
@@ -1512,6 +1536,7 @@ fn stop_session(
     state: tauri::State<'_, Mutex<SessionState>>,
     recorder: tauri::State<'_, RecorderState>,
     live: tauri::State<'_, Mutex<LiveTranscriptionState>>,
+    sherpa_live: tauri::State<'_, Mutex<Option<SherpaLive>>>,
     settings: tauri::State<'_, Mutex<AppSettings>>,
 ) -> Result<SessionView, String> {
     let now_ms = epoch_ms();
@@ -1549,6 +1574,7 @@ fn stop_session(
         let mut live = live.lock().expect("live transcription state poisoned");
         finish_live_transcription(&directory, &mut live);
     }
+    *sherpa_live.lock().expect("sherpa live state poisoned") = None;
     let discard_audio = !settings
         .lock()
         .expect("settings state poisoned")
@@ -1566,6 +1592,35 @@ fn stop_session(
     state.accumulated_ms = recorded.duration_ms;
     state.recorded = Some(recorded);
     Ok(state.view(now_ms))
+}
+
+/// Copies speaker labels from an older transcript onto new segments whose
+/// midpoint falls inside a labeled segment. Returns the number of labels
+/// carried so the caller can log it.
+fn carry_over_speakers(previous: &asr::Transcript, next: &mut asr::Transcript) -> usize {
+    let labeled: Vec<&asr::TranscriptSegment> = previous
+        .segments
+        .iter()
+        .filter(|segment| segment.speaker.is_some())
+        .collect();
+    if labeled.is_empty() {
+        return 0;
+    }
+    let mut carried = 0;
+    for segment in &mut next.segments {
+        if segment.speaker.is_some() {
+            continue;
+        }
+        let middle = (segment.start_ms + segment.end_ms) / 2;
+        if let Some(source) = labeled
+            .iter()
+            .find(|source| middle >= source.start_ms && middle < source.end_ms)
+        {
+            segment.speaker = source.speaker.clone();
+            carried += 1;
+        }
+    }
+    carried
 }
 
 fn format_timestamp(milliseconds: u64) -> String {
@@ -1766,6 +1821,9 @@ async fn transcribe_session(
             },
         );
     };
+    // Kept for offline diarization: the local Whisper branch moves `chunks`
+    // into its blocking task.
+    let diarization_chunks = chunks.clone();
     let result = if provider == asr::AsrProvider::LocalWhisper {
         let app_data = app
             .path()
@@ -1842,6 +1900,49 @@ async fn transcribe_session(
             transcript.segments.len()
         ),
     );
+    let mut transcript = transcript;
+    // The decoder would need ~460 MB of f32 for a two-hour session, so skip
+    // diarization before allocating the buffer; the live labels survive via
+    // carry-over below.
+    if transcript.duration_ms <= 7_200_000
+        && let Ok(app_data) = app.path().app_data_dir()
+        && sherpa::diarization_ready(&app_data)
+    {
+        match sherpa::session_pcm(&diarization_chunks) {
+            Ok(pcm) => match sherpa::diarize(&app_data, &pcm) {
+                Ok(spans) => {
+                    let speakers = spans
+                        .iter()
+                        .map(|span| span.speaker)
+                        .max()
+                        .map_or(0, |speaker| speaker + 1);
+                    let assigned = sherpa::assign_speakers(&mut transcript, &spans);
+                    logging::info(
+                        "transcribe",
+                        &format!(
+                            "offline diarization labeled {assigned} segments across {speakers} speakers"
+                        ),
+                    );
+                }
+                Err(error) => logging::error("transcribe", &format!("diarization failed: {error}")),
+            },
+            Err(error) => {
+                logging::error("transcribe", &format!("diarization audio failed: {error}"))
+            }
+        }
+    }
+    // The live streaming engine already labeled speakers. A fresh batch
+    // transcription has no diarization of its own, so carry the labels over
+    // by time overlap instead of dropping them.
+    if let Some(previous) = read_transcript(&directory) {
+        let carried = carry_over_speakers(&previous, &mut transcript);
+        if carried > 0 {
+            logging::info(
+                "transcribe",
+                &format!("carried speaker labels onto {carried} segments"),
+            );
+        }
+    }
     write_transcript(&directory, &transcript)?;
     // A new transcript invalidates translations of the old text.
     clear_translations(&directory);
@@ -2148,6 +2249,7 @@ fn start_openai_realtime(
     Ok(tx)
 }
 
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 async fn start_live_transcription(
     provider: asr::AsrProvider,
@@ -2157,6 +2259,7 @@ async fn start_live_transcription(
     asr_state: tauri::State<'_, AsrState>,
     settings: tauri::State<'_, Mutex<AppSettings>>,
     live: tauri::State<'_, Mutex<LiveTranscriptionState>>,
+    sherpa_live: tauri::State<'_, Mutex<Option<SherpaLive>>>,
 ) -> Result<LiveTranscriptView, String> {
     let session_id = {
         let state = state.lock().expect("session state poisoned");
@@ -2168,6 +2271,57 @@ async fn start_live_transcription(
             .clone()
             .ok_or_else(|| "当前没有录音会话".to_owned())?
     };
+    let prefer_streaming = settings
+        .lock()
+        .expect("settings state poisoned")
+        .live_streaming;
+    if prefer_streaming
+        && let Ok(app_data) = app.path().app_data_dir()
+        && sherpa::streaming_ready(&app_data)
+    {
+        let asr_data = app_data.clone();
+        let speaker_data = app_data.clone();
+        let built = tauri::async_runtime::spawn_blocking(move || {
+            let asr = sherpa::StreamingAsr::new(&asr_data)?;
+            // Speaker labels are optional: captions still work without the
+            // 28 MB embedding model.
+            let speaker = sherpa::SpeakerEngine::new(&speaker_data).ok();
+            Ok::<_, String>((asr, speaker))
+        })
+        .await;
+        match built {
+            Ok(Ok((asr, speaker))) => {
+                *sherpa_live.lock().expect("sherpa live state poisoned") = Some(SherpaLive {
+                    session_id: session_id.clone(),
+                    asr,
+                    speaker,
+                    gallery: sherpa::SpeakerGallery::default(),
+                });
+                let mut live = live.lock().expect("live transcription state poisoned");
+                *live = LiveTranscriptionState {
+                    active: true,
+                    session_id: Some(session_id),
+                    provider: None,
+                    model: "sherpa-onnx zh-14m".into(),
+                    language: language
+                        .filter(|value| !value.trim().is_empty())
+                        .unwrap_or_else(|| "auto".into()),
+                    streaming: true,
+                    ..LiveTranscriptionState::default()
+                };
+                logging::info("sherpa", "local streaming captions started");
+                return Ok(live_view(&live));
+            }
+            Ok(Err(error)) => logging::error(
+                "sherpa",
+                &format!("streaming recognizer unavailable, falling back to chunks: {error}"),
+            ),
+            Err(error) => logging::error(
+                "sherpa",
+                &format!("streaming recognizer task failed, falling back to chunks: {error}"),
+            ),
+        }
+    }
     let (model, resolved_language, stream_tx) = if provider == asr::AsrProvider::LocalWhisper {
         let app_data = app
             .path()
@@ -2214,6 +2368,7 @@ async fn start_live_transcription(
         error: None,
         partial_text: String::new(),
         stream_tx,
+        streaming: false,
     };
     Ok(live_view(&live))
 }
@@ -2226,10 +2381,16 @@ fn get_live_transcript(
 }
 
 #[tauri::command]
-fn stop_live_transcription(live: tauri::State<'_, Mutex<LiveTranscriptionState>>) {
-    let mut live = live.lock().expect("live transcription state poisoned");
-    live.active = false;
-    live.stream_tx.take();
+fn stop_live_transcription(
+    live: tauri::State<'_, Mutex<LiveTranscriptionState>>,
+    sherpa_live: tauri::State<'_, Mutex<Option<SherpaLive>>>,
+) {
+    {
+        let mut live = live.lock().expect("live transcription state poisoned");
+        live.active = false;
+        live.stream_tx.take();
+    }
+    *sherpa_live.lock().expect("sherpa live state poisoned") = None;
 }
 
 fn track_slot(track: Track) -> u8 {
@@ -2246,6 +2407,7 @@ fn poll_live_inner(
     asr_state: &tauri::State<'_, AsrState>,
     settings: &tauri::State<'_, Mutex<AppSettings>>,
     live: &tauri::State<'_, Mutex<LiveTranscriptionState>>,
+    sherpa_live: &tauri::State<'_, Mutex<Option<SherpaLive>>>,
 ) -> Result<(), String> {
     let (session_id, directory) = {
         let state = state.lock().expect("session state poisoned");
@@ -2262,6 +2424,50 @@ fn poll_live_inner(
         let directory = recordings_root(app)?.join(&session_id);
         (session_id, directory)
     };
+    if live
+        .lock()
+        .expect("live transcription state poisoned")
+        .streaming
+    {
+        let pcm = recorder
+            .0
+            .lock()
+            .expect("audio recorder state poisoned")
+            .as_ref()
+            .map(AudioRecording::drain_realtime_pcm)
+            .unwrap_or_default();
+        let mut finals = Vec::new();
+        let partial;
+        {
+            let mut guard = sherpa_live.lock().expect("sherpa live state poisoned");
+            let Some(session) = guard.as_mut() else {
+                return Ok(());
+            };
+            if session.session_id != session_id {
+                return Ok(());
+            }
+            let chunks = session.asr.push(&pcm)?;
+            for chunk in chunks {
+                let embedding = session
+                    .speaker
+                    .as_ref()
+                    .and_then(|engine| engine.compute(&chunk.audio).ok());
+                let speaker = embedding.map(|values| session.gallery.assign(&values));
+                finals.push(sherpa::labeled_segment(&chunk, speaker));
+            }
+            partial = session.asr.partial().to_owned();
+        }
+        let mut live = live.lock().expect("live transcription state poisoned");
+        if !finals.is_empty() {
+            live.segments.extend(finals);
+            live.segments
+                .sort_by_key(|segment| (segment.start_ms, segment.end_ms));
+            persist_live_transcript(&directory, &live);
+        }
+        live.partial_text = partial;
+        live.error = None;
+        return Ok(());
+    }
     let snapshot = recorder
         .0
         .lock()
@@ -2502,6 +2708,7 @@ fn poll_live_transcription(
     asr_state: tauri::State<'_, AsrState>,
     settings: tauri::State<'_, Mutex<AppSettings>>,
     live: tauri::State<'_, Mutex<LiveTranscriptionState>>,
+    sherpa_live: tauri::State<'_, Mutex<Option<SherpaLive>>>,
 ) -> Result<LiveTranscriptView, String> {
     let active = live
         .lock()
@@ -2512,7 +2719,15 @@ fn poll_live_transcription(
             &live.lock().expect("live transcription state poisoned"),
         ));
     }
-    let result = poll_live_inner(&app, &state, &recorder, &asr_state, &settings, &live);
+    let result = poll_live_inner(
+        &app,
+        &state,
+        &recorder,
+        &asr_state,
+        &settings,
+        &live,
+        &sherpa_live,
+    );
     let mut live = live.lock().expect("live transcription state poisoned");
     if let Err(error) = result {
         live.error = Some(error);
@@ -2772,7 +2987,9 @@ pub fn run() {
         .manage(AsrState::default())
         .manage(TranscriptionRun::default())
         .manage(LocalWhisperState::default())
+        .manage(sherpa::SherpaDownloadState::default())
         .manage(Mutex::new(LiveTranscriptionState::default()))
+        .manage(Mutex::new(None::<SherpaLive>))
         .setup(|app| {
             let data_directory = app.path().app_data_dir()?;
             logging::init(&data_directory);
@@ -2884,6 +3101,8 @@ pub fn run() {
             asr::configure_asr,
             asr::get_asr_configurations,
             asr::clear_asr,
+            sherpa::get_sherpa_status,
+            sherpa::download_sherpa,
             transcribe_session,
             cancel_transcription,
             get_transcript,
@@ -3314,6 +3533,100 @@ mod tests {
                 .collect::<Vec<_>>(),
             ["第一段", "第二段"]
         );
+    }
+
+    #[test]
+    fn speaker_labels_carry_over_to_a_fresh_transcription() {
+        let previous = asr::Transcript {
+            provider: "sherpa".into(),
+            model: "zh-14m".into(),
+            language: "zh-CN".into(),
+            duration_ms: 10_000,
+            text: String::new(),
+            segments: vec![
+                asr::TranscriptSegment {
+                    start_ms: 0,
+                    end_ms: 4_000,
+                    speaker: Some("S1".into()),
+                    text: "第一段".into(),
+                },
+                asr::TranscriptSegment {
+                    start_ms: 4_000,
+                    end_ms: 10_000,
+                    speaker: Some("S2".into()),
+                    text: "第二段".into(),
+                },
+            ],
+            created_at_epoch_ms: 0,
+        };
+        let mut next = asr::Transcript {
+            provider: "minimax".into(),
+            model: "asr-1.0".into(),
+            language: "zh-CN".into(),
+            duration_ms: 10_000,
+            text: String::new(),
+            segments: vec![
+                asr::TranscriptSegment {
+                    start_ms: 500,
+                    end_ms: 3_000,
+                    speaker: None,
+                    text: "第一段".into(),
+                },
+                asr::TranscriptSegment {
+                    start_ms: 5_000,
+                    end_ms: 9_000,
+                    speaker: None,
+                    text: "第二段".into(),
+                },
+            ],
+            created_at_epoch_ms: 0,
+        };
+        assert_eq!(carry_over_speakers(&previous, &mut next), 2);
+        assert_eq!(next.segments[0].speaker.as_deref(), Some("S1"));
+        assert_eq!(next.segments[1].speaker.as_deref(), Some("S2"));
+    }
+
+    #[test]
+    fn carrying_speakers_keeps_provider_labels_and_unmatched_segments() {
+        let previous = asr::Transcript {
+            provider: "sherpa".into(),
+            model: "zh-14m".into(),
+            language: "zh-CN".into(),
+            duration_ms: 5_000,
+            text: String::new(),
+            segments: vec![asr::TranscriptSegment {
+                start_ms: 0,
+                end_ms: 2_000,
+                speaker: Some("S1".into()),
+                text: "旧".into(),
+            }],
+            created_at_epoch_ms: 0,
+        };
+        let mut next = asr::Transcript {
+            provider: "minimax".into(),
+            model: "asr-1.0".into(),
+            language: "zh-CN".into(),
+            duration_ms: 5_000,
+            text: String::new(),
+            segments: vec![
+                asr::TranscriptSegment {
+                    start_ms: 0,
+                    end_ms: 1_000,
+                    speaker: Some("S9".into()),
+                    text: "自带标签".into(),
+                },
+                asr::TranscriptSegment {
+                    start_ms: 3_000,
+                    end_ms: 5_000,
+                    speaker: None,
+                    text: "没有重叠".into(),
+                },
+            ],
+            created_at_epoch_ms: 0,
+        };
+        assert_eq!(carry_over_speakers(&previous, &mut next), 0);
+        assert_eq!(next.segments[0].speaker.as_deref(), Some("S9"));
+        assert!(next.segments[1].speaker.is_none());
     }
 
     #[test]

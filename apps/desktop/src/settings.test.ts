@@ -16,6 +16,7 @@ const baseSettings: AppSettings = {
   translation: "none",
   retainAudio: true,
   liveCaptions: false,
+  liveStreaming: true,
   asrProvider: "minimax",
   asrProfiles: {},
   localWhisperModel: "small",
@@ -93,6 +94,7 @@ describe("settingsFromUi", () => {
       translation: "en-US",
       retainAudio: false,
       liveCaptions: true,
+      liveStreaming: false,
       autoCleanupDays: 30,
       storageQuotaMb: 5_120,
     });
@@ -101,6 +103,7 @@ describe("settingsFromUi", () => {
     expect(next.translation).toBe("en-US");
     expect(next.retainAudio).toBe(false);
     expect(next.liveCaptions).toBe(true);
+    expect(next.liveStreaming).toBe(false);
     expect(next.autoCleanupDays).toBe(30);
     expect(next.storageQuotaMb).toBe(5_120);
     expect(next.asrProvider).toBe("silicon_flow");
@@ -166,6 +169,7 @@ describe("viewSettings", () => {
       translation: "none",
       retainAudio: false,
       liveCaptions: false,
+      liveStreaming: true,
     });
   });
 });

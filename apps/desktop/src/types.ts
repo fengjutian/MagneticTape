@@ -143,11 +143,34 @@ export interface LiveTranscript {
   pendingChunks: number;
   processedChunks: number;
   segments: TranscriptSegment[];
-  provider?: "minimax" | "silicon_flow" | "openai_realtime";
+  provider?: "minimax" | "silicon_flow" | "openai_realtime" | "local_whisper";
   model: string;
   language: string;
   error?: string;
   partialText: string;
+  streaming: boolean;
+}
+
+export interface SherpaStatus {
+  engineInstalled: boolean;
+  engineBytes: number;
+  engineVersion: string;
+  asrModelInstalled: boolean;
+  asrModel: string;
+  asrModelLabel: string;
+  asrModelBytes: number;
+  speakerModelInstalled: boolean;
+  speakerModelBytes: number;
+  diarizationInstalled: boolean;
+  diarizationModelBytes: number;
+  totalBytes: number;
+  ready: boolean;
+}
+
+export interface SherpaDownloadProgress {
+  kind: "engine" | "asr" | "speaker" | "diarization";
+  downloaded: number;
+  total: number;
 }
 
 export interface AsrProfile {
@@ -163,6 +186,7 @@ export interface AppSettings {
   translation: string;
   retainAudio: boolean;
   liveCaptions: boolean;
+  liveStreaming: boolean;
   asrProvider: AsrProviderId;
   asrProfiles: Record<string, AsrProfile>;
   localWhisperModel: string;

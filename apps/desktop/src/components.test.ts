@@ -173,10 +173,25 @@ describe("renderTranscript", () => {
     renderTranscript(container, transcript, undefined, { pinned: new Set([1_500]) });
     const lines = container.querySelectorAll<HTMLElement>(".transcript-line");
     expect(lines[0].querySelector(".segment-actions")).not.toBeNull();
-    expect(lines[0].querySelectorAll(".segment-action")).toHaveLength(4);
+    expect(lines[0].querySelectorAll(".segment-action")).toHaveLength(5);
     expect(lines[1].classList.contains("pinned")).toBe(true);
     expect(lines[1].querySelector(".segment-pin")!.getAttribute("aria-pressed")).toBe("true");
     expect(lines[0].querySelector(".segment-pin")!.getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("windows transcripts over 300 segments", () => {
+    const segments = Array.from({ length: 420 }, (_, index) => ({
+      startMs: index * 1_000,
+      endMs: index * 1_000 + 900,
+      text: `第 ${index} 段内容`,
+    }));
+    const container = document.createElement("div");
+    renderTranscript(container, { ...transcript, segments });
+    expect(container.querySelector(".virtual-transcript")).not.toBeNull();
+    const rows = container.querySelectorAll(".transcript-line");
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.length).toBeLessThan(60);
+    expect(rows[0].classList.contains("virtual-row")).toBe(true);
   });
 
   it("falls back to plain text when no segments were returned", () => {

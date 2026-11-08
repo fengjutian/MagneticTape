@@ -26,6 +26,8 @@ base64 = "0.22"
 futures-util = "0.3"
 sha2 = "0.10"
 zip = "2.2"
+bzip2 = "0.4"
+tar = "0.4"
 tokio = { version = "1", features = ["sync", "time", "macros", "fs", "io-util"] }
 tokio-tungstenite = { version = "0.28", features = ["rustls-tls-webpki-roots"] }
 
