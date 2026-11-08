@@ -100,8 +100,10 @@ let liveTranslationBusy = false;
 let liveTranslationError: string | undefined;
 let liveTranslationRetryAfter = 0;
 let liveTranslationGeneration = 0;
+let lastLiveRenderKey = "";
 let liveAiProvider: AiResponse["provider"] = "minimax";
 let sessionNotes = "";
+let notesDirty = false;
 let activeTab: WorkspaceTab = "transcript";
 let liveAutoFollow = true;
 let liveUnread = 0;
@@ -217,6 +219,33 @@ function renderLive(): void {
   const stream = app.querySelector<HTMLElement>(".transcript-panel .transcript-stream");
   if (!stream) return;
   if (view.status !== "recording" && view.status !== "paused") return;
+  const renderKey = JSON.stringify([
+    view.status,
+    view.title,
+    liveStreamingActive,
+    livePendingChunks,
+    liveProcessedChunks,
+    liveSegments.length,
+    liveSegments.at(-1)?.text ?? "",
+    liveSegments.at(-1)?.endMs ?? 0,
+    livePartialText,
+    liveTranslations.length,
+    liveTranslations.at(-1) ?? "",
+    liveError ?? "",
+    liveTranslatedCount,
+    liveTranslationError ?? "",
+    liveTranslationBusy,
+    settings.translation,
+    settings.language,
+    [...pinnedSegments].sort((left, right) => left - right).join(","),
+    Object.entries(speakerNames)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, value]) => `${key}=${value}`)
+      .join("|"),
+    liveAutoFollow,
+  ]);
+  if (renderKey === lastLiveRenderKey && stream.childElementCount > 0) return;
+  lastLiveRenderKey = renderKey;
   const recognition = app.querySelector<HTMLElement>(".recognition-status");
   renderLiveTranslationSummary();
   if (liveSegments.length === 0 && !livePartialText) {
@@ -486,6 +515,7 @@ function syncBackend(next: SessionState): void {
     confirmations = loadConfirmations(next.sessionId);
     speakerNames = loadSpeakerNames(next.sessionId);
     deletedSegments = loadDeletedSegments(next.sessionId);
+    notesDirty = false;
   }
   if (next.status !== "finished" && reviewMode) setReviewMode(false);
   restartClock();
@@ -561,15 +591,24 @@ async function ensurePlayback(): Promise<void> {
     playbackPlayer = null;
     return;
   }
-  if (playbackPlayer && playbackPlayer.root === container) return;
+  const sessionId = view.sessionId ?? "";
+  if (
+    playbackPlayer &&
+    playbackPlayer.root === container &&
+    playbackPlayer.sessionId === sessionId
+  ) {
+    return;
+  }
   playbackPlayer?.dispose();
   playbackPlayer = null;
   try {
     const tracks = await invoke<PlaybackTracks>("get_session_playback");
     if (request !== playbackRequest) return;
     if (view.status !== "finished") return;
+    if ((view.sessionId ?? "") !== sessionId) return;
     if (app.querySelector<HTMLElement>(".playback") !== container) return;
     playbackPlayer = new TimelinePlayer(container, tracks, {
+      sessionId,
       onPosition: (positionMs) => highlightTranscript(positionMs),
     });
   } catch (error) {
@@ -607,8 +646,13 @@ function seekFromTranscript(target: HTMLElement): void {
 }
 
 async function loadSessionNotes(): Promise<void> {
+  const sessionId = view.sessionId;
   try {
-    sessionNotes = await invoke<string>("get_session_notes");
+    const notes = await invoke<string>("get_session_notes");
+    if (view.sessionId !== sessionId) return;
+    // Never hydrate over a note the user is currently editing.
+    if (notesDirty) return;
+    sessionNotes = notes;
     const editor = app.querySelector<HTMLTextAreaElement>(".meeting-notes");
     if (editor) editor.value = sessionNotes;
     updateInsights();
@@ -847,13 +891,16 @@ async function loadTranslation(): Promise<void> {
     currentTranslation = null;
     return;
   }
+  const sessionId = view.sessionId;
   const code = selectedTranslationCode();
+  let content: string | null = null;
   try {
-    const content = await invoke<string | null>("get_translation", { targetLanguage: code });
-    currentTranslation = content && content.trim() ? { code, content } : null;
+    content = await invoke<string | null>("get_translation", { targetLanguage: code });
   } catch {
-    currentTranslation = null;
+    content = null;
   }
+  if (view.sessionId !== sessionId || selectedTranslationCode() !== code) return;
+  currentTranslation = content && content.trim() ? { code, content } : null;
   renderTranscriptBody();
   setTranscriptStatus(currentTranslation ? "已翻译" : undefined);
   renderTranslationPanel();
@@ -863,10 +910,12 @@ async function loadTranslation(): Promise<void> {
 async function loadTranscript(): Promise<void> {
   const status = app.querySelector<HTMLElement>(".transcript-state");
   if (!status) return;
+  const sessionId = view.sessionId;
   currentTranscript = null;
   currentTranslation = null;
   try {
     const transcript = await invoke<Transcript | null>("get_transcript");
+    if (view.sessionId !== sessionId) return;
     if (!transcript) return;
     currentTranscript = {
       ...transcript,
@@ -1762,6 +1811,9 @@ app.addEventListener("click", async (event) => {
   if (!window.confirm("删除后音频不可恢复，转写和会议笔记会保留。确定删除音频吗？")) return;
   button.disabled = true;
   try {
+    playbackRequest += 1;
+    playbackPlayer?.dispose();
+    playbackPlayer = null;
     syncBackend(await invoke<SessionState>("discard_session_audio"));
   } catch (error) {
     view.errorMessage = `无法删除音频：${error instanceof Error ? error.message : String(error)}`;
@@ -1783,6 +1835,11 @@ app.addEventListener("click", async (event) => {
     button.disabled = false;
   }
 });
+app.addEventListener("input", (event) => {
+  if ((event.target as HTMLElement).closest<HTMLTextAreaElement>(".meeting-notes")) {
+    notesDirty = true;
+  }
+});
 app.addEventListener("click", async (event) => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>(".save-notes");
   if (!button) return;
@@ -1793,6 +1850,7 @@ app.addEventListener("click", async (event) => {
   try {
     await invoke("save_session_notes", { content: editor.value });
     sessionNotes = editor.value;
+    notesDirty = false;
     updateInsights();
     applyTasks(app, sessionNotes);
     status.textContent = "已保存";
@@ -1822,6 +1880,7 @@ app.addEventListener("click", async (event) => {
     });
     editor.value = content;
     sessionNotes = content;
+    notesDirty = false;
     await invoke("save_session_notes", { content });
     updateInsights();
     applyTasks(app, sessionNotes);
@@ -1835,13 +1894,6 @@ app.addEventListener("click", async (event) => {
 
 app.addEventListener("click", (event) => {
   seekFromTranscript(event.target as HTMLElement);
-});
-app.addEventListener("keydown", (event) => {
-  if (event.key !== "Enter" && event.key !== " ") return;
-  const line = (event.target as HTMLElement).closest<HTMLElement>(".transcript-line[data-start-ms]");
-  if (!line) return;
-  event.preventDefault();
-  seekFromTranscript(line);
 });
 
 const titleDisplay = app.querySelector<HTMLButtonElement>(".title-display")!;
@@ -1917,7 +1969,7 @@ function onWorkspaceTabChanged(tab: WorkspaceTab): void {
   if (tab === "translation") renderTranslationPanel();
   if (tab === "analysis") {
     const editor = app.querySelector<HTMLTextAreaElement>(".meeting-notes");
-    if (editor && sessionNotes) editor.value = sessionNotes;
+    if (editor && !notesDirty && sessionNotes) editor.value = sessionNotes;
     updateInsights();
   }
   if (tab === "tasks") applyTasks(app, sessionNotes);
@@ -2704,6 +2756,7 @@ app.querySelector<HTMLButtonElement>(".player-expand")!.addEventListener("click"
 document.addEventListener("keydown", (event) => {
   const target = event.target as HTMLElement;
   if (target.matches("input, textarea, select, [contenteditable=true]")) return;
+  if (target.closest("button, [role=button], a")) return;
   if (event.altKey && /^Digit[1-5]$/.test(event.code)) {
     event.preventDefault();
     const tabs: WorkspaceTab[] = ["transcript", "translation", "analysis", "tasks", "chat"];

@@ -344,23 +344,6 @@
 .transcript-undo .undo-delete:hover { background: #dff4e9; }
 .review-view .transcript-undo { position: fixed; bottom: 76px; }
 
-.virtualized-transcript { position: relative; }
-.virtual-transcript { position: relative; width: 100%; }
-.virtual-row {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 112px;
-  overflow: hidden;
-  border-bottom: 1px solid var(--ui-line);
-}
-.virtual-row .transcript-content {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
-}
-
 @media (max-width: 1199px) {
   .review-body { grid-template-columns: minmax(0, 1fr); gap: 12px; }
   .review-side { position: static; order: -1; grid-template-columns: 1fr; }

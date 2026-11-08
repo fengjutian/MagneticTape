@@ -325,6 +325,10 @@ body {
   padding: 12px 8px;
   border-bottom: 1px solid var(--ui-line);
   border-radius: 12px;
+  /* Let Chromium skip layout/paint for off-screen rows while keeping full text
+     and dynamic row heights (no fixed-height virtual list). */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 96px;
 }
 .transcript-line:hover { background: rgba(255, 255, 255, .75); }
 .transcript-line.active { background: rgba(230, 246, 239, .62); box-shadow: inset 2px 0 0 var(--ui-primary); }

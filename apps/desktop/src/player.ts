@@ -14,6 +14,9 @@ interface Track {
 }
 
 export interface TimelinePlayerOptions {
+  /// Session the player was created for; used to reload when the user opens
+  /// another finished recording.
+  sessionId?: string;
   /// Called on every playhead update with the position and playing state.
   onPosition?: (positionMs: number, playing: boolean) => void;
 }
@@ -25,6 +28,7 @@ export interface TimelinePlayerOptions {
 export class TimelinePlayer {
   readonly root: HTMLElement;
   readonly durationMs: number;
+  readonly sessionId: string;
   private readonly microphone: Track;
   private readonly system: Track;
   private readonly options: TimelinePlayerOptions;
@@ -35,6 +39,7 @@ export class TimelinePlayer {
   private readonly currentLabel: HTMLElement | null;
   private readonly totalLabel: HTMLElement | null;
   private readonly hint: HTMLElement | null;
+  private readonly listeners = new AbortController();
   private positionMs = 0;
   private playing = false;
   private rate = 1;
@@ -47,6 +52,7 @@ export class TimelinePlayer {
   constructor(root: HTMLElement, tracks: PlaybackTracks, options: TimelinePlayerOptions = {}) {
     this.root = root;
     this.options = options;
+    this.sessionId = options.sessionId ?? "";
     this.durationMs = Math.max(0, tracks.durationMs);
     this.microphone = this.createTrack(tracks.microphone);
     this.system = this.createTrack(tracks.system);
@@ -116,6 +122,7 @@ export class TimelinePlayer {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    this.listeners.abort();
     this.stopClock();
     this.playing = false;
     for (const track of [this.microphone, this.system]) {
@@ -138,36 +145,60 @@ export class TimelinePlayer {
   }
 
   private bind(): void {
-    this.toggle?.addEventListener("click", () => {
-      if (this.playing) {
-        this.pause();
-      } else {
-        this.play();
-      }
-    });
-    this.seekInput?.addEventListener("pointerdown", () => {
-      this.resumeAfterScrub = this.playing;
-      if (this.playing) this.pause();
-    });
-    this.seekInput?.addEventListener("input", () => {
-      if (!this.seekInput) return;
-      this.seek((Number(this.seekInput.value) / 1000) * this.durationMs);
-    });
-    this.seekInput?.addEventListener("change", () => {
-      if (this.resumeAfterScrub) {
-        this.resumeAfterScrub = false;
-        this.play();
-      }
-    });
-    this.rateSelect?.addEventListener("change", () => {
-      this.setRate(Number(this.rateSelect?.value ?? 1));
-      this.updateUi();
-    });
-    this.volumeInput?.addEventListener("input", () => {
-      const volume = Math.min(1, Math.max(0, Number(this.volumeInput?.value ?? 100) / 100));
-      this.microphone.audio.volume = volume;
-      this.system.audio.volume = volume;
-    });
+    this.toggle?.addEventListener(
+      "click",
+      () => {
+        if (this.playing) {
+          this.pause();
+        } else {
+          this.play();
+        }
+      },
+      { signal: this.listeners.signal },
+    );
+    this.seekInput?.addEventListener(
+      "pointerdown",
+      () => {
+        this.resumeAfterScrub = this.playing;
+        if (this.playing) this.pause();
+      },
+      { signal: this.listeners.signal },
+    );
+    this.seekInput?.addEventListener(
+      "input",
+      () => {
+        if (!this.seekInput) return;
+        this.seek((Number(this.seekInput.value) / 1000) * this.durationMs);
+      },
+      { signal: this.listeners.signal },
+    );
+    this.seekInput?.addEventListener(
+      "change",
+      () => {
+        if (this.resumeAfterScrub) {
+          this.resumeAfterScrub = false;
+          this.play();
+        }
+      },
+      { signal: this.listeners.signal },
+    );
+    this.rateSelect?.addEventListener(
+      "change",
+      () => {
+        this.setRate(Number(this.rateSelect?.value ?? 1));
+        this.updateUi();
+      },
+      { signal: this.listeners.signal },
+    );
+    this.volumeInput?.addEventListener(
+      "input",
+      () => {
+        const volume = Math.min(1, Math.max(0, Number(this.volumeInput?.value ?? 100) / 100));
+        this.microphone.audio.volume = volume;
+        this.system.audio.volume = volume;
+      },
+      { signal: this.listeners.signal },
+    );
   }
 
   private readonly tick = (): void => {

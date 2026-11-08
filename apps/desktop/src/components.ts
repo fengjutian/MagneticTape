@@ -191,13 +191,13 @@ export function renderApp(): string {
               </details>
             </div>
 
-            <section class="record-card status-area" aria-live="polite">
+            <section class="record-card status-area">
               <div class="record-card-top">
                 <span class="record-state-badge"><i></i><span class="record-state-label">待机</span></span>
                 <span class="record-safety">${iconNode(Check)}本地安全保存 · <span class="chunk-count">0</span> 片</span>
               </div>
               <time class="elapsed" datetime="PT0S">00:00</time>
-              <h3 class="status-title">等待开始录音</h3>
+              <h3 class="status-title" aria-live="polite">等待开始录音</h3>
               <p class="status-copy">麦克风与系统声音将分别保存在本地。</p>
               <div class="waveform" aria-hidden="true">${Array.from({ length: 48 }, (_, index) => `<i style="--bar:${index};height:${6 + (index % 6) * 3}px"></i>`).join("")}</div>
               <div class="record-buttons">
@@ -236,14 +236,14 @@ export function renderApp(): string {
           </header>
 
           <div class="workspace-tabs" role="tablist" aria-label="内容视图">
-            <button class="workspace-tab active" type="button" role="tab" aria-selected="true" data-tab="transcript"><span>转录</span></button>
-            <button class="workspace-tab" type="button" role="tab" aria-selected="false" data-tab="translation"><span>翻译</span></button>
-            <button class="workspace-tab" type="button" role="tab" aria-selected="false" data-tab="analysis"><span>AI 分析</span></button>
-            <button class="workspace-tab" type="button" role="tab" aria-selected="false" data-tab="tasks"><span>任务</span></button>
-            <button class="workspace-tab" type="button" role="tab" aria-selected="false" data-tab="chat"><span>AI 对话</span></button>
+            <button id="workspace-tab-transcript" class="workspace-tab active" type="button" role="tab" aria-selected="true" aria-controls="workspace-panel-transcript" data-tab="transcript"><span>转录</span></button>
+            <button id="workspace-tab-translation" class="workspace-tab" type="button" role="tab" aria-selected="false" aria-controls="workspace-panel-translation" tabindex="-1" data-tab="translation"><span>翻译</span></button>
+            <button id="workspace-tab-analysis" class="workspace-tab" type="button" role="tab" aria-selected="false" aria-controls="workspace-panel-analysis" tabindex="-1" data-tab="analysis"><span>AI 分析</span></button>
+            <button id="workspace-tab-tasks" class="workspace-tab" type="button" role="tab" aria-selected="false" aria-controls="workspace-panel-tasks" tabindex="-1" data-tab="tasks"><span>任务</span></button>
+            <button id="workspace-tab-chat" class="workspace-tab" type="button" role="tab" aria-selected="false" aria-controls="workspace-panel-chat" tabindex="-1" data-tab="chat"><span>AI 对话</span></button>
           </div>
 
-          <div class="content-body" role="tabpanel" aria-label="实时内容面板"></div>
+          <div class="content-body"></div>
 
           <footer class="content-toolbar" aria-label="转录操作">
             <button class="toolbar-action edit-transcript" type="button" disabled>${iconNode(Pencil)}<span>编辑</span></button>
@@ -696,31 +696,18 @@ export function applyTab(root: HTMLElement, tab: WorkspaceTab): void {
   root.querySelectorAll<HTMLElement>(".tab-panel").forEach((panel) => {
     panel.hidden = panel.dataset.panel !== tab;
   });
-  const body = root.querySelector<HTMLElement>(".content-body");
-  if (body) body.setAttribute("aria-label", tabLabel(tab));
   const toolbar = root.querySelector<HTMLElement>(".content-toolbar");
   if (toolbar) toolbar.hidden = tab !== "transcript";
-}
-
-function tabLabel(tab: WorkspaceTab): string {
-  const labels: Record<WorkspaceTab, string> = {
-    transcript: "转录",
-    translation: "翻译",
-    analysis: "AI 分析",
-    tasks: "任务",
-    chat: "AI 对话",
-  };
-  return labels[tab];
 }
 
 function contentForStatus(state: RecorderViewState): string {
   const { status } = state;
   return `
-    <section class="tab-panel transcript-panel" data-panel="transcript">${transcriptPanel(state)}</section>
-    <section class="tab-panel translation-panel" data-panel="translation" hidden>${translationPanel(status)}</section>
-    <section class="tab-panel analysis-panel" data-panel="analysis" hidden>${analysisPanel(state)}</section>
-    <section class="tab-panel tasks-panel" data-panel="tasks" hidden>${tasksPanel()}</section>
-    <section class="tab-panel workspace-chat-panel" data-panel="chat" hidden>${workspaceChatPanel()}</section>
+    <section id="workspace-panel-transcript" class="tab-panel transcript-panel" role="tabpanel" aria-labelledby="workspace-tab-transcript" tabindex="0" data-panel="transcript">${transcriptPanel(state)}</section>
+    <section id="workspace-panel-translation" class="tab-panel translation-panel" role="tabpanel" aria-labelledby="workspace-tab-translation" tabindex="0" data-panel="translation" hidden>${translationPanel(status)}</section>
+    <section id="workspace-panel-analysis" class="tab-panel analysis-panel" role="tabpanel" aria-labelledby="workspace-tab-analysis" tabindex="0" data-panel="analysis" hidden>${analysisPanel(state)}</section>
+    <section id="workspace-panel-tasks" class="tab-panel tasks-panel" role="tabpanel" aria-labelledby="workspace-tab-tasks" tabindex="0" data-panel="tasks" hidden>${tasksPanel()}</section>
+    <section id="workspace-panel-chat" class="tab-panel workspace-chat-panel" role="tabpanel" aria-labelledby="workspace-tab-chat" tabindex="0" data-panel="chat" hidden>${workspaceChatPanel()}</section>
   `;
 }
 
@@ -834,10 +821,6 @@ interface TranscriptRenderOptions {
   speakerNames?: SpeakerNames;
 }
 
-const VIRTUAL_THRESHOLD = 300;
-const VIRTUAL_ROW_HEIGHT = 112;
-const virtualCleanup = new WeakMap<HTMLElement, () => void>();
-
 function buildTranscriptLine(
   segment: TranscriptSegment,
   index: number,
@@ -850,9 +833,7 @@ function buildTranscriptLine(
   const pinned = options.pinned?.has(segment.startMs) ?? false;
   if (pinned) line.classList.add("pinned");
   line.dataset.startMs = String(segment.startMs);
-  line.tabIndex = 0;
-  line.setAttribute("role", "button");
-  line.title = "跳转到这段录音";
+  line.title = "点击跳转到这段录音";
 
   const meta = document.createElement("header");
   meta.className = "transcript-meta";
@@ -891,107 +872,22 @@ function buildTranscriptLine(
   return line;
 }
 
-function findScrollParent(element: HTMLElement): HTMLElement | null {
-  let node: HTMLElement | null = element;
-  while (node) {
-    const overflow = getComputedStyle(node).overflowY;
-    if (overflow === "auto" || overflow === "scroll") return node;
-    node = node.parentElement;
-  }
-  return null;
-}
-
-function renderVirtualTranscript(
-  container: HTMLElement,
-  transcript: Transcript,
-  options: TranscriptRenderOptions,
-): void {
-  const { segments } = transcript;
-  container.classList.add("virtualized-transcript");
-  const wrapper = document.createElement("div");
-  wrapper.className = "virtual-transcript";
-  wrapper.style.height = `${segments.length * VIRTUAL_ROW_HEIGHT}px`;
-  container.append(wrapper);
-
-  const scroller = findScrollParent(container);
-  let first = -1;
-  let last = -1;
-  let frame = 0;
-
-  const bounds = (): { start: number; end: number } => {
-    if (!scroller) return { start: 0, end: Math.min(segments.length, 12) };
-    const containerRect = container.getBoundingClientRect();
-    const scrollerRect = scroller.getBoundingClientRect();
-    const offset = container === scroller
-      ? 0
-      : containerRect.top - scrollerRect.top + scroller.scrollTop;
-    const viewTop = Math.max(0, scroller.scrollTop - offset);
-    const viewHeight = scroller.clientHeight || 640;
-    return {
-      start: Math.max(0, Math.floor(viewTop / VIRTUAL_ROW_HEIGHT) - 3),
-      end: Math.min(segments.length, Math.ceil((viewTop + viewHeight) / VIRTUAL_ROW_HEIGHT) + 3),
-    };
-  };
-
-  const paint = (): void => {
-    const { start, end } = bounds();
-    if (start === first && end === last) return;
-    first = start;
-    last = end;
-    const fragment = document.createDocumentFragment();
-    for (let index = start; index < end; index += 1) {
-      const row = buildTranscriptLine(segments[index], index, segments.length, options);
-      row.classList.add("virtual-row");
-      row.style.top = `${index * VIRTUAL_ROW_HEIGHT}px`;
-      fragment.append(row);
-    }
-    wrapper.replaceChildren(fragment);
-  };
-
-  paint();
-  if (!scroller) return;
-
-  const onScroll = (): void => {
-    if (frame) return;
-    frame = window.requestAnimationFrame(() => {
-      frame = 0;
-      paint();
-    });
-  };
-  scroller.addEventListener("scroll", onScroll, { passive: true });
-  let observer: ResizeObserver | undefined;
-  if (typeof ResizeObserver !== "undefined") {
-    observer = new ResizeObserver(() => paint());
-    observer.observe(scroller);
-  }
-  virtualCleanup.set(container, () => {
-    scroller.removeEventListener("scroll", onScroll);
-    observer?.disconnect();
-    if (frame) window.cancelAnimationFrame(frame);
-  });
-}
-
 /// Renders provider segments with timestamps and speaker labels. When a saved
 /// translation exists it is appended below the source text instead of
-/// replacing it. Transcripts over 300 segments are windowed: only the visible
-/// rows (plus overscan) exist in the DOM.
+/// replacing it. Long transcripts rely on CSS content-visibility for
+/// off-screen skipping, which keeps full text and dynamic row heights.
 export function renderTranscript(
   container: HTMLElement,
   transcript: Transcript,
   translation?: { label: string; content: string },
   options: { partial?: boolean; pinned?: Set<number>; speakerNames?: SpeakerNames } = {},
 ): void {
-  virtualCleanup.get(container)?.();
-  virtualCleanup.delete(container);
   container.replaceChildren();
-  container.classList.remove("virtualized-transcript");
 
   if (transcript.segments.length === 0) {
     const paragraph = document.createElement("p");
     paragraph.textContent = transcript.text;
     container.append(paragraph);
-  } else if (transcript.segments.length > VIRTUAL_THRESHOLD) {
-    renderVirtualTranscript(container, transcript, options);
   } else {
     const fragment = document.createDocumentFragment();
     transcript.segments.forEach((segment, index) => {

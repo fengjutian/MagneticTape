@@ -1338,7 +1338,7 @@ fn save_session_notes(
     file.sync_all().map_err(|error| error.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn recover_latest_session(
     app: tauri::AppHandle,
     state: tauri::State<'_, Mutex<SessionState>>,
@@ -1389,7 +1389,7 @@ fn recover_latest_session(
     Ok(Some(state.view(epoch_ms())))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn list_audio_devices() -> Result<magnetic_tape_audio::AudioDeviceSnapshot, String> {
     magnetic_tape_audio::enumerate_audio_devices().map_err(|e| e.to_string())
 }
@@ -1566,7 +1566,7 @@ fn cleanup_old_audio(
     Ok(result)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_library_stats(app: tauri::AppHandle) -> Result<LibraryStats, String> {
     library_stats(&recordings_root(&app)?)
 }
@@ -1627,7 +1627,7 @@ fn enforce_storage_quota(
     Ok(result)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn cleanup_audio_older_than(
     days: u32,
     app: tauri::AppHandle,
@@ -1645,7 +1645,7 @@ fn cleanup_audio_older_than(
     cleanup_old_audio(&recordings_root(&app)?, cutoff, active_session.as_deref())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn list_recordings(app: tauri::AppHandle) -> Result<Vec<RecordingListItem>, String> {
     let root = recordings_root(&app)?;
     if !root.exists() {
@@ -1736,7 +1736,7 @@ fn trash_recording(
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn open_recording(
     session_id: String,
     app: tauri::AppHandle,
@@ -2625,7 +2625,7 @@ struct PlaybackTracks {
     system: Vec<PlaybackChunk>,
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn get_session_playback(
     app: tauri::AppHandle,
     state: tauri::State<'_, Mutex<SessionState>>,
@@ -2663,7 +2663,7 @@ fn get_session_playback(
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn discard_session_audio(
     app: tauri::AppHandle,
     state: tauri::State<'_, Mutex<SessionState>>,
@@ -3346,7 +3346,7 @@ fn apply_live_result(
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn poll_live_transcription(
     app: tauri::AppHandle,
     state: tauri::State<'_, Mutex<SessionState>>,
@@ -3465,7 +3465,7 @@ fn exports_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
         .map(|directory| directory.join("MagneticTape"))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn export_session(
     app: tauri::AppHandle,
     state: tauri::State<'_, Mutex<SessionState>>,

@@ -1126,7 +1126,7 @@ dialog {
   .workspace-tab { padding: 0 6px; font-size: 10.5px; }
   .transcript-scroll { padding-left: 16px; padding-right: 16px; }
 }
-@media (max-width: 1140px) {
+@media (max-width: 1099px) {
   .workspace-grid { grid-template-columns: 340px minmax(0, 1fr); }
   .insight-drawer-toggle { display: grid; place-items: center; padding: 0; width: 36px; }
   .insight-column {

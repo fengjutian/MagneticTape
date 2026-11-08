@@ -179,7 +179,7 @@ describe("renderTranscript", () => {
     expect(lines[0].querySelector(".segment-pin")!.getAttribute("aria-pressed")).toBe("false");
   });
 
-  it("windows transcripts over 300 segments", () => {
+  it("renders long transcripts in full instead of clipping rows", () => {
     const segments = Array.from({ length: 420 }, (_, index) => ({
       startMs: index * 1_000,
       endMs: index * 1_000 + 900,
@@ -187,11 +187,10 @@ describe("renderTranscript", () => {
     }));
     const container = document.createElement("div");
     renderTranscript(container, { ...transcript, segments });
-    expect(container.querySelector(".virtual-transcript")).not.toBeNull();
+    expect(container.querySelector(".virtual-transcript")).toBeNull();
     const rows = container.querySelectorAll(".transcript-line");
-    expect(rows.length).toBeGreaterThan(0);
-    expect(rows.length).toBeLessThan(60);
-    expect(rows[0].classList.contains("virtual-row")).toBe(true);
+    expect(rows).toHaveLength(420);
+    expect(rows[419].textContent).toContain("第 419 段内容");
   });
 
   it("falls back to plain text when no segments were returned", () => {
