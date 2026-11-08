@@ -1,32 +1,66 @@
-import type { AudioDeviceInfo, AudioDeviceSnapshot, RecorderStatus, RecorderViewState, Transcript } from "./types";
+import type {
+  AudioDeviceInfo,
+  AudioDeviceSnapshot,
+  RecorderStatus,
+  RecorderViewState,
+  Transcript,
+  TranscriptSegment,
+} from "./types";
 import {
+  AudioLines,
+  BookOpen,
   Captions,
-  CassetteTape,
   Check,
+  ChevronDown,
+  ChevronRight,
+  CircleHelp,
   Clock3,
+  Copy,
+  Crosshair,
   Download,
   FileText,
   FolderOpen,
+  GraduationCap,
+  Grid2X2,
   HardDrive,
   History,
+  Info,
   Languages,
-  Mic,
+  Lightbulb,
+  ListTodo,
+  Maximize2,
   MessageSquareText,
-  MonitorUp,
+  Mic,
+  MicVocal,
+  MoreHorizontal,
   Pause,
+  Pencil,
+  Phone,
   Play,
   Radio,
-  ShieldCheck,
   RefreshCw,
+  Send,
+  Settings,
+  Settings2,
   Sparkles,
   Square,
   Trash2,
+  Users,
   Volume2,
   WandSparkles,
   type IconNode,
 } from "lucide";
 
-const icons = { pause: Pause, play: Play, stop: Square, sparkles: Sparkles } as const;
+export type WorkspaceTab = "transcript" | "translation" | "analysis" | "tasks" | "chat";
+
+export interface InsightInput {
+  title: string;
+  status: RecorderStatus;
+  segments: TranscriptSegment[];
+  notes: string;
+}
+
+const iconSet = { pause: Pause, play: Play, stop: Square } as const;
 
 function iconNode(node: IconNode, className = "ui-icon"): string {
   const [, svgAttributes, children = []] = node;
@@ -40,69 +74,235 @@ function iconNode(node: IconNode, className = "ui-icon"): string {
   return `<svg ${attributes} class="${className}" aria-hidden="true">${body}</svg>`;
 }
 
-function icon(name: keyof typeof icons, className = "ui-icon"): string {
-  return iconNode(icons[name], className);
+function icon(name: keyof typeof iconSet, className = "ui-icon"): string {
+  return iconNode(iconSet[name], className);
 }
+
+const scenes = [
+  { id: "meeting", label: "会议", icon: Users },
+  { id: "study", label: "学习", icon: GraduationCap },
+  { id: "idea", label: "灵感", icon: Lightbulb },
+  { id: "interview", label: "访谈", icon: MicVocal },
+  { id: "call", label: "通话", icon: Phone },
+  { id: "other", label: "其他", icon: Grid2X2 },
+] as const;
 
 export function renderApp(): string {
   return `
-    <main class="workspace">
-      <section class="recorder-pane" aria-labelledby="recording-title">
-        <header class="session-header">
-          <div class="title-row">
-            <span class="brand-mark">${iconNode(CassetteTape)}</span>
-            <button class="title-display" id="recording-title" type="button" aria-label="编辑录音标题">新录音</button>
-            <input class="title-input" type="text" maxlength="80" aria-label="录音标题" hidden />
-            <span class="local-badge">本地</span>
-            <wa-button class="history-button" type="button" size="small">${iconNode(History)}<span>历史录音</span></wa-button>
+    <div class="app-shell">
+      <header class="app-header">
+        <div class="brand-block">
+          <span class="app-logo">${iconNode(Mic)}</span>
+          <div class="brand-copy">
+            <h1>AI 录音工作台</h1>
+            <p>录音 · 转录 · AI 洞察 · 知识沉淀</p>
           </div>
-          <div class="options" aria-label="录音选项">
-            <label class="option"><span>${iconNode(Languages)}转写语言</span><select data-option="language" aria-label="转写语言"><option value="auto">自动识别</option><option value="zh-CN">中文</option><option value="en-US">English</option></select></label>
-            <label class="option"><span>${iconNode(Radio)}AI 同传</span><select data-option="translation" aria-label="实时翻译语言"><option value="none">不翻译</option><option value="zh-CN">实时翻译为中文</option><option value="en-US">Live English translation</option></select></label>
-            <label class="option"><span>${iconNode(HardDrive)}音频</span><select data-option="audio" aria-label="音频保留策略"><option value="retain">保留音频</option><option value="discard">转写后删除音频</option></select></label>
-            <button class="option ai-settings" type="button" title="配置 AI Provider">${icon("sparkles")}<span>AI 助手</span><small>MiniMax / DeepSeek</small></button>
-            <button class="option live-caption" type="button" title="录音时约每 5 秒生成实时字幕和增量译文">${iconNode(Captions)}<span>实时字幕</span><small class="live-state">关</small></button>
-          </div>
-          <div class="device-strip" aria-label="音频设备">
-            <label><span class="device-icon">${iconNode(Mic)}</span><span class="device-kind">麦克风</span><select class="microphone-select" aria-label="麦克风设备"><option>正在检测…</option></select><small class="microphone-detail"></small></label>
-            <label><span class="device-icon">${iconNode(MonitorUp)}</span><span class="device-kind">系统声音</span><select class="system-output-select" aria-label="系统输出设备"><option>正在检测…</option></select><small class="system-output-detail"></small></label>
-            <wa-button class="refresh-devices" type="button" size="small" title="重新检测音频设备" aria-label="重新检测音频设备">${iconNode(RefreshCw)}</wa-button>
-          </div>
-        </header>
+        </div>
+        <nav class="app-nav" aria-label="全局导航">
+          <button class="nav-action history-button" type="button" title="打开历史录音">${iconNode(History)}<span>历史记录</span></button>
+          <button class="nav-action knowledge-button" type="button" title="打开知识库">${iconNode(BookOpen)}<span>知识库</span></button>
+          <button class="nav-action settings-button" type="button" title="打开设置">${iconNode(Settings)}<span>设置</span></button>
+          <button class="nav-action insight-drawer-toggle" type="button" title="打开 AI 洞察" aria-label="打开 AI 洞察">${iconNode(Sparkles)}</button>
+        </nav>
+      </header>
 
-        <section class="status-area" aria-live="polite">
-          <div class="status-orbit"><span class="status-mark">${iconNode(Mic)}</span><i></i><i></i><i></i></div>
-          <span class="status-eyebrow">${iconNode(ShieldCheck)}本地安全录制</span>
-          <h2 class="status-title">等待开始录音</h2>
-          <p class="status-copy">麦克风与系统声音将分别保存在本地。</p>
-          <p class="device-warning" role="status" hidden></p>
-          <wa-button class="start-button" type="button" variant="brand">开始录音</wa-button>
+      <div class="workspace-grid">
+        <section class="panel control-panel" aria-labelledby="control-heading">
+          <header class="panel-title-row">
+            <div class="numbered-heading"><span class="step-number">1</span><h2 id="control-heading">录音控制</h2></div>
+            <button class="panel-icon-button" type="button" title="暂时固定展开" aria-label="暂时固定展开" disabled>${iconNode(ChevronRight)}</button>
+          </header>
+
+          <div class="control-scroll">
+            <div class="session-title-line">
+              <button class="title-display" id="recording-title" type="button" aria-label="编辑录音标题">新录音</button>
+              <input class="title-input" type="text" maxlength="80" aria-label="录音标题" hidden />
+              <span class="local-badge">${iconNode(Check)}本地</span>
+            </div>
+
+            <section class="scene-section" aria-labelledby="scene-heading">
+              <div class="section-title-row">
+                <h3 id="scene-heading">录音场景</h3>
+                <span class="section-title-actions">
+                  <button class="round-help" type="button" title="场景会改变 AI 分析的结构" aria-label="场景说明">${iconNode(CircleHelp)}</button>
+                  <span class="subtle-chevron">${iconNode(ChevronRight)}</span>
+                </span>
+              </div>
+              <div class="scene-grid" role="group" aria-label="选择录音场景">
+                ${scenes.map((scene, index) => `
+                  <button class="scene-card${index === 0 ? " selected" : ""}" type="button" data-scene="${scene.id}" aria-pressed="${index === 0}" title="${scene.label}记录">
+                    ${iconNode(scene.icon)}<span>${scene.label}</span>
+                  </button>`).join("")}
+              </div>
+            </section>
+
+            <div class="config-groups">
+              <details class="config-group" open>
+                <summary>
+                  <span class="config-icon">${iconNode(Languages)}</span>
+                  <span class="config-copy"><strong>语言与翻译</strong><small class="language-summary">自动识别 · 不翻译</small></span>
+                  <span class="config-chevron">${iconNode(ChevronDown)}</span>
+                </summary>
+                <div class="config-body">
+                  <label class="field-row"><span>${iconNode(FileText)}转写语言</span><select data-option="language" aria-label="转写语言"><option value="auto">自动识别</option><option value="zh-CN">中文</option><option value="en-US">English</option></select></label>
+                  <label class="field-row"><span>${iconNode(Radio)}AI 同传</span><select data-option="translation" aria-label="实时翻译语言"><option value="none">不翻译</option><option value="zh-CN">实时翻译为中文</option><option value="en-US">Live English translation</option></select></label>
+                </div>
+              </details>
+
+              <details class="config-group">
+                <summary>
+                  <span class="config-icon">${iconNode(AudioLines)}</span>
+                  <span class="config-copy"><strong>音频设备</strong><small class="audio-device-summary">正在检测设备…</small></span>
+                  <span class="config-chevron">${iconNode(ChevronDown)}</span>
+                </summary>
+                <div class="config-body">
+                  <label class="field-row field-device"><span>${iconNode(Mic)}麦克风</span><select class="microphone-select" aria-label="麦克风设备"><option>正在检测…</option></select><small class="microphone-detail"></small></label>
+                  <label class="field-row field-device"><span>${iconNode(Volume2)}系统声音</span><select class="system-output-select" aria-label="系统输出设备"><option>正在检测…</option></select><small class="system-output-detail"></small></label>
+                  <button class="inline-action refresh-devices" type="button" title="重新检测音频设备">${iconNode(RefreshCw)}<span>重新检测设备</span></button>
+                </div>
+              </details>
+
+              <details class="config-group">
+                <summary>
+                  <span class="config-icon iris-config">${iconNode(Settings2)}</span>
+                  <span class="config-copy"><strong>AI 模型</strong><small class="ai-model-summary">MiniMax · 高速版</small></span>
+                  <span class="config-status-dot" title="AI 服务状态"></span>
+                  <span class="config-chevron">${iconNode(ChevronDown)}</span>
+                </summary>
+                <div class="config-body">
+                  <button class="config-action ai-settings" type="button" title="配置 AI Provider">${iconNode(Sparkles)}<span>AI 服务与密钥</span><small>MiniMax / DeepSeek</small></button>
+                  <button class="config-action live-caption" type="button" title="录音时约每 5 秒生成实时字幕和增量译文">${iconNode(Captions)}<span>实时字幕</span><small class="live-state">关</small></button>
+                </div>
+              </details>
+            </div>
+
+            <section class="record-card status-area" aria-live="polite">
+              <div class="record-card-top">
+                <span class="record-state-badge"><i></i><span class="record-state-label">待机</span></span>
+                <span class="record-safety">${iconNode(Check)}本地安全保存</span>
+              </div>
+              <div class="waveform" aria-hidden="true">${Array.from({ length: 48 }, (_, index) => `<i style="--bar:${index};height:${6 + (index % 6) * 3}px"></i>`).join("")}</div>
+              <div class="record-time-block">
+                <time class="elapsed" datetime="PT0S">00:00</time>
+                <h3 class="status-title">等待开始录音</h3>
+                <p class="status-copy">麦克风与系统声音将分别保存在本地。</p>
+              </div>
+              <div class="record-buttons">
+                <button class="start-button" type="button">${iconNode(Mic)}<span>开始录音</span></button>
+                <button class="pause-button" type="button" disabled title="暂停录音">${icon("pause")}<span>暂停</span></button>
+                <button class="stop-button" type="button" disabled title="停止并保存">${icon("stop")}<span>结束</span></button>
+              </div>
+              <p class="device-warning" role="status" hidden></p>
+            </section>
+
+            <div class="level-meters" aria-label="实时输入电平">
+              <div class="level-channel microphone-level">
+                <span class="level-name">${iconNode(Mic)}麦克风</span>
+                <div class="level-track" role="meter" aria-label="麦克风电平" aria-valuemin="-60" aria-valuemax="0" aria-valuenow="-60"><i></i></div>
+                <output class="level-readout">−60 dB</output>
+              </div>
+              <div class="level-channel system-level">
+                <span class="level-name">${iconNode(Volume2)}系统声音</span>
+                <div class="level-track" role="meter" aria-label="系统声音电平" aria-valuemin="-60" aria-valuemax="0" aria-valuenow="-60"><i></i></div>
+                <output class="level-readout">−60 dB</output>
+              </div>
+            </div>
+          </div>
         </section>
 
-        <section class="controls" aria-label="录音控制">
-          <div class="waveform" aria-hidden="true">${Array.from({ length: 48 }, (_, index) => `<i style="--bar:${index};height:${6 + (index % 6) * 3}px"></i>`).join("")}</div>
-          <div class="level-meters" aria-label="实时输入电平">
-            <div class="level-channel microphone-level"><span class="level-name">${iconNode(Mic)}麦克风</span><div class="level-track" role="meter" aria-label="麦克风电平" aria-valuemin="-60" aria-valuemax="0" aria-valuenow="-60"><i></i><b class="clip-flag">CLIP</b></div><output class="level-readout">−60 dB</output></div>
-            <div class="level-channel system-level"><span class="level-name">${iconNode(Volume2)}系统声音</span><div class="level-track" role="meter" aria-label="系统声音电平" aria-valuemin="-60" aria-valuemax="0" aria-valuenow="-60"><i></i><b class="clip-flag">CLIP</b></div><output class="level-readout">−60 dB</output></div>
-          </div>
-          <div class="control-row">
-            <span class="elapsed-wrap">${iconNode(Clock3)}<time class="elapsed" datetime="PT0S">00:00</time></span>
-            <wa-button class="pause-button" type="button" disabled title="暂停录音">${icon("pause")}<span>暂停</span></wa-button>
-            <wa-button class="stop-button" type="button" variant="brand" disabled title="停止并保存">${icon("stop")}<span>停止</span></wa-button>
-          </div>
-          <p class="shortcut-hint">Space 暂停/继续 · Ctrl + Enter 停止</p>
-        </section>
-      </section>
+        <section class="panel content-panel" aria-labelledby="content-heading">
+          <header class="content-header">
+            <div class="numbered-heading"><span class="step-number">2</span><h2 id="content-heading">实时内容</h2></div>
+            <div class="content-header-actions">
+              <span class="content-status live-pill"><i></i><span class="content-status-text">待机</span></span>
+              <button class="panel-icon-button focus-toggle" type="button" title="专注阅读" aria-label="切换专注阅读">${iconNode(Maximize2)}</button>
+            </div>
+          </header>
 
-      <aside class="content-pane" aria-labelledby="content-title">
-        <header class="content-header">
-          <div class="content-heading"><span class="content-heading-icon">${iconNode(MessageSquareText)}</span><div><p class="section-kicker">LIVE TRANSCRIPT</p><h2 id="content-title">实时内容</h2><p class="content-subtitle">实时捕捉对话，重要内容不错过</p></div></div>
-          <span class="content-status">待机</span>
-        </header>
-        <div class="content-body"></div>
-        <div class="error-banner" role="alert" hidden></div>
-      </aside>
-    </main>
+          <div class="workspace-tabs" role="tablist" aria-label="内容视图">
+            <button class="workspace-tab active" type="button" role="tab" aria-selected="true" data-tab="transcript">${iconNode(FileText)}<span>转录</span></button>
+            <button class="workspace-tab" type="button" role="tab" aria-selected="false" data-tab="translation">${iconNode(Languages)}<span>翻译</span></button>
+            <button class="workspace-tab" type="button" role="tab" aria-selected="false" data-tab="analysis">${iconNode(Sparkles)}<span>AI 分析</span></button>
+            <button class="workspace-tab" type="button" role="tab" aria-selected="false" data-tab="tasks">${iconNode(Check)}<span>任务</span></button>
+            <button class="workspace-tab" type="button" role="tab" aria-selected="false" data-tab="chat">${iconNode(MessageSquareText)}<span>AI 对话</span></button>
+          </div>
+
+          <div class="content-body" role="tabpanel" aria-label="实时内容面板"></div>
+
+          <footer class="content-toolbar" aria-label="转录操作">
+            <button class="toolbar-action edit-transcript" type="button" disabled>${iconNode(Pencil)}<span>编辑</span></button>
+            <button class="toolbar-action mark-transcript" type="button" disabled>${iconNode(Crosshair)}<span>标记重点</span></button>
+            <button class="toolbar-action copy-transcript" type="button" disabled>${iconNode(Copy)}<span>复制</span></button>
+            <button class="toolbar-action seek-transcript" type="button" disabled>${iconNode(Clock3)}<span>跳转音频</span></button>
+            <div class="more-wrap">
+              <button class="toolbar-action more-button" type="button" aria-haspopup="true" aria-expanded="false">${iconNode(MoreHorizontal)}<span>更多</span></button>
+              <div class="more-menu" role="menu" hidden>
+                <button class="reveal-recording" type="button" role="menuitem">${iconNode(FolderOpen)}打开录音文件夹</button>
+                <button class="discard-audio" type="button" role="menuitem">${iconNode(Trash2)}删除音频</button>
+              </div>
+            </div>
+            <span class="error-banner" role="alert" hidden></span>
+          </footer>
+        </section>
+
+        <aside class="insight-column" aria-label="AI 洞察与对话">
+          <section class="panel insight-panel" aria-labelledby="insight-heading">
+            <header class="panel-title-row">
+              <div class="numbered-heading"><span class="step-number iris">3</span><h2 id="insight-heading">AI 洞察</h2></div>
+              <span class="insight-spark">${iconNode(Sparkles)}</span>
+            </header>
+            <div class="insight-scroll">
+              <article class="insight-card insight-topic">
+                <header>${iconNode(Sparkles)}<span>当前主题</span></header>
+                <p class="insight-topic-text">开始录音后自动识别主题</p>
+              </article>
+              <article class="insight-card insight-points-card">
+                <header>${iconNode(Lightbulb)}<span>关键观点</span></header>
+                <ul class="insight-points"><li class="insight-placeholder">转写后自动提炼关键观点</li></ul>
+              </article>
+              <article class="insight-card insight-todos">
+                <header>${iconNode(Check)}<span>待办事项</span><span class="todo-count">0 项</span></header>
+                <ul class="insight-todos-list"><li class="insight-placeholder">暂未识别到待办</li></ul>
+              </article>
+              <article class="insight-card insight-summary">
+                <header>${iconNode(Info)}<span>会议摘要</span><span class="insight-ai-label">AI 生成 · 待确认</span></header>
+                <p class="insight-summary-text">录音结束后生成会议摘要。</p>
+              </article>
+            </div>
+          </section>
+
+          <section class="panel chat-panel" aria-labelledby="chat-heading">
+            <header class="panel-title-row">
+              <div class="numbered-heading"><span class="step-number iris">4</span><h2 id="chat-heading">AI 对话</h2></div>
+              <button class="panel-icon-button chat-clear" type="button" title="清空对话" aria-label="清空对话">${iconNode(RefreshCw)}</button>
+            </header>
+            <div class="chat-thread" aria-live="polite">
+              <button class="chat-suggestion" type="button">提问：刚才讨论的三个技术问题是什么？</button>
+            </div>
+            <form class="chat-form">
+              <input class="chat-input" type="text" autocomplete="off" placeholder="输入你的问题…" aria-label="向 AI 提问" />
+              <button class="chat-send" type="submit" aria-label="发送问题" title="发送">${iconNode(Send)}</button>
+            </form>
+          </section>
+        </aside>
+      </div>
+
+      <footer class="player-bar playback" aria-label="全局播放器">
+        <button class="playback-toggle" type="button" disabled aria-label="播放录音">${icon("play", "ui-icon play")}${icon("pause", "ui-icon pause")}<span class="playback-toggle-label">播放</span></button>
+        <div class="player-time">
+          <time class="playback-current" datetime="PT0S">00:00</time><span class="player-time-divider">/</span><time class="playback-total" datetime="PT0S">00:00</time>
+        </div>
+        <input class="playback-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="播放进度" />
+        <select class="playback-rate" aria-label="播放速度"><option value="0.75">0.75×</option><option value="1" selected>1.0×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2.0×</option></select>
+        <div class="player-volume">
+          ${iconNode(Volume2)}
+          <input class="playback-volume" type="range" min="0" max="100" value="100" step="1" aria-label="音量" />
+        </div>
+        <button class="player-expand" type="button" title="全屏" aria-label="切换全屏">${iconNode(Maximize2)}</button>
+        <p class="playback-hint" hidden></p>
+      </footer>
+    </div>
+
     <dialog class="ai-dialog" aria-labelledby="ai-dialog-title">
       <form method="dialog" class="ai-form">
         <header><div><p class="section-kicker">AI PROVIDER</p><h2 id="ai-dialog-title">配置 AI 助手</h2></div><button class="dialog-close" value="cancel" aria-label="关闭">×</button></header>
@@ -116,6 +316,7 @@ export function renderApp(): string {
         <footer><button class="ai-cancel" value="cancel">取消</button><button class="ai-generate" type="button">发送</button><button class="ai-test" type="button">保存并测试连接</button></footer>
       </form>
     </dialog>
+
     <dialog class="asr-dialog" aria-labelledby="asr-dialog-title">
       <form method="dialog" class="asr-form">
         <header><div><p class="section-kicker">SPEECH TO TEXT</p><h2 id="asr-dialog-title">配置转写服务</h2></div><button class="dialog-close" value="cancel" aria-label="关闭">×</button></header>
@@ -144,6 +345,7 @@ export function renderApp(): string {
         <footer><button value="cancel">取消</button><button class="asr-save" type="button">保存配置</button></footer>
       </form>
     </dialog>
+
     <dialog class="history-dialog" aria-labelledby="history-dialog-title">
       <section class="history-panel">
         <header><div><p class="section-kicker">RECORDING LIBRARY</p><h2 id="history-dialog-title">历史录音</h2></div><button class="history-close" type="button" aria-label="关闭">×</button></header>
@@ -172,12 +374,48 @@ export function renderApp(): string {
         </footer>
       </section>
     </dialog>
+
+    <dialog class="settings-dialog" aria-labelledby="settings-dialog-title">
+      <section class="settings-panel">
+        <header><div><p class="section-kicker">PREFERENCES</p><h2 id="settings-dialog-title">设置</h2></div><button class="settings-close" type="button" aria-label="关闭">×</button></header>
+        <div class="settings-list">
+          <button class="settings-option settings-open-ai" type="button"><span class="settings-option-icon">${iconNode(Sparkles)}</span><span><strong>AI 服务</strong><small>MiniMax / DeepSeek、模型与 API Key</small></span>${iconNode(ChevronRight)}</button>
+          <button class="settings-option settings-open-asr" type="button"><span class="settings-option-icon">${iconNode(Captions)}</span><span><strong>转写服务</strong><small>本地 Whisper、云端 ASR 与热词</small></span>${iconNode(ChevronRight)}</button>
+          <button class="settings-option settings-open-library" type="button"><span class="settings-option-icon">${iconNode(HardDrive)}</span><span><strong>录音资料库</strong><small>存储、清理与诊断</small></span>${iconNode(ChevronRight)}</button>
+        </div>
+        <p class="settings-footnote">所有设置保存在本机；API Key 加密保存在 Windows 凭据管理器。</p>
+      </section>
+    </dialog>
+
+    <dialog class="knowledge-dialog" aria-labelledby="knowledge-dialog-title">
+      <section class="knowledge-panel">
+        <header><div><p class="section-kicker">KNOWLEDGE CENTER</p><h2 id="knowledge-dialog-title">知识库</h2></div><button class="knowledge-close" type="button" aria-label="关闭">×</button></header>
+        <div class="knowledge-empty">
+          <span>${iconNode(BookOpen)}</span>
+          <h3>知识沉淀即将上线</h3>
+          <p>后续将支持跨录音检索、主题关联与 AI 问答。当前请先在历史记录中打开单次录音。</p>
+          <button class="knowledge-open-history" type="button">打开历史录音</button>
+        </div>
+      </section>
+    </dialog>
   `;
 }
 
 export function applyAudioDevices(root: HTMLElement, snapshot: AudioDeviceSnapshot): void {
   updateDeviceSelect(root, ".microphone-select", ".microphone-detail", snapshot.microphones, "未检测到麦克风");
   updateDeviceSelect(root, ".system-output-select", ".system-output-detail", snapshot.systemOutputs, "未检测到系统输出");
+  const microphone = snapshot.microphones.find((device) => device.isDefault) ?? snapshot.microphones[0];
+  const system = snapshot.systemOutputs.find((device) => device.isDefault) ?? snapshot.systemOutputs[0];
+  const summary = root.querySelector<HTMLElement>(".audio-device-summary");
+  if (summary) {
+    summary.textContent = microphone && system
+      ? `${shortDeviceName(microphone.name)} · ${shortDeviceName(system.name)}`
+      : "未检测到可用设备";
+  }
+}
+
+function shortDeviceName(name: string): string {
+  return name.length > 16 ? `${name.slice(0, 15)}…` : name;
 }
 
 function updateDeviceSelect(
@@ -215,97 +453,248 @@ export function formatElapsed(milliseconds: number): string {
   return hours > 0 ? `${hours.toString().padStart(2, "0")}:${minutes}:${remainder}` : `${minutes}:${remainder}`;
 }
 
-function statusText(status: RecorderStatus): { title: string; copy: string; badge: string } {
+function statusText(status: RecorderStatus): { title: string; copy: string; badge: string; state: string } {
   switch (status) {
-    case "recording": return { title: "正在录音", copy: "麦克风与系统声音正在分别写入本地 Opus 分片。", badge: "录音中" };
-    case "paused": return { title: "录音已暂停", copy: "计时与波形已暂停，点击继续恢复会话。", badge: "已暂停" };
-    case "stopping": return { title: "正在结束", copy: "正在安全结束会话，请稍候。", badge: "保存中" };
-    case "finished": return { title: "录音已保存", copy: "两路音频分片已安全封口，可在右侧查看保存位置。", badge: "已完成" };
-    case "error": return { title: "操作失败", copy: "请查看错误信息后重试。", badge: "错误" };
-    default: return { title: "等待开始录音", copy: "选择设备后，麦克风与系统声音将分别保存在本地。", badge: "待机" };
+    case "recording": return { title: "正在录音", copy: "麦克风与系统声音正在分别写入本地 Opus 分片。", badge: "录音中", state: "录音中" };
+    case "paused": return { title: "录音已暂停", copy: "计时与波形已暂停，点击继续恢复会话。", badge: "已暂停", state: "已暂停" };
+    case "stopping": return { title: "正在结束", copy: "正在安全结束会话，请稍候。", badge: "保存中", state: "保存中" };
+    case "finished": return { title: "录音已保存", copy: "两路音频分片已安全封口，可在右侧查看保存位置。", badge: "已完成", state: "已完成" };
+    case "error": return { title: "操作失败", copy: "请查看错误信息后重试。", badge: "错误", state: "错误" };
+    default: return { title: "等待开始录音", copy: "选择设备后，麦克风与系统声音将分别保存在本地。", badge: "待机", state: "待机" };
   }
 }
 
-export function applyView(root: HTMLElement, state: RecorderViewState): void {
+export function applyView(root: HTMLElement, state: RecorderViewState, forceContent = false): void {
   const text = state.status === "finished" && state.recovered
-    ? { title: "已恢复上次录音", copy: "应用上次未正常退出，已载入最近一次安全提交的音频。", badge: "已恢复" }
+    ? { title: "已恢复上次录音", copy: "应用上次未正常退出，已载入最近一次安全提交的音频。", badge: "已恢复", state: "已恢复" }
     : statusText(state.status);
   const statusChanged = root.dataset.status !== state.status;
   const sessionChanged = root.dataset.session !== (state.sessionId ?? "");
-  const audioKey = `${state.microphoneChunks?.length ?? 0}/${state.systemChunks?.length ?? 0}`;
-  const audioChanged = root.dataset.audio !== audioKey;
   root.dataset.status = state.status;
   root.dataset.session = state.sessionId ?? "";
-  root.dataset.audio = audioKey;
-  root.dataset.session = state.sessionId ?? "";
+
   root.querySelector<HTMLElement>(".status-title")!.textContent = text.title;
   root.querySelector<HTMLElement>(".status-copy")!.textContent = text.copy;
-  root.querySelector<HTMLElement>(".content-status")!.textContent = text.badge;
+  root.querySelector<HTMLElement>(".record-state-label")!.textContent = text.state;
+  root.querySelector<HTMLElement>(".content-status-text")!.textContent = state.status === "recording" ? "LIVE" : text.badge;
   root.querySelector<HTMLElement>(".title-display")!.textContent = state.title;
+
   const elapsed = root.querySelector<HTMLTimeElement>(".elapsed")!;
   elapsed.textContent = formatElapsed(state.elapsedMs);
   elapsed.dateTime = `PT${Math.floor(state.elapsedMs / 1000)}S`;
 
   const active = state.status === "recording" || state.status === "paused";
   const busy = state.status === "stopping";
-  const pause = root.querySelector<HTMLElement & { disabled: boolean }>(".pause-button")!;
+  const pause = root.querySelector<HTMLButtonElement>(".pause-button")!;
   pause.disabled = !active || busy;
+  pause.hidden = !active;
   pause.innerHTML = `${icon(state.status === "paused" ? "play" : "pause")}<span>${state.status === "paused" ? "继续" : "暂停"}</span>`;
   pause.title = state.status === "paused" ? "继续录音" : "暂停录音";
-  const stop = root.querySelector<HTMLElement & { disabled: boolean }>(".stop-button")!;
+
+  const stop = root.querySelector<HTMLButtonElement>(".stop-button")!;
   stop.disabled = !active || busy;
-  stop.innerHTML = `${icon("stop")}<span>${busy ? "正在保存" : "结束并保存"}</span>`;
-  const start = root.querySelector<HTMLElement>(".start-button")!;
+  stop.hidden = !active;
+  stop.innerHTML = `${icon("stop")}<span>${busy ? "正在保存" : "结束"}</span>`;
+
+  const start = root.querySelector<HTMLButtonElement>(".start-button")!;
   start.hidden = active || busy;
   start.innerHTML = `${iconNode(Mic)}<span>${state.status === "finished" ? "开始新录音" : "开始录音"}</span>`;
+
+  root.querySelector<HTMLElement>(".live-caption")?.classList.toggle("disabled", busy);
+  root.querySelectorAll<HTMLButtonElement>(".scene-card").forEach((button) => {
+    button.disabled = active || busy;
+  });
 
   const error = root.querySelector<HTMLElement>(".error-banner")!;
   error.hidden = !state.errorMessage;
   error.textContent = state.errorMessage ?? "";
-  if (statusChanged || sessionChanged || audioChanged) {
+
+  const finished = state.status === "finished";
+  const discard = root.querySelector<HTMLElement>(".discard-audio");
+  const reveal = root.querySelector<HTMLElement>(".reveal-recording");
+  if (discard) discard.hidden = !finished;
+  if (reveal) reveal.hidden = !finished || !(state.microphonePath ?? state.systemPath);
+
+  if (state.status !== "finished" && state.status !== "idle") {
+    const total = root.querySelector<HTMLTimeElement>(".playback-total");
+    if (total) total.textContent = formatElapsed(state.elapsedMs);
+  }
+  if (state.status === "idle") {
+    const current = root.querySelector<HTMLTimeElement>(".playback-current");
+    const total = root.querySelector<HTMLTimeElement>(".playback-total");
+    if (current) current.textContent = "00:00";
+    if (total) total.textContent = "00:00";
+  }
+
+  const toolbar = root.querySelector<HTMLElement>(".content-toolbar");
+  toolbar?.classList.toggle("recording", active);
+  const hasTranscript = root.querySelector(".transcript-line") !== null;
+  setToolbarEnabled(root, hasTranscript);
+  updateLanguageSummary(root, state);
+
+  if (statusChanged || sessionChanged || forceContent || root.querySelector(".tab-panel") === null) {
     root.querySelector<HTMLElement>(".content-body")!.innerHTML = contentForStatus(state);
+    applyTab(root, (root.dataset.tab as WorkspaceTab | undefined) ?? "transcript");
   }
 }
 
-function contentForStatus(state: RecorderViewState): string {
-  const { status, sessionId } = state;
-  if (status === "recording" || status === "paused") {
-    return `<div class="transcript-placeholder"><span class="live-placeholder-icon">${iconNode(Captions)}</span><h3>${status === "paused" ? "字幕已暂停" : "正在聆听…"}</h3><p>实时字幕将在识别到语音后显示；开启 AI 同传可同步生成译文。</p><div class="skeleton"><i></i><i></i><i></i></div></div>`;
+function updateLanguageSummary(root: HTMLElement, state: RecorderViewState): void {
+  const language = state.language === "zh-CN" ? "中文" : state.language === "en-US" ? "English" : "自动识别";
+  const translation = state.translation === "zh-CN" ? "中文" : state.translation === "en-US" ? "English" : state.translation === "none" ? "不翻译" : state.translation;
+  const summary = root.querySelector<HTMLElement>(".language-summary");
+  if (summary) summary.textContent = `${language} · ${translation}`;
+}
+
+function setToolbarEnabled(root: HTMLElement, enabled: boolean): void {
+  for (const selector of [".edit-transcript", ".mark-transcript", ".copy-transcript", ".seek-transcript"]) {
+    const button = root.querySelector<HTMLButtonElement>(selector);
+    if (button) button.disabled = !enabled;
   }
-  if (status === "stopping") return `<div class="saving"><span class="spinner" aria-hidden="true"></span><h3>正在安全结束会话</h3><p>请勿重复提交停止操作。</p></div>`;
-  if (status === "finished") {
-    const revealPath = state.microphonePath ?? state.systemPath;
-    return `<div class="finished-card">
-      <section class="session-summary">
-        <span class="check">${iconNode(Check)}</span>
-        <div><h3>${state.recovered ? "已恢复上次录音" : "录音已保存"}</h3><p>会话 ${sessionId?.slice(0, 12) ?? "—"} · 音频已安全保存在本地</p></div>
-      </section>
-      <section class="playback" aria-label="录音回放">
-        <div class="track-legend" aria-label="音轨图例"><span class="system-track"><i></i>系统声音</span><span class="microphone-track"><i></i>麦克风</span></div>
-        <div class="track-preview" aria-hidden="true"><div class="system-wave">${Array.from({ length: 64 }, (_, index) => `<i style="--wave:${index};height:${8 + (index % 7) * 4}px"></i>`).join("")}</div><div class="microphone-wave">${Array.from({ length: 64 }, (_, index) => `<i style="--wave:${index + 3};height:${9 + ((index + 2) % 6) * 4}px"></i>`).join("")}</div></div>
-        <div class="playback-row"><wa-button class="playback-toggle" type="button" size="small" variant="brand" aria-label="播放录音">${icon("play", "ui-icon play")} ${icon("pause", "ui-icon pause")}<span>播放</span></wa-button><time class="playback-current" datetime="PT0S">00:00</time><input class="playback-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="播放进度" /><time class="playback-total" datetime="PT0S">00:00</time><select class="playback-rate" aria-label="播放速度"><option value="0.75">0.75×</option><option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option></select></div>
-        <p class="playback-hint">双轨音频已自动对齐 · 点击字幕可跳转到对应时间</p>
-      </section>
-      <div class="workbench-grid">
-        <section class="transcript-panel workbench-card">
-          <header><span class="panel-heading">${iconNode(Captions)}<strong>转写文本</strong></span><span class="transcript-state"></span></header>
-          <div class="transcript-body"><p class="transcript-empty">尚未转写。配置服务后，可生成带时间戳和说话人的完整文本。</p></div>
-          <div class="transcript-actions"><select class="asr-provider" aria-label="转写服务商"><option value="local_whisper">本地 Whisper</option><option value="minimax">MiniMax</option><option value="silicon_flow">SiliconFlow</option></select><wa-button class="transcribe" type="button" size="small" variant="brand">开始转写</wa-button><wa-button class="cancel-transcribe" type="button" size="small" hidden>取消</wa-button><wa-button class="asr-settings" type="button" size="small">转写设置</wa-button><select class="translate-target" aria-label="翻译语言"><option value="zh">中文</option><option value="en">English</option></select><wa-button class="translate-transcript" type="button" size="small">AI 翻译</wa-button></div>
+}
+
+export function syncTranscriptActions(root: HTMLElement): void {
+  setToolbarEnabled(root, root.querySelector(".transcript-line") !== null);
+}
+
+export function applyTab(root: HTMLElement, tab: WorkspaceTab): void {
+  root.dataset.tab = tab;
+  root.querySelectorAll<HTMLButtonElement>(".workspace-tab").forEach((button) => {
+    const active = button.dataset.tab === tab;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", String(active));
+    button.tabIndex = active ? 0 : -1;
+  });
+  root.querySelectorAll<HTMLElement>(".tab-panel").forEach((panel) => {
+    panel.hidden = panel.dataset.panel !== tab;
+  });
+  const body = root.querySelector<HTMLElement>(".content-body");
+  if (body) body.setAttribute("aria-label", tabLabel(tab));
+  const toolbar = root.querySelector<HTMLElement>(".content-toolbar");
+  if (toolbar) toolbar.hidden = tab !== "transcript";
+}
+
+function tabLabel(tab: WorkspaceTab): string {
+  const labels: Record<WorkspaceTab, string> = {
+    transcript: "转录",
+    translation: "翻译",
+    analysis: "AI 分析",
+    tasks: "任务",
+    chat: "AI 对话",
+  };
+  return labels[tab];
+}
+
+function contentForStatus(state: RecorderViewState): string {
+  const { status } = state;
+  return `
+    <section class="tab-panel transcript-panel" data-panel="transcript">${transcriptPanel(state)}</section>
+    <section class="tab-panel translation-panel" data-panel="translation" hidden>${translationPanel(status)}</section>
+    <section class="tab-panel analysis-panel" data-panel="analysis" hidden>${analysisPanel(state)}</section>
+    <section class="tab-panel tasks-panel" data-panel="tasks" hidden>${tasksPanel()}</section>
+    <section class="tab-panel workspace-chat-panel" data-panel="chat" hidden>${workspaceChatPanel()}</section>
+  `;
+}
+
+function transcriptPanel(state: RecorderViewState): string {
+  if (state.status === "finished") return finishedTranscriptPanel(state);
+  if (state.status === "stopping") {
+    return `<div class="panel-state saving"><span class="spinner" aria-hidden="true"></span><h3>正在安全结束会话</h3><p>请勿重复提交停止操作。</p></div>`;
+  }
+  if (state.status === "recording" || state.status === "paused") {
+    return `
+      <div class="transcript-scroll">
+        <div class="transcript-stream">
+          <div class="transcript-placeholder">
+            <span class="live-placeholder-icon">${iconNode(Captions)}</span>
+            <h3>${state.status === "paused" ? "转录已暂停" : "正在聆听…"}</h3>
+            <p>实时字幕将在识别到语音后显示；开启 AI 同传可同步生成译文。</p>
+          </div>
+        </div>
+        <div class="recognition-status" hidden><span class="recognition-dots" aria-hidden="true"><i></i><i></i><i></i></span><span>正在识别下一段语音…</span></div>
+      </div>`;
+  }
+  return `<div class="panel-state empty-content"><span class="empty-illustration">${iconNode(Captions)}</span><h3>开始录音后，实时内容会出现在这里</h3><p>录音会安全保存在本地；开启实时字幕后，转录与 AI 洞察将同步更新。</p></div>`;
+}
+
+function finishedTranscriptPanel(state: RecorderViewState): string {
+  return `
+    <div class="transcript-scroll finished-scroll">
+      <div class="finished-card finished-transcript-card">
+        <section class="session-summary">
+          <span class="check">${iconNode(Check)}</span>
+          <div><h3>${state.recovered ? "已恢复上次录音" : "录音已保存"}</h3><p>会话 ${state.sessionId?.slice(0, 12) ?? "—"} · 音频已安全保存在本地</p></div>
+          <span class="finished-pill">已保存</span>
         </section>
-        <section class="notes-editor workbench-card">
-          <header><span class="panel-heading">${iconNode(FileText)}<strong>会议笔记</strong></span><span class="notes-state"></span></header>
-          <textarea class="meeting-notes" rows="9" placeholder="记录关键结论、决策和待办事项…"></textarea>
-          <div class="notes-actions"><select class="notes-provider" aria-label="AI 服务商"><option value="minimax">MiniMax</option><option value="deep_seek">DeepSeek</option></select><wa-button class="save-notes" type="button" size="small">保存笔记</wa-button><wa-button class="summarize-notes" type="button" size="small" variant="brand">${iconNode(WandSparkles)}AI 生成纪要</wa-button></div>
+        <section class="transcript-workbench workbench-card">
+          <header>
+            <span class="panel-heading">${iconNode(Captions)}<strong>转写文本</strong></span>
+            <span class="transcript-state">尚未转写</span>
+          </header>
+          <div class="transcript-body"><p class="transcript-empty">尚未转写。配置服务后，可生成带时间戳和说话人的完整文本。</p></div>
+          <div class="transcript-actions">
+            <select class="asr-provider" aria-label="转写服务商"><option value="local_whisper">本地 Whisper</option><option value="minimax">MiniMax</option><option value="silicon_flow">SiliconFlow</option></select>
+            <button class="action-button primary transcribe" type="button">${iconNode(WandSparkles)}<span>开始转写</span></button>
+            <button class="action-button cancel-transcribe" type="button" hidden>取消</button>
+            <button class="action-button asr-settings" type="button">${iconNode(Settings2)}<span>转写设置</span></button>
+            <select class="translate-target" aria-label="翻译语言"><option value="zh">中文</option><option value="en">English</option></select>
+            <button class="action-button translate-transcript" type="button">${iconNode(Languages)}<span>AI 翻译</span></button>
+            <button class="action-button export-session" type="button">${iconNode(Download)}<span>导出资料</span></button>
+            <span class="export-state"></span>
+          </div>
         </section>
       </div>
-      <section class="session-details">
-        <header><span class="panel-heading">${iconNode(HardDrive)}<strong>本地文件</strong></span><span>${(state.microphoneChunks?.length ?? 0) + (state.systemChunks?.length ?? 0)} 个音频分片</span></header>
-        <dl><div><dt>麦克风</dt><dd title="${escapeHtml(state.microphonePath ?? "")}">${escapeHtml(state.microphonePath ?? "未生成")}</dd></div><div><dt>系统声音</dt><dd title="${escapeHtml(state.systemPath ?? "")}">${escapeHtml(state.systemPath ?? "未生成")}</dd></div><div><dt>丢弃缓冲块</dt><dd>${state.droppedBlocks ?? 0}</dd></div></dl>
-      </section>
-      <div class="export-row"><wa-button class="export-session" type="button" size="small">${iconNode(Download)}导出会议资料</wa-button>${revealPath ? `<wa-button class="reveal-recording" type="button" size="small" data-path="${escapeHtml(revealPath)}">${iconNode(FolderOpen)}打开文件夹</wa-button>` : ""}<wa-button class="discard-audio" type="button" size="small" title="删除分片音频，保留转写与笔记">${iconNode(Trash2)}删除音频</wa-button><span class="export-state"></span></div>
-    </div>`;
+    </div>
+  `;
+}
+
+function translationPanel(status: RecorderStatus): string {
+  if (status === "finished") {
+    return `<div class="translation-layout"><div class="translation-source"><span class="translation-label">原文</span><div class="transcript-body translation-original"><p class="transcript-empty">完成转写后可生成双语翻译。</p></div></div><div class="translation-result"><span class="translation-label iris-label">${iconNode(Languages)}译文</span><div class="translation-content"><p class="transcript-empty">译文会显示在这里，并保留原文与时间戳。</p></div></div></div>`;
   }
-  return `<div class="empty-content"><span class="empty-illustration" aria-hidden="true">${iconNode(CassetteTape)}</span><h3>内容将在这里出现</h3><p>开始录音后，这里将承载实时字幕。停止后可继续生成摘要、章节和待办。</p></div>`;
+  if (status === "recording" || status === "paused") {
+    return `<div class="live-translation-panel"><div class="live-translation-list"><div class="panel-state"><span class="empty-illustration iris-bg">${iconNode(Languages)}</span><h3>双语翻译</h3><p>录音中的 AI 同传结果会在这里按段显示；开启实时字幕后自动生成。</p></div></div></div>`;
+  }
+  return `<div class="panel-state">${translationEmpty()}</div>`;
+}
+
+function translationEmpty(): string {
+  return `<span class="empty-illustration iris-bg">${iconNode(Languages)}</span><h3>还没有可翻译的内容</h3><p>完成录音和转写后，可生成中文或英文译文。</p>`;
+}
+
+function analysisPanel(state: RecorderViewState): string {
+  if (state.status !== "finished") {
+    return `<div class="panel-state"><span class="empty-illustration iris-bg">${iconNode(Sparkles)}</span><h3>AI 分析等待内容</h3><p>录音转写完成后，这里会整理主题、关键观点、待办事项与会议摘要。</p></div>`;
+  }
+  return `
+    <div class="analysis-layout">
+      <section class="notes-editor workbench-card">
+        <header><span class="panel-heading">${iconNode(FileText)}<strong>会议笔记</strong></span><span class="notes-state"></span></header>
+        <textarea class="meeting-notes" rows="10" placeholder="记录关键结论、决策和待办事项…"></textarea>
+        <div class="notes-actions">
+          <select class="notes-provider" aria-label="AI 服务商"><option value="minimax">MiniMax</option><option value="deep_seek">DeepSeek</option></select>
+          <button class="action-button save-notes" type="button">保存笔记</button>
+          <button class="action-button primary summarize-notes" type="button">${iconNode(WandSparkles)}<span>AI 生成纪要</span></button>
+        </div>
+      </section>
+      <section class="analysis-hint"><span>${iconNode(Sparkles)}</span><p>AI 生成的内容默认标记为“待确认”，确认后才会进入正式会议记录。</p></section>
+    </div>`;
+}
+
+function tasksPanel(): string {
+  return `<div class="panel-state tasks-empty"><span class="empty-illustration">${iconNode(ListTodo)}</span><h3>还没有任务</h3><p>任务会从转写中提取，并在你确认后进入正式记录。</p></div><div class="tasks-content" hidden></div>`;
+}
+
+function workspaceChatPanel(): string {
+  return `
+    <div class="workspace-chat-layout">
+      <div class="workspace-chat-thread chat-thread" aria-live="polite">
+        <button class="chat-suggestion" type="button">提问：刚才讨论的三个技术问题是什么？</button>
+      </div>
+      <form class="chat-form workspace-chat-form">
+        <input class="chat-input" type="text" autocomplete="off" placeholder="基于当前录音提问…" aria-label="基于当前录音向 AI 提问" />
+        <button class="chat-send" type="submit" aria-label="发送问题" title="发送">${iconNode(Send)}</button>
+      </form>
+    </div>`;
 }
 
 /// Renders provider segments with timestamps and speaker labels. When a saved
@@ -315,6 +704,7 @@ export function renderTranscript(
   container: HTMLElement,
   transcript: Transcript,
   translation?: { label: string; content: string },
+  options: { partial?: boolean } = {},
 ): void {
   container.replaceChildren();
   if (transcript.segments.length === 0) {
@@ -322,28 +712,41 @@ export function renderTranscript(
     paragraph.textContent = transcript.text;
     container.append(paragraph);
   } else {
-    for (const segment of transcript.segments) {
-      const line = document.createElement("p");
+    transcript.segments.forEach((segment, index) => {
+      const line = document.createElement("article");
       line.className = "transcript-line";
+      if (options.partial && index === transcript.segments.length - 1) line.classList.add("partial");
       line.dataset.startMs = String(segment.startMs);
       line.tabIndex = 0;
       line.setAttribute("role", "button");
       line.title = "跳转到这段录音";
-      const marker = document.createElement("span");
-      marker.className = "transcript-marker";
-      marker.innerHTML = iconNode(MessageSquareText);
+
+      const meta = document.createElement("header");
+      meta.className = "transcript-meta";
+      const dot = document.createElement("span");
+      dot.className = `speaker-dot speaker-${index % 4}`;
+      const speaker = document.createElement("strong");
+      speaker.className = "transcript-speaker";
+      speaker.textContent = speakerLabel(segment.speaker, index);
       const time = document.createElement("time");
       time.textContent = formatElapsed(segment.startMs);
-      const speaker = document.createElement("strong");
-      speaker.textContent = segment.speaker ? `${segment.speaker} ` : "";
-      const text = document.createElement("span");
-      text.textContent = segment.text;
-      const content = document.createElement("span");
+      const state = document.createElement("span");
+      state.className = "recognized-pill";
+      state.textContent = options.partial && index === transcript.segments.length - 1 ? "识别中" : "已识别";
+      const play = document.createElement("button");
+      play.type = "button";
+      play.className = "transcript-play";
+      play.title = "播放这一段";
+      play.setAttribute("aria-label", "播放这一段");
+      play.innerHTML = icon("play");
+      meta.append(dot, speaker, time, state, play);
+
+      const content = document.createElement("p");
       content.className = "transcript-content";
-      content.append(speaker, text);
-      line.append(marker, time, content);
+      content.textContent = segment.text;
+      line.append(meta, content);
       container.append(line);
-    }
+    });
   }
   if (!translation || !translation.content.trim()) return;
   const section = document.createElement("section");
@@ -357,8 +760,92 @@ export function renderTranscript(
   container.append(section);
 }
 
+function speakerLabel(speaker: string | undefined, index: number): string {
+  if (!speaker) return `发言人 ${String.fromCharCode(65 + (index % 4))}`;
+  const match = /^S(\d+)$/i.exec(speaker);
+  if (match) return `发言人 ${String.fromCharCode(64 + Number(match[1]))}`;
+  return speaker;
+}
+
+export function applyInsights(root: HTMLElement, input: InsightInput): void {
+  const topic = root.querySelector<HTMLElement>(".insight-topic-text");
+  const points = root.querySelector<HTMLElement>(".insight-points");
+  const todos = root.querySelector<HTMLElement>(".insight-todos-list");
+  const todoCount = root.querySelector<HTMLElement>(".todo-count");
+  const summary = root.querySelector<HTMLElement>(".insight-summary-text");
+  if (!topic || !points || !todos || !summary) return;
+
+  const hasSegments = input.segments.length > 0;
+  const recent = input.segments.slice(-3);
+  if (input.status === "idle") {
+    topic.textContent = "开始录音后自动识别主题";
+  } else if (input.status === "finished") {
+    topic.textContent = input.title || "本次录音";
+  } else {
+    topic.textContent = input.title && input.title !== "新录音" ? input.title : (hasSegments ? "实时主题识别中" : "等待首段转写");
+  }
+
+  if (recent.length === 0) {
+    points.innerHTML = `<li class="insight-placeholder">转写后自动提炼关键观点</li>`;
+  } else {
+    points.innerHTML = recent.map((segment) => {
+      const text = truncate(segment.text.replace(/\s+/g, " ").trim(), 52);
+      const time = formatElapsed(segment.startMs);
+      return `<li><p>${escapeHtml(text)}</p><span>${escapeHtml(time)}</span></li>`;
+    }).join("");
+  }
+
+  const parsedTasks = parseTasks(input.notes);
+  todoCount!.textContent = `${parsedTasks.length} 项`;
+  todos.innerHTML = parsedTasks.length > 0
+    ? parsedTasks.slice(0, 4).map((task) => `<li><span class="task-check">${iconNode(Check)}</span><p>${escapeHtml(task.text)}</p><span class="task-status">${task.done ? "已完成" : "待确认"}</span></li>`).join("")
+    : `<li class="insight-placeholder">${input.status === "finished" ? "暂未识别到待办" : "录音结束后提取待办"}</li>`;
+
+  const notes = input.notes.trim();
+  if (notes) {
+    const clean = notes
+      .replace(/^#{1,6}\s*/gm, "")
+      .replace(/^\s*[-*]\s*\[[ xX]\]\s*/gm, "")
+      .replace(/^\s*[-*]\s*/gm, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    summary.textContent = truncate(clean || notes, 160);
+  } else if (hasSegments) {
+    summary.textContent = input.status === "finished"
+      ? "尚未生成会议摘要，可在 AI 分析中生成纪要。"
+      : "录音结束后生成会议摘要。";
+  } else {
+    summary.textContent = "录音结束后生成会议摘要。";
+  }
+
+  root.querySelector<HTMLElement>(".insight-panel")?.classList.toggle("has-content", hasSegments || notes.length > 0);
+}
+
+export function applyTasks(root: HTMLElement, notes: string): void {
+  const tasks = parseTasks(notes);
+  const content = root.querySelector<HTMLElement>(".tasks-content");
+  const empty = root.querySelector<HTMLElement>(".tasks-empty");
+  if (!content || !empty) return;
+  content.hidden = tasks.length === 0;
+  empty.hidden = tasks.length > 0;
+  if (tasks.length === 0) return;
+  content.innerHTML = `<ul>${tasks.map((task) => `<li class="${task.done ? "done" : ""}"><span>${iconNode(Check)}</span><p>${escapeHtml(task.text)}</p><small>${task.done ? "已完成" : "待确认"}</small></li>`).join("")}</ul>`;
+}
+
+function parseTasks(notes: string): Array<{ text: string; done: boolean }> {
+  return notes
+    .split(/\r?\n/)
+    .map((line) => /^\s*[-*]\s*\[([ xX])\]\s+(.+)$/.exec(line))
+    .filter((match): match is RegExpExecArray => match !== null)
+    .map((match) => ({ done: match[1].toLowerCase() === "x", text: match[2].trim() }))
+    .filter((task) => task.text.length > 0);
+}
+
+function truncate(value: string, max: number): string {
+  return value.length > max ? `${value.slice(0, max)}…` : value;
+}
+
 function escapeHtml(value: string): string {
   const replacements: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
   return value.replace(/[&<>"']/g, (character) => replacements[character]);
 }
-

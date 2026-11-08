@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { applyView, formatElapsed, renderApp, renderTranscript } from "./components";
+import { applyInsights, applyTab, applyView, formatElapsed, renderApp, renderTranscript } from "./components";
 import type { RecorderViewState, Transcript } from "./types";
 
 const baseState: RecorderViewState = {
@@ -77,6 +77,36 @@ describe("applyView", () => {
   });
 });
 
+describe("workspace", () => {
+  it("switches tabs and exposes one panel at a time", () => {
+    const root = mount(baseState);
+    applyTab(root, "analysis");
+    expect(root.dataset.tab).toBe("analysis");
+    expect(root.querySelector<HTMLElement>('.tab-panel[data-panel="analysis"]')!.hidden).toBe(false);
+    expect(root.querySelector<HTMLElement>('.tab-panel[data-panel="transcript"]')!.hidden).toBe(true);
+    expect(root.querySelector<HTMLButtonElement>('.workspace-tab[data-tab="analysis"]')!.getAttribute("aria-selected")).toBe("true");
+    expect(root.querySelector<HTMLElement>(".content-toolbar")!.hidden).toBe(true);
+  });
+
+  it("renders source-linked points and checklist tasks in the insight panel", () => {
+    const root = mount(baseState);
+    applyInsights(root, {
+      title: "技术评审",
+      status: "finished",
+      segments: [
+        { startMs: 0, endMs: 1_000, text: "系统稳定性优先。" },
+        { startMs: 65_000, endMs: 66_000, text: "分阶段推进功能开发。" },
+      ],
+      notes: "- [ ] 制定技术方案\n- [x] 评估技术方案",
+    });
+    expect(root.querySelector(".insight-topic-text")!.textContent).toBe("技术评审");
+    expect(root.querySelectorAll(".insight-points li")).toHaveLength(2);
+    expect(root.querySelector(".insight-points")!.textContent).toContain("00:00");
+    expect(root.querySelector(".todo-count")!.textContent).toBe("2 项");
+    expect(root.querySelector(".insight-todos-list")!.textContent).toContain("评估技术方案");
+  });
+});
+
 describe("renderTranscript", () => {
   const transcript: Transcript = {
     provider: "local_whisper",
@@ -98,7 +128,7 @@ describe("renderTranscript", () => {
     expect(lines).toHaveLength(2);
     expect(lines[0].dataset.startMs).toBe("0");
     expect(lines[0].querySelector("time")!.textContent).toBe("00:00");
-    expect(lines[0].querySelector("strong")!.textContent).toContain("S1");
+    expect(lines[0].querySelector("strong")!.textContent).toBe("发言人 A");
     expect(lines[1].dataset.startMs).toBe("1500");
   });
 

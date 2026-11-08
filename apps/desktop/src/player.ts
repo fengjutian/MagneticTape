@@ -31,6 +31,7 @@ export class TimelinePlayer {
   private readonly toggle: (HTMLElement & { disabled: boolean }) | null;
   private readonly seekInput: HTMLInputElement | null;
   private readonly rateSelect: HTMLSelectElement | null;
+  private readonly volumeInput: HTMLInputElement | null;
   private readonly currentLabel: HTMLElement | null;
   private readonly totalLabel: HTMLElement | null;
   private readonly hint: HTMLElement | null;
@@ -52,6 +53,7 @@ export class TimelinePlayer {
     this.toggle = root.querySelector<HTMLElement & { disabled: boolean }>(".playback-toggle");
     this.seekInput = root.querySelector<HTMLInputElement>(".playback-seek");
     this.rateSelect = root.querySelector<HTMLSelectElement>(".playback-rate");
+    this.volumeInput = root.querySelector<HTMLInputElement>(".playback-volume");
     this.currentLabel = root.querySelector<HTMLElement>(".playback-current");
     this.totalLabel = root.querySelector<HTMLElement>(".playback-total");
     this.hint = root.querySelector<HTMLElement>(".playback-hint");
@@ -160,6 +162,11 @@ export class TimelinePlayer {
     this.rateSelect?.addEventListener("change", () => {
       this.setRate(Number(this.rateSelect?.value ?? 1));
       this.updateUi();
+    });
+    this.volumeInput?.addEventListener("input", () => {
+      const volume = Math.min(1, Math.max(0, Number(this.volumeInput?.value ?? 100) / 100));
+      this.microphone.audio.volume = volume;
+      this.system.audio.volume = volume;
     });
   }
 

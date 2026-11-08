@@ -1,6 +1,17 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { applyAudioDevices, applyView, formatElapsed, renderApp, renderTranscript } from "./components";
+import {
+  applyAudioDevices,
+  applyInsights,
+  applyTab,
+  applyTasks,
+  applyView,
+  formatElapsed,
+  renderApp,
+  renderTranscript,
+  syncTranscriptActions,
+  type WorkspaceTab,
+} from "./components";
 import { TimelinePlayer } from "./player";
 import {
   mergeSettings,
@@ -65,6 +76,11 @@ let liveTranslationError: string | undefined;
 let liveTranslationRetryAfter = 0;
 let liveTranslationGeneration = 0;
 let liveAiProvider: AiResponse["provider"] = "minimax";
+let sessionNotes = "";
+let activeTab: WorkspaceTab = "transcript";
+let liveAutoFollow = true;
+let chatBusy = false;
+let chatMessages: Array<{ role: "user" | "assistant"; text: string; pending?: boolean }> = [];
 let settings: AppSettings = {
   microphoneId: null,
   systemOutputId: null,
@@ -160,37 +176,43 @@ function setLiveIndicator(active: boolean): void {
 }
 
 function renderLive(): void {
-  const body = app.querySelector<HTMLElement>(".content-body");
-  if (!body) return;
+  const stream = app.querySelector<HTMLElement>(".transcript-panel .transcript-stream");
+  if (!stream) return;
   if (view.status !== "recording" && view.status !== "paused") return;
+  const recognition = app.querySelector<HTMLElement>(".recognition-status");
+  renderLiveTranslationSummary();
   if (liveSegments.length === 0 && !livePartialText) {
     if (liveError) {
-      body.replaceChildren();
-      const failure = document.createElement("p");
-      failure.className = "live-error";
-      failure.textContent = `实时字幕暂不可用：${liveError}`;
-      body.append(failure);
-    } else if (livePendingChunks > 0) {
-      const placeholder = body.querySelector<HTMLElement>(".transcript-placeholder");
+      stream.innerHTML = `<p class="live-error">实时字幕暂不可用：${escapeForHtml(liveError)}</p>`;
+    } else {
+      const placeholder = stream.querySelector<HTMLElement>(".transcript-placeholder");
       if (placeholder) {
-        placeholder.querySelector("h3")!.textContent = `正在识别 ${livePendingChunks} 个音频分片`;
-        placeholder.querySelector("p")!.textContent = liveProcessedChunks > 0
+        placeholder.querySelector("h3")!.textContent = livePendingChunks > 0
+          ? `正在识别 ${livePendingChunks} 个音频分片`
+          : (view.status === "paused" ? "转录已暂停" : "正在聆听…");
+        placeholder.querySelector("p")!.textContent = livePendingChunks > 0 && liveProcessedChunks > 0
           ? `已完成 ${liveProcessedChunks} 个分片，正在等待最新结果。`
-          : "首段文字通常会在录音开始后数秒出现。";
+          : "实时字幕将在识别到语音后显示；开启 AI 同传可同步生成译文。";
       }
     }
+    if (recognition) recognition.hidden = true;
+    updateInsights();
+    syncTranscriptActions(app);
     return;
   }
-  renderTranscript(body, {
+  const segments = livePartialText
+    ? [...liveSegments, { startMs: liveSegments.at(-1)?.endMs ?? 0, endMs: liveSegments.at(-1)?.endMs ?? 0, text: livePartialText }]
+    : liveSegments;
+  renderTranscript(stream, {
     provider: "live",
     model: "",
     language: view.language,
     durationMs: 0,
     text: "",
-    segments: livePartialText ? [...liveSegments, { startMs: liveSegments.at(-1)?.endMs ?? 0, endMs: liveSegments.at(-1)?.endMs ?? 0, text: livePartialText }] : liveSegments,
+    segments,
     createdAtEpochMs: 0,
-  });
-  body.querySelectorAll<HTMLElement>(".transcript-line").forEach((line, index) => {
+  }, undefined, { partial: Boolean(livePartialText) });
+  stream.querySelectorAll<HTMLElement>(".transcript-line").forEach((line, index) => {
     const translation = liveTranslations[index];
     if (!translation) return;
     const translated = document.createElement("span");
@@ -207,15 +229,44 @@ function renderLive(): void {
       : liveTranslationBusy
         ? `AI 正在翻译为${translationLabel(settings.translation)} · ${liveTranslatedCount}/${liveSegments.length} 段`
         : `AI 同传 ${translationLabel(settings.translation)} · 已翻译 ${liveTranslatedCount}/${liveSegments.length} 段`;
-    body.append(status);
+    stream.append(status);
   }
   if (liveError) {
     const failure = document.createElement("p");
     failure.className = "live-error";
     failure.textContent = `实时字幕错误：${liveError}`;
-    body.append(failure);
+    stream.append(failure);
   }
-  body.scrollTop = body.scrollHeight;
+  if (recognition) recognition.hidden = false;
+  updateInsights();
+  syncTranscriptActions(app);
+  if (liveAutoFollow) {
+    const scroller = app.querySelector<HTMLElement>(".transcript-scroll");
+    if (scroller) scroller.scrollTop = scroller.scrollHeight;
+  }
+}
+
+function renderLiveTranslationSummary(): void {
+  const list = app.querySelector<HTMLElement>(".live-translation-list");
+  if (!list) return;
+  if (liveSegments.length === 0) return;
+  list.innerHTML = liveSegments.map((segment, index) => `
+    <article class="live-translation-item">
+      <header><span>${escapeForHtml(speakerName(segment.speaker, index))}</span><time>${formatElapsed(segment.startMs)}</time></header>
+      <p>${escapeForHtml(segment.text)}</p>
+      <div class="translation-text">${escapeForHtml(liveTranslations[index] ?? "等待 AI 译文…")}</div>
+    </article>`).join("");
+}
+
+function escapeForHtml(value: string): string {
+  const replacements: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+  return value.replace(/[&<>"']/g, (character) => replacements[character]);
+}
+
+function speakerName(speaker: string | undefined, index: number): string {
+  if (!speaker) return `发言人 ${String.fromCharCode(65 + (index % 4))}`;
+  const match = /^S(\d+)$/i.exec(speaker);
+  return match ? `发言人 ${String.fromCharCode(64 + Number(match[1]))}` : speaker;
 }
 
 function translationLabel(value: string): string {
@@ -364,6 +415,11 @@ function syncBackend(next: SessionState): void {
     setLiveIndicator(false);
     currentTranscript = null;
     activeTranscriptLine = null;
+    const revealPath = next.microphonePath ?? next.systemPath ?? "";
+    app.querySelectorAll<HTMLButtonElement>(".reveal-recording").forEach((button) => {
+      button.dataset.path = revealPath;
+      button.hidden = revealPath.length === 0;
+    });
     void ensurePlayback();
     void loadSessionNotes();
     void loadTranscript();
@@ -372,8 +428,35 @@ function syncBackend(next: SessionState): void {
     playbackPlayer?.dispose();
     playbackPlayer = null;
     activeTranscriptLine = null;
+    resetPlaybackUi();
   }
+  updateInsights();
+  renderChatThreads();
   renderLive();
+}
+
+function resetPlaybackUi(): void {
+  const toggle = app.querySelector<HTMLButtonElement>(".playback-toggle");
+  const seek = app.querySelector<HTMLInputElement>(".playback-seek");
+  const rate = app.querySelector<HTMLSelectElement>(".playback-rate");
+  const current = app.querySelector<HTMLElement>(".playback-current");
+  const total = app.querySelector<HTMLElement>(".playback-total");
+  if (toggle) {
+    toggle.disabled = true;
+    toggle.classList.remove("playing");
+    toggle.setAttribute("aria-label", "播放录音");
+  }
+  if (seek) {
+    seek.disabled = true;
+    seek.value = "0";
+  }
+  if (rate) rate.disabled = true;
+  if (current) current.textContent = "00:00";
+  if (total) {
+    total.textContent = view.status === "recording" || view.status === "paused" || view.status === "stopping"
+      ? formatElapsed(view.elapsedMs)
+      : "00:00";
+  }
 }
 
 /// Loads (or reloads) the unified playback timeline for the finished session.
@@ -430,13 +513,48 @@ function seekFromTranscript(target: HTMLElement): void {
 }
 
 async function loadSessionNotes(): Promise<void> {
-  const editor = app.querySelector<HTMLTextAreaElement>(".meeting-notes");
-  if (!editor) return;
   try {
-    editor.value = await invoke<string>("get_session_notes");
+    sessionNotes = await invoke<string>("get_session_notes");
+    const editor = app.querySelector<HTMLTextAreaElement>(".meeting-notes");
+    if (editor) editor.value = sessionNotes;
+    updateInsights();
+    applyTasks(app, sessionNotes);
+    renderTranslationPanel();
   } catch (error) {
     const status = app.querySelector<HTMLElement>(".notes-state");
     if (status) status.textContent = `读取失败：${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+function updateInsights(): void {
+  const segments = currentTranscript?.segments ?? liveSegments;
+  applyInsights(app, {
+    title: view.title,
+    status: view.status,
+    segments,
+    notes: sessionNotes,
+  });
+  applyTasks(app, sessionNotes);
+  const topicStatus = app.querySelector<HTMLElement>(".insight-panel");
+  if (topicStatus) topicStatus.classList.toggle("live", view.status === "recording");
+}
+
+function renderTranslationPanel(): void {
+  const result = app.querySelector<HTMLElement>(".translation-content");
+  if (!result) return;
+  if (!currentTranslation || !currentTranslation.content.trim()) return;
+  result.innerHTML = `<p>${escapeForHtml(currentTranslation.content)}</p>`;
+  const original = app.querySelector<HTMLElement>(".translation-original");
+  if (!original || !currentTranscript) return;
+  original.replaceChildren();
+  for (const segment of currentTranscript.segments) {
+    const line = document.createElement("p");
+    line.className = "translation-original-line";
+    line.innerHTML = `<time>${formatElapsed(segment.startMs)}</time><span>${escapeForHtml(segment.text)}</span>`;
+    original.append(line);
+  }
+  if (currentTranscript.segments.length === 0) {
+    original.textContent = currentTranscript.text;
   }
 }
 
@@ -477,6 +595,8 @@ async function loadTranslation(): Promise<void> {
   }
   renderTranscriptBody();
   setTranscriptStatus(currentTranslation ? "已翻译" : undefined);
+  renderTranslationPanel();
+  updateInsights();
 }
 
 async function loadTranscript(): Promise<void> {
@@ -490,6 +610,8 @@ async function loadTranscript(): Promise<void> {
     currentTranscript = transcript;
     renderTranscriptBody();
     setTranscriptStatus();
+    syncTranscriptActions(app);
+    updateInsights();
     await loadTranslation();
   } catch {
     // No transcript has been generated for this session yet.
@@ -575,6 +697,8 @@ async function startRecording(): Promise<void> {
   }
   pending = true;
   try {
+    activeTab = "transcript";
+    applyTab(app, "transcript");
     syncBackend(await invoke<SessionState>("start_session", { microphoneId, systemOutputId, title: view.title }));
     startLevelPolling();
     startHealthPolling();
@@ -856,6 +980,24 @@ async function refreshAiConfiguration(): Promise<void> {
     aiConfigStatus.textContent = `无法读取凭据状态：${error instanceof Error ? error.message : String(error)}`;
   }
 }
+async function refreshAiStatus(): Promise<void> {
+  try {
+    const configurations = await invoke<AiConfiguration[]>("get_ai_configurations");
+    const configured = configurations.find((configuration) => configuration.configured);
+    const dot = app.querySelector<HTMLElement>(".config-status-dot");
+    const summary = app.querySelector<HTMLElement>(".ai-model-summary");
+    dot?.classList.toggle("configured", Boolean(configured));
+    if (dot) dot.title = configured ? `${configured.provider} 已配置` : "尚未配置 AI 服务";
+    if (summary) {
+      summary.textContent = configured
+        ? `${configured.provider === "minimax" ? "MiniMax" : "DeepSeek"} · ${configured.model}`
+        : "尚未配置 AI 服务";
+    }
+  } catch {
+    // Status is cosmetic; configuration failures are surfaced in the dialog.
+  }
+}
+
 app.querySelector<HTMLButtonElement>(".ai-settings")!.addEventListener("click", () => {
   aiDialog.showModal();
   void refreshAiConfiguration();
@@ -891,6 +1033,7 @@ app.querySelector<HTMLButtonElement>(".ai-test")!.addEventListener("click", asyn
     aiResult.className = "ai-result success";
     aiResult.textContent = `${response.model}：${response.content}`;
     await refreshAiConfiguration();
+    await refreshAiStatus();
   } catch (error) {
     aiResult.className = "ai-result failure";
     aiResult.textContent = error instanceof Error ? error.message : String(error);
@@ -958,15 +1101,19 @@ asrDialogProvider.addEventListener("change", () => {
   applyAsrDefaults();
   void refreshAsrConfiguration();
 });
-app.addEventListener("click", (event) => {
-  const button = (event.target as HTMLElement).closest<HTMLButtonElement>(".asr-settings");
-  if (!button) return;
+function openAsrSettings(): void {
   asrResult.textContent = "";
   asrDialogProvider.value = settings.asrProvider;
   syncAsrMode();
   applyAsrDefaults();
   asrDialog.showModal();
   void refreshAsrConfiguration();
+}
+
+app.addEventListener("click", (event) => {
+  const button = (event.target as HTMLElement).closest<HTMLButtonElement>(".asr-settings");
+  if (!button) return;
+  openAsrSettings();
 });
 app.querySelector<HTMLButtonElement>(".asr-save")!.addEventListener("click", async () => {
   if (asrDialogProvider.value === "local_whisper") {
@@ -1172,6 +1319,9 @@ app.addEventListener("click", async (event) => {
     renderTranscriptBody();
     setTranscriptStatus();
     renderTranscriptionState();
+    syncTranscriptActions(app);
+    updateInsights();
+    renderTranslationPanel();
     // The retention policy may have deleted the audio after transcription.
     syncBackend(await invoke<SessionState>("get_session_state"));
   } catch (error) {
@@ -1287,6 +1437,9 @@ app.addEventListener("click", async (event) => {
   status.textContent = "保存中…";
   try {
     await invoke("save_session_notes", { content: editor.value });
+    sessionNotes = editor.value;
+    updateInsights();
+    applyTasks(app, sessionNotes);
     status.textContent = "已保存";
   } catch (error) {
     status.textContent = `保存失败：${error instanceof Error ? error.message : String(error)}`;
@@ -1313,7 +1466,10 @@ app.addEventListener("click", async (event) => {
       source: editor.value.trim() || null,
     });
     editor.value = content;
+    sessionNotes = content;
     await invoke("save_session_notes", { content });
+    updateInsights();
+    applyTasks(app, sessionNotes);
     status.textContent = "已生成并保存纪要";
   } catch (error) {
     status.textContent = `生成失败：${error instanceof Error ? error.message : String(error)}`;
@@ -1390,6 +1546,301 @@ for (const selector of [".auto-cleanup-days", ".storage-quota"]) {
   app.querySelector<HTMLSelectElement>(selector)!.addEventListener("change", () => void persistSettings());
 }
 
+// ----- Workspace tabs -------------------------------------------------------
+
+function selectTab(tab: WorkspaceTab): void {
+  activeTab = tab;
+  applyTab(app, tab);
+  onWorkspaceTabChanged(tab);
+}
+
+function onWorkspaceTabChanged(tab: WorkspaceTab): void {
+  if (tab === "transcript") {
+    if (view.status === "recording" || view.status === "paused") renderLive();
+    syncTranscriptActions(app);
+  }
+  if (tab === "translation") renderTranslationPanel();
+  if (tab === "analysis") {
+    const editor = app.querySelector<HTMLTextAreaElement>(".meeting-notes");
+    if (editor && sessionNotes) editor.value = sessionNotes;
+    updateInsights();
+  }
+  if (tab === "tasks") applyTasks(app, sessionNotes);
+  if (tab === "chat") renderChatThreads();
+}
+
+app.querySelectorAll<HTMLButtonElement>(".workspace-tab").forEach((button) => {
+  button.addEventListener("click", () => selectTab(button.dataset.tab as WorkspaceTab));
+  button.addEventListener("keydown", (event) => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const tabs = Array.from(app.querySelectorAll<HTMLButtonElement>(".workspace-tab"));
+    const index = tabs.indexOf(button);
+    const next = event.key === "Home"
+      ? 0
+      : event.key === "End"
+        ? tabs.length - 1
+        : (index + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+    tabs[next]?.focus();
+    selectTab(tabs[next].dataset.tab as WorkspaceTab);
+  });
+});
+
+// ----- Scene presets --------------------------------------------------------
+
+const sceneCards = app.querySelectorAll<HTMLButtonElement>(".scene-card");
+const savedScene = localStorage.getItem("magnetic-tape.scene");
+function selectScene(scene: string): void {
+  sceneCards.forEach((button) => {
+    const selected = button.dataset.scene === scene;
+    button.classList.toggle("selected", selected);
+    button.setAttribute("aria-pressed", String(selected));
+  });
+  localStorage.setItem("magnetic-tape.scene", scene);
+}
+if (savedScene && Array.from(sceneCards).some((button) => button.dataset.scene === savedScene)) {
+  selectScene(savedScene);
+}
+sceneCards.forEach((button) => button.addEventListener("click", () => {
+  if (button.disabled) return;
+  selectScene(button.dataset.scene ?? "meeting");
+}));
+
+// ----- Scroll-follow --------------------------------------------------------
+
+app.addEventListener("scroll", (event) => {
+  const target = event.target as HTMLElement;
+  if (!target.classList.contains("transcript-scroll")) return;
+  liveAutoFollow = target.scrollHeight - target.scrollTop - target.clientHeight < 28;
+}, true);
+
+// ----- Content toolbar ------------------------------------------------------
+
+const moreButton = app.querySelector<HTMLButtonElement>(".more-button")!;
+const moreMenu = app.querySelector<HTMLElement>(".more-menu")!;
+moreButton.addEventListener("click", (event) => {
+  event.stopPropagation();
+  const open = moreMenu.hidden;
+  moreMenu.hidden = !open;
+  moreButton.setAttribute("aria-expanded", String(open));
+});
+document.addEventListener("click", (event) => {
+  if (!(event.target as HTMLElement).closest(".more-wrap")) {
+    moreMenu.hidden = true;
+    moreButton.setAttribute("aria-expanded", "false");
+  }
+});
+
+function visibleTranscriptLines(): HTMLElement[] {
+  return Array.from(app.querySelectorAll<HTMLElement>(".transcript-panel .transcript-line"));
+}
+
+app.querySelector<HTMLButtonElement>(".copy-transcript")!.addEventListener("click", async (event) => {
+  const button = event.currentTarget as HTMLButtonElement;
+  const lines = visibleTranscriptLines();
+  const text = lines.map((line) => line.querySelector<HTMLElement>(".transcript-content")?.textContent ?? "").join("\n");
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    button.querySelector("span")!.textContent = "已复制";
+    window.setTimeout(() => { button.querySelector("span")!.textContent = "复制"; }, 1600);
+  } catch {
+    view.errorMessage = "无法写入剪贴板，请检查系统权限。";
+    applyView(app, view);
+  }
+});
+
+app.querySelector<HTMLButtonElement>(".mark-transcript")!.addEventListener("click", () => {
+  const lines = visibleTranscriptLines();
+  const target = lines.at(-1);
+  if (!target) return;
+  target.classList.toggle("marked");
+  const button = app.querySelector<HTMLButtonElement>(".mark-transcript")!;
+  button.querySelector("span")!.textContent = target.classList.contains("marked") ? "已标记" : "标记重点";
+});
+
+app.querySelector<HTMLButtonElement>(".seek-transcript")!.addEventListener("click", () => {
+  const line = visibleTranscriptLines()[0];
+  if (!line) return;
+  seekFromTranscript(line);
+});
+
+app.querySelector<HTMLButtonElement>(".edit-transcript")!.addEventListener("click", () => {
+  const line = visibleTranscriptLines().at(-1);
+  const content = line?.querySelector<HTMLElement>(".transcript-content");
+  if (!line || !content) return;
+  content.contentEditable = "plaintext-only";
+  content.focus();
+  const range = document.createRange();
+  range.selectNodeContents(content);
+  const selection = window.getSelection();
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+  const finish = (): void => {
+    content.contentEditable = "false";
+    content.removeEventListener("blur", finish);
+    const pill = line.querySelector<HTMLElement>(".recognized-pill");
+    if (pill) pill.textContent = "已编辑";
+    if (currentTranscript) {
+      const segment = currentTranscript.segments.find((item) => item.startMs === Number(line.dataset.startMs));
+      if (segment) segment.text = content.textContent ?? segment.text;
+    }
+    updateInsights();
+  };
+  content.addEventListener("blur", finish, { once: true });
+  content.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      content.blur();
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      content.textContent = content.dataset.original ?? content.textContent;
+      content.blur();
+    }
+  }, { once: true });
+});
+
+// ----- AI chat --------------------------------------------------------------
+
+function renderChatThreads(): void {
+  app.querySelectorAll<HTMLElement>(".chat-thread").forEach((thread) => {
+    thread.replaceChildren();
+    if (chatMessages.length === 0) {
+      const suggestion = document.createElement("button");
+      suggestion.className = "chat-suggestion";
+      suggestion.type = "button";
+      suggestion.textContent = "提问：刚才讨论的三个技术问题是什么？";
+      thread.append(suggestion);
+      return;
+    }
+    for (const message of chatMessages) {
+      const wrapper = document.createElement("div");
+      wrapper.className = `chat-message ${message.role}${message.pending ? " pending" : ""}`;
+      const role = document.createElement("span");
+      role.className = "chat-role";
+      role.textContent = message.role === "user" ? "你" : "AI · 基于当前录音";
+      const bubble = document.createElement("div");
+      bubble.className = "chat-bubble";
+      bubble.textContent = message.pending ? "正在整理当前录音…" : message.text;
+      wrapper.append(role, bubble);
+      thread.append(wrapper);
+    }
+    thread.scrollTop = thread.scrollHeight;
+  });
+}
+
+async function sendChat(question: string): Promise<void> {
+  const prompt = question.trim();
+  if (!prompt || chatBusy) return;
+  chatBusy = true;
+  chatMessages.push({ role: "user", text: prompt }, { role: "assistant", text: "", pending: true });
+  renderChatThreads();
+  app.querySelectorAll<HTMLButtonElement>(".chat-send").forEach((button) => { button.disabled = true; });
+  try {
+    const configurations = await invoke<AiConfiguration[]>("get_ai_configurations");
+    const configured = configurations.find((configuration) => configuration.configured);
+    if (!configured) throw new Error("请先在“设置 → AI 服务”中配置 MiniMax 或 DeepSeek API Key");
+    const segments = currentTranscript?.segments ?? liveSegments;
+    const context = segments.slice(-20).map((segment) => `[${formatElapsed(segment.startMs)}] ${segment.text}`).join("\n");
+    const response = await invoke<AiResponse>("generate_ai", {
+      provider: configured.provider,
+      prompt: [
+        "你是 MagneticTape 的录音工作台助手。请只基于下面的录音上下文回答；如果上下文不足，直接说明缺少信息，不要编造。",
+        `录音标题：${view.title}`,
+        context ? `录音内容：\n${context}` : "当前还没有转写内容。",
+        `用户问题：${prompt}`,
+        "回答使用中文，必要时引用时间戳。",
+      ].join("\n\n"),
+    });
+    chatMessages[chatMessages.length - 1] = { role: "assistant", text: response.content };
+    liveAiProvider = response.provider;
+  } catch (error) {
+    chatMessages[chatMessages.length - 1] = {
+      role: "assistant",
+      text: `无法回答：${error instanceof Error ? error.message : String(error)}`,
+    };
+  } finally {
+    chatBusy = false;
+    app.querySelectorAll<HTMLButtonElement>(".chat-send").forEach((button) => { button.disabled = false; });
+    renderChatThreads();
+  }
+}
+
+app.addEventListener("click", (event) => {
+  const suggestion = (event.target as HTMLElement).closest<HTMLButtonElement>(".chat-suggestion");
+  if (!suggestion) return;
+  const question = suggestion.textContent?.replace(/^提问：/, "") ?? "";
+  void sendChat(question);
+});
+app.addEventListener("submit", (event) => {
+  const form = event.target as HTMLFormElement;
+  if (!form.classList.contains("chat-form")) return;
+  event.preventDefault();
+  const input = form.querySelector<HTMLInputElement>(".chat-input");
+  if (!input) return;
+  const value = input.value;
+  input.value = "";
+  void sendChat(value);
+});
+app.querySelectorAll<HTMLButtonElement>(".chat-clear").forEach((button) => button.addEventListener("click", () => {
+  chatMessages = [];
+  renderChatThreads();
+}));
+
+// ----- Dialogs and global navigation ---------------------------------------
+
+const settingsDialog = app.querySelector<HTMLDialogElement>(".settings-dialog")!;
+const knowledgeDialog = app.querySelector<HTMLDialogElement>(".knowledge-dialog")!;
+app.querySelector<HTMLButtonElement>(".settings-button")!.addEventListener("click", () => settingsDialog.showModal());
+app.querySelector<HTMLButtonElement>(".settings-close")!.addEventListener("click", () => settingsDialog.close());
+app.querySelector<HTMLButtonElement>(".knowledge-button")!.addEventListener("click", () => knowledgeDialog.showModal());
+app.querySelector<HTMLButtonElement>(".knowledge-close")!.addEventListener("click", () => knowledgeDialog.close());
+app.querySelector<HTMLButtonElement>(".knowledge-open-history")!.addEventListener("click", () => {
+  knowledgeDialog.close();
+  historySearch.value = "";
+  historyDialog.showModal();
+  void refreshHistory();
+  void refreshLibraryStats();
+});
+app.querySelector<HTMLButtonElement>(".settings-open-ai")!.addEventListener("click", () => {
+  settingsDialog.close();
+  aiDialog.showModal();
+  void refreshAiConfiguration();
+});
+app.querySelector<HTMLButtonElement>(".settings-open-asr")!.addEventListener("click", () => {
+  settingsDialog.close();
+  openAsrSettings();
+});
+app.querySelector<HTMLButtonElement>(".settings-open-library")!.addEventListener("click", () => {
+  settingsDialog.close();
+  historySearch.value = "";
+  historyDialog.showModal();
+  void refreshHistory();
+  void refreshLibraryStats();
+});
+
+// ----- Focus and player chrome ---------------------------------------------
+
+const appShell = app.querySelector<HTMLElement>(".app-shell")!;
+app.querySelector<HTMLButtonElement>(".focus-toggle")!.addEventListener("click", (event) => {
+  const button = event.currentTarget as HTMLButtonElement;
+  const active = appShell.classList.toggle("theater");
+  button.title = active ? "退出专注阅读" : "专注阅读";
+  button.setAttribute("aria-label", button.title);
+});
+app.querySelector<HTMLButtonElement>(".insight-drawer-toggle")!.addEventListener("click", () => {
+  app.querySelector<HTMLElement>(".insight-column")?.classList.toggle("open");
+});
+app.querySelector<HTMLButtonElement>(".player-expand")!.addEventListener("click", async () => {
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else await document.documentElement.requestFullscreen();
+  } catch {
+    // Fullscreen is optional; some WebView2/OS combinations reject it.
+  }
+});
+
 document.addEventListener("keydown", (event) => {
   const target = event.target as HTMLElement;
   if (target.matches("input, textarea, select, [contenteditable=true]")) return;
@@ -1417,6 +1868,9 @@ await listen<WhisperDownloadProgress>("local-whisper-download", (event) => {
 const recovered = await invoke<SessionState | null>("recover_latest_session");
 syncBackend(recovered ?? await invoke<SessionState>("get_session_state"));
 applySettings(await invoke<AppSettings>("get_settings"));
+applyTab(app, "transcript");
+renderChatThreads();
+void refreshAiStatus();
 await refreshAudioDevices();
 applySavedDevices();
 

@@ -13,8 +13,8 @@
     "windows": [
       {
         "title": "MagneticTape",
-        "width": 1220,
-        "height": 900,
+        "width": 1440,
+        "height": 960,
         "minWidth": 960,
         "minHeight": 640,
         "center": true,

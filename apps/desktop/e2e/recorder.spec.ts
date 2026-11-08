@@ -46,3 +46,47 @@ test("opens the local Whisper settings panel", async ({ page }) => {
   await expect(page.locator(".local-whisper-status")).toContainText("GPU");
   await expect(page.locator(".local-whisper-status")).toContainText("CPU");
 });
+
+test("moves between transcript, analysis, tasks and chat without losing content", async ({ page }) => {
+  await page.locator(".start-button").click();
+  await page.locator(".stop-button").click();
+  await page.locator(".transcribe").click();
+  await expect(page.locator(".transcript-line")).toHaveCount(2);
+
+  await page.locator('.workspace-tab[data-tab="analysis"]').click();
+  await page.locator(".meeting-notes").fill("- [ ] 制定技术方案\n- [x] 评估技术方案");
+  await page.locator(".save-notes").click();
+  await expect(page.locator(".insight-todos-list")).toContainText("评估技术方案");
+
+  await page.locator('.workspace-tab[data-tab="tasks"]').click();
+  await expect(page.locator(".tasks-content")).toContainText("制定技术方案");
+  await expect(page.locator(".tasks-content")).toContainText("已完成");
+
+  await page.locator('.workspace-tab[data-tab="chat"]').click();
+  await page.locator(".workspace-chat-form .chat-input").fill("刚才讨论的技术问题是什么？");
+  await page.locator(".workspace-chat-form .chat-send").click();
+  await expect(page.locator(".workspace-chat-thread")).toContainText("E2E 纪要");
+  await expect(page.locator(".chat-thread").first()).toContainText("E2E 纪要");
+
+  await page.locator('.workspace-tab[data-tab="transcript"]').click();
+  await expect(page.locator(".transcript-line")).toHaveCount(2);
+});
+
+test("opens settings and the knowledge placeholder", async ({ page }) => {
+  await page.locator(".settings-button").click();
+  await expect(page.locator(".settings-dialog")).toBeVisible();
+  await page.locator(".settings-open-ai").click();
+  await expect(page.locator(".ai-dialog")).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  await page.locator(".knowledge-button").click();
+  await expect(page.locator(".knowledge-dialog")).toBeVisible();
+  await expect(page.locator(".knowledge-dialog")).toContainText("知识沉淀即将上线");
+});
+
+test("exposes the insight drawer at the minimum window width", async ({ page }) => {
+  await page.setViewportSize({ width: 960, height: 640 });
+  await expect(page.locator(".insight-column")).not.toBeInViewport();
+  await page.locator(".insight-drawer-toggle").click();
+  await expect(page.locator(".insight-column")).toBeInViewport();
+});
