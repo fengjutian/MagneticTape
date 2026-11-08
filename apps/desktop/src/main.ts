@@ -976,7 +976,7 @@ app.querySelector<HTMLButtonElement>(".asr-save")!.addEventListener("click", asy
       settings = withLocalWhisper(
         settings,
         localModelSelect.value,
-        localHotwords.value,
+        asrHotwords.value,
       );
       await persistSettings();
       asrResult.className = "asr-result success";
@@ -1002,6 +1002,8 @@ app.querySelector<HTMLButtonElement>(".asr-save")!.addEventListener("click", asy
     asrResult.className = "asr-result success";
     asrResult.textContent = `${configuration.model} 配置已保存`;
     settings = withCloudProfile(settings, configuration);
+    // The hotwords travel with the cloud request as well.
+    settings = mergeSettings(settings, { whisperHotwords: asrHotwords.value });
     await persistSettings();
     await refreshAsrConfiguration();
   } catch (error) {
@@ -1023,7 +1025,7 @@ app.querySelector<HTMLButtonElement>(".asr-clear")!.addEventListener("click", as
 const asrRemote = app.querySelector<HTMLElement>(".asr-remote")!;
 const localPanel = app.querySelector<HTMLElement>(".local-whisper")!;
 const localModelSelect = app.querySelector<HTMLSelectElement>(".local-model")!;
-const localHotwords = app.querySelector<HTMLTextAreaElement>(".local-hotwords")!;
+const asrHotwords = app.querySelector<HTMLTextAreaElement>(".asr-hotwords")!;
 const localStatus = app.querySelector<HTMLElement>(".local-whisper-status")!;
 const localDownloadEngine = app.querySelector<HTMLButtonElement>(".local-download-engine")!;
 const localDownloadModel = app.querySelector<HTMLButtonElement>(".local-download-model")!;
@@ -1036,8 +1038,9 @@ function syncAsrMode(): void {
   const local = asrDialogProvider.value === "local_whisper";
   asrRemote.hidden = local;
   localPanel.hidden = !local;
+  // The hotwords apply to every provider, so the field is always shown.
+  asrHotwords.value = settings.whisperHotwords;
   if (local) {
-    localHotwords.value = settings.whisperHotwords;
     void refreshLocalWhisper();
   }
 }

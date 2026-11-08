@@ -345,6 +345,9 @@ struct LiveTranscriptionState {
     error: Option<String>,
     partial_text: String,
     stream_tx: Option<mpsc::UnboundedSender<Vec<i16>>>,
+    /// Text already reported for a window, keyed by its timeline slot. The
+    /// next window uses it to drop the part it repeats.
+    reported_text: HashMap<u64, String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -1985,6 +1988,7 @@ fn save_settings(
     settings: AppSettings,
     app: tauri::AppHandle,
     state: tauri::State<'_, Mutex<AppSettings>>,
+    asr_state: tauri::State<'_, AsrState>,
 ) -> Result<AppSettings, String> {
     let sanitized = settings.sanitized();
     let data_directory = app
@@ -1993,6 +1997,15 @@ fn save_settings(
         .map_err(|error| error.to_string())?;
     write_settings(&data_directory, &sanitized)?;
     *state.lock().expect("settings state poisoned") = sanitized.clone();
+    // The hotwords reach the cloud providers through their prompt field, so
+    // they have to be handed to every provider that may be used next.
+    for provider in [
+        asr::AsrProvider::MiniMax,
+        asr::AsrProvider::SiliconFlow,
+        asr::AsrProvider::OpenAiRealtime,
+    ] {
+        asr_state.set_hotwords(provider, sanitized.whisper_hotwords.clone());
+    }
     Ok(sanitized)
 }
 
@@ -2126,6 +2139,7 @@ async fn start_live_transcription(
     app: tauri::AppHandle,
     state: tauri::State<'_, Mutex<SessionState>>,
     asr_state: tauri::State<'_, AsrState>,
+    settings: tauri::State<'_, Mutex<AppSettings>>,
     live: tauri::State<'_, Mutex<LiveTranscriptionState>>,
 ) -> Result<LiveTranscriptView, String> {
     let session_id = {
@@ -2184,6 +2198,7 @@ async fn start_live_transcription(
         error: None,
         partial_text: String::new(),
         stream_tx,
+        reported_text: HashMap::new(),
     };
     Ok(live_view(&live))
 }
@@ -2214,6 +2229,7 @@ fn poll_live_inner(
     state: &tauri::State<'_, Mutex<SessionState>>,
     recorder: &tauri::State<'_, RecorderState>,
     asr_state: &tauri::State<'_, AsrState>,
+    settings: &tauri::State<'_, Mutex<AppSettings>>,
     live: &tauri::State<'_, Mutex<LiveTranscriptionState>>,
 ) -> Result<(), String> {
     let (session_id, directory) = {
@@ -2268,7 +2284,7 @@ fn poll_live_inner(
         return Ok(());
     };
 
-    let (ready, provider, language) = {
+    let (ready, provider, language, context, newest_slot) = {
         let mut live = live.lock().expect("live transcription state poisoned");
         // Local inference is CPU bound, so run a single window at a time.
         let max_inflight: usize = if live.provider == Some(asr::AsrProvider::LocalWhisper) {
@@ -2282,6 +2298,25 @@ fn poll_live_inner(
         }
         let mut slots: BTreeMap<u64, (Option<asr::AudioChunkRef>, Option<asr::AudioChunkRef>)> =
             BTreeMap::new();
+        // Every committed chunk, including ones already transcribed, so the
+        // window that precedes the newest one can be used as context.
+        let mut all_chunks: BTreeMap<
+            u64,
+            (Option<asr::AudioChunkRef>, Option<asr::AudioChunkRef>),
+        > = BTreeMap::new();
+        for chunk in &snapshot.chunks {
+            let reference = asr::AudioChunkRef {
+                track: chunk.track,
+                path: chunk.path.clone(),
+                start_frame: chunk.start_frame,
+                frames: chunk.frames,
+            };
+            let entry = all_chunks.entry(chunk.start_frame).or_default();
+            match chunk.track {
+                Track::Microphone => entry.0 = Some(reference),
+                Track::System => entry.1 = Some(reference),
+            }
+        }
         for chunk in &snapshot.chunks {
             let key = (track_slot(chunk.track), chunk.start_frame);
             if live.processed.contains(&key) || live.inflight.contains(&chunk.start_frame) {
@@ -2317,6 +2352,27 @@ fn poll_live_inner(
             .take(capacity)
             .map(|(slot, entry)| (*slot, entry.0.clone(), entry.1.clone()))
             .collect::<Vec<_>>();
+        // The window that directly precedes the newest one is sent along as
+        // context, so the model hears the sentence the new chunk sits in
+        // instead of treating the chunk edge as a sentence boundary.
+        let newest_slot = chosen.iter().map(|(slot, _, _)| *slot).max();
+        let context = newest_slot.and_then(|newest| {
+            let previous = all_chunks
+                .keys()
+                .rev()
+                .find(|slot| **slot < newest)
+                .copied()?;
+            let entry = all_chunks.get(&previous)?;
+            let microphone = entry.0.clone()?;
+            Some((
+                microphone,
+                entry.1.clone(),
+                live.reported_text
+                    .get(&previous)
+                    .cloned()
+                    .unwrap_or_default(),
+            ))
+        });
         for (slot, _, _) in &chosen {
             live.inflight.insert(*slot);
             // Reserve both track keys immediately. A late second track for a
@@ -2325,7 +2381,13 @@ fn poll_live_inner(
             live.processed.insert((1, *slot));
             live.first_seen.remove(slot);
         }
-        (chosen, live.provider, live.language.clone())
+        (
+            chosen,
+            live.provider,
+            live.language.clone(),
+            context,
+            newest_slot,
+        )
     };
 
     if ready.is_empty() {
@@ -2337,7 +2399,12 @@ fn poll_live_inner(
             .path()
             .app_data_dir()
             .map_err(|error| format!("无法定位应用数据目录：{error}"))?;
-        match local_whisper::pick_live_model(&app_data) {
+        let preferred = settings
+            .lock()
+            .expect("settings state poisoned")
+            .local_whisper_model
+            .clone();
+        match local_whisper::pick_live_model(&app_data, &preferred) {
             Ok(model) => Some((app_data, model)),
             Err(error) => {
                 reset_live_inflight(live, &ready);
@@ -2367,6 +2434,17 @@ fn poll_live_inner(
         let task_app = app.clone();
         let task_session = session_id.clone();
         let task_directory = directory.clone();
+        // Only the newest window can use the context chunk, otherwise two
+        // requests would report the same overlapping audio.
+        let context = context
+            .as_ref()
+            .filter(|_| Some(slot) == newest_slot)
+            .cloned();
+        let hotwords = settings
+            .lock()
+            .expect("settings state poisoned")
+            .whisper_hotwords
+            .clone();
         if let Some((app_data, model)) = local.clone() {
             let chunks: Vec<asr::AudioChunkRef> = microphone.into_iter().chain(system).collect();
             let language = language.clone();
@@ -2380,7 +2458,7 @@ fn poll_live_inner(
                         } else {
                             language.as_str()
                         },
-                        initial_prompt: "",
+                        initial_prompt: &hotwords,
                     };
                     local_whisper::transcribe(
                         &app_data,
@@ -2400,9 +2478,21 @@ fn poll_live_inner(
             let Some(task_config) = config.clone() else {
                 continue;
             };
+            let (context_microphone, context_system, context_text) = match context {
+                Some((microphone, system, text)) => (Some(microphone), system, text),
+                None => (None, None, String::new()),
+            };
             tauri::async_runtime::spawn(async move {
-                let result =
-                    asr::transcribe_pair(microphone, system, &task_config, &task_session).await;
+                let result = asr::transcribe_pair(
+                    microphone,
+                    system,
+                    context_microphone,
+                    context_system,
+                    &context_text,
+                    &task_config,
+                    &task_session,
+                )
+                .await;
                 apply_live_result(&task_app, slot, &task_session, &task_directory, result);
             });
         }
@@ -2438,7 +2528,15 @@ fn apply_live_result(
         return;
     }
     match result {
-        Ok(transcript) => merge_live_transcript(&mut live, transcript),
+        Ok(transcript) => {
+            // Remember what this window reported, so the next window can drop
+            // the part it repeats.
+            let text = transcript.text.trim().to_owned();
+            if !text.is_empty() {
+                live.reported_text.insert(slot, text);
+            }
+            merge_live_transcript(&mut live, transcript);
+        }
         Err(error) => {
             // A transient failure must not permanently discard this window.
             live.processed.remove(&(0, slot));
@@ -2459,6 +2557,7 @@ fn poll_live_transcription(
     state: tauri::State<'_, Mutex<SessionState>>,
     recorder: tauri::State<'_, RecorderState>,
     asr_state: tauri::State<'_, AsrState>,
+    settings: tauri::State<'_, Mutex<AppSettings>>,
     live: tauri::State<'_, Mutex<LiveTranscriptionState>>,
 ) -> Result<LiveTranscriptView, String> {
     let active = live
@@ -2470,7 +2569,7 @@ fn poll_live_transcription(
             &live.lock().expect("live transcription state poisoned"),
         ));
     }
-    let result = poll_live_inner(&app, &state, &recorder, &asr_state, &live);
+    let result = poll_live_inner(&app, &state, &recorder, &asr_state, &settings, &live);
     let mut live = live.lock().expect("live transcription state poisoned");
     if let Err(error) = result {
         live.error = Some(error);
@@ -2763,6 +2862,21 @@ pub fn run() {
                         profile.model.clone(),
                         profile.language.clone(),
                     );
+                }
+                // Seed every provider so the saved hotwords apply even when a
+                // provider has no profile of its own yet.
+                for provider in [
+                    asr::AsrProvider::MiniMax,
+                    asr::AsrProvider::SiliconFlow,
+                    asr::AsrProvider::OpenAiRealtime,
+                ] {
+                    asr_state.seed(
+                        provider,
+                        provider.default_endpoint().to_owned(),
+                        provider.default_model().to_owned(),
+                        settings.language.clone(),
+                    );
+                    asr_state.set_hotwords(provider, settings.whisper_hotwords.clone());
                 }
             }
             if settings.auto_cleanup_days > 0 {

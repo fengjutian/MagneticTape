@@ -121,6 +121,7 @@ export function renderApp(): string {
         <header><div><p class="section-kicker">SPEECH TO TEXT</p><h2 id="asr-dialog-title">配置转写服务</h2></div><button class="dialog-close" value="cancel" aria-label="关闭">×</button></header>
         <label><span>服务商</span><select class="asr-dialog-provider"><option value="local_whisper">本地 Whisper（离线）</option><option value="openai_realtime">OpenAI Realtime（流式）</option><option value="minimax">MiniMax（分片）</option><option value="silicon_flow">SiliconFlow（分片）</option></select></label>
         <label><span>识别语言</span><select class="asr-language"><option value="auto">自动识别</option><option value="zh-CN">中文</option><option value="en-US">English</option></select></label>
+        <label class="asr-hotwords-row"><span>热词 / 提示词（可选）</span><textarea class="asr-hotwords" rows="2" maxlength="512" placeholder="专有名词、产品名、参会人姓名，用逗号或顿号分隔"></textarea></label>
         <div class="asr-remote">
           <label><span>接口地址</span><input class="asr-endpoint" autocomplete="off" /></label>
           <label><span>模型</span><input class="asr-model" autocomplete="off" /></label>
@@ -130,7 +131,6 @@ export function renderApp(): string {
         </div>
         <section class="local-whisper" hidden aria-label="本地 Whisper">
           <label><span>本地模型</span><select class="local-model" aria-label="本地 Whisper 模型"></select></label>
-          <label><span>热词 / 提示词（可选）</span><textarea class="local-hotwords" rows="2" maxlength="512" placeholder="专有名词、产品名、参会人姓名，用逗号或顿号分隔"></textarea></label>
           <p class="local-whisper-status" aria-live="polite">正在读取本地引擎状态…</p>
           <div class="local-whisper-actions">
             <button class="local-download-engine" type="button">下载 CPU 引擎</button>

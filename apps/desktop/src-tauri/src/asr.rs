@@ -56,7 +56,7 @@ impl AsrProvider {
         }
     }
 
-    fn default_endpoint(self) -> &'static str {
+    pub fn default_endpoint(self) -> &'static str {
         match self {
             Self::MiniMax => "https://api.minimax.cn/v1/speech_to_text",
             Self::SiliconFlow => "https://api.siliconflow.cn/v1/audio/transcriptions",
@@ -65,7 +65,7 @@ impl AsrProvider {
         }
     }
 
-    fn default_model(self) -> &'static str {
+    pub fn default_model(self) -> &'static str {
         match self {
             Self::MiniMax => "asr-1.0",
             Self::SiliconFlow => "FunAudioLLM/SenseVoiceSmall",
@@ -281,6 +281,10 @@ pub fn configure_asr(
             endpoint: endpoint.clone(),
             model: model.clone(),
             language: language.clone(),
+            hotwords: previous
+                .as_ref()
+                .map(|value| value.hotwords.clone())
+                .unwrap_or_default(),
         },
     );
     Ok(AsrConfigurationView {
@@ -534,6 +538,12 @@ async fn upload_segment(
     if config.provider == AsrProvider::MiniMax {
         form = form.text("response_format", "verbose_json");
     }
+    // The prompt field tells the model which words to expect, which is what
+    // the hotwords box in the settings is for.
+    let hotwords = config.hotwords.trim().to_owned();
+    if !hotwords.is_empty() {
+        form = form.text("prompt", hotwords);
+    }
     let mut request = client
         .post(&config.endpoint)
         .bearer_auth(&config.api_key)
@@ -589,15 +599,88 @@ pub async fn transcribe_chunks_with(
     .await
 }
 
-/// Transcribes the newest five-second chunk pair for live subtitles.
+/// Transcribes the newest chunk pair for live subtitles.
+///
+/// `previous` holds the chunk that precedes the new one on the timeline. It is
+/// sent along with the new chunk so the model hears the sentence it is in the
+/// middle of instead of treating the chunk edge as a sentence boundary.
+/// `previous_text` is what the previous window already reported, and is used
+/// to drop the repeated part of the new result.
 pub async fn transcribe_pair(
     microphone: Option<AudioChunkRef>,
     system: Option<AudioChunkRef>,
+    previous_microphone: Option<AudioChunkRef>,
+    previous_system: Option<AudioChunkRef>,
+    previous_text: &str,
     config: &AsrCredential,
     session_id: &str,
 ) -> Result<Transcript, String> {
-    let chunks: Vec<AudioChunkRef> = microphone.into_iter().chain(system).collect();
-    transcribe_refs(&chunks, config, session_id, 60, LIVE_REQUEST_TIMEOUT).await
+    let mut chunks: Vec<AudioChunkRef> = previous_microphone
+        .into_iter()
+        .chain(previous_system)
+        .collect();
+    let overlap = chunks.iter().map(|chunk| chunk.frames).max().unwrap_or(0);
+    chunks.extend(microphone.into_iter().chain(system));
+    let mut transcript =
+        transcribe_refs(&chunks, config, session_id, 60, LIVE_REQUEST_TIMEOUT).await?;
+    if overlap > 0 {
+        trim_repeated_overlap(&mut transcript, overlap, previous_text);
+    }
+    Ok(transcript)
+}
+
+/// Removes the part of a rolling-window result that the previous window
+/// already reported.
+///
+/// The window starts `overlap_frames` before the new audio, so the model
+/// transcribes that part again. The API returns one long segment for such a
+/// window rather than one segment per chunk, so the repeated part is found by
+/// text: the new text starts with what the previous window reported for the
+/// same audio.
+///
+/// A segment that sits entirely inside the overlap is dropped. A segment that
+/// straddles the boundary keeps only its tail, which is the part that belongs
+/// to the new audio.
+fn trim_repeated_overlap(transcript: &mut Transcript, overlap_frames: u64, previous_text: &str) {
+    let overlap_ms = overlap_frames * 1_000 / u64::from(OPUS_SAMPLE_RATE);
+    let previous = previous_text.trim();
+    if previous.is_empty() {
+        return;
+    }
+    for segment in transcript.segments.iter_mut() {
+        if segment.end_ms <= overlap_ms {
+            // Fully inside the part that was already reported.
+            segment.text.clear();
+            continue;
+        }
+        if segment.start_ms < overlap_ms {
+            // Straddles the boundary: keep only the new part of the text.
+            segment.text = trim_leading_text(&segment.text, previous);
+            segment.start_ms = overlap_ms;
+        }
+    }
+    transcript
+        .segments
+        .retain(|segment| !segment.text.trim().is_empty());
+}
+
+/// Drops the leading part of `text` that repeats what was already reported.
+///
+/// The new text begins with the audio of the previous window, so it repeats
+/// the tail of `previous`. The longest matching run is removed.
+fn trim_leading_text(text: &str, previous: &str) -> String {
+    let trimmed = text.trim_start();
+    let previous_chars: Vec<char> = previous.chars().collect();
+    let text_chars: Vec<char> = trimmed.chars().collect();
+    let limit = previous_chars.len().min(text_chars.len());
+    for length in (4..=limit).rev() {
+        let head = &text_chars[..length];
+        let tail = &previous_chars[previous_chars.len() - length..];
+        if head == tail {
+            return text_chars[length..].iter().collect::<String>();
+        }
+    }
+    trimmed.to_owned()
 }
 
 async fn transcribe_refs(
@@ -719,6 +802,112 @@ mod tests {
         assert_eq!(language_header("auto"), None);
         assert_eq!(language_header("zh-CN"), Some("zh"));
         assert_eq!(language_header("en-US"), Some("en"));
+    }
+
+    /// A rolling window repeats the previous chunk. The repeated part must be
+    /// dropped, otherwise the caption shows the same sentence twice.
+    #[test]
+    fn drops_the_text_that_the_rolling_window_repeats() {
+        let mut transcript = Transcript {
+            provider: "minimax".into(),
+            model: "asr-1.0".into(),
+            language: "zh".into(),
+            duration_ms: 10_000,
+            text: String::new(),
+            segments: vec![TranscriptSegment {
+                start_ms: 0,
+                end_ms: 10_000,
+                speaker: None,
+                text: "研究或者量化这个财，那么因为他这个杜邦分析法的方法呢，它的方法就是把企业的净资产收益率".into(),
+            }],
+            created_at_epoch_ms: 0,
+        };
+        // The previous window reported the first half of the same audio.
+        let previous = "研究或者量化这个财，那么因为他这个杜邦分析法";
+        trim_repeated_overlap(&mut transcript, 5_040, previous);
+        assert_eq!(transcript.segments.len(), 1);
+        let text = &transcript.segments[0].text;
+        assert!(
+            text.starts_with("的方法呢"),
+            "the repeated prefix should be gone, got {text}"
+        );
+        assert!(text.contains("净资产收益率"));
+    }
+
+    /// A segment that lies entirely inside the already reported overlap must
+    /// disappear instead of being shown again.
+    #[test]
+    fn removes_segments_that_only_cover_the_overlap() {
+        let mut transcript = Transcript {
+            provider: "minimax".into(),
+            model: "asr-1.0".into(),
+            language: "zh".into(),
+            duration_ms: 10_000,
+            text: String::new(),
+            segments: vec![
+                TranscriptSegment {
+                    start_ms: 0,
+                    end_ms: 4_000,
+                    speaker: None,
+                    text: "已经说过的话".into(),
+                },
+                TranscriptSegment {
+                    start_ms: 5_000,
+                    end_ms: 9_000,
+                    speaker: None,
+                    text: "新的内容".into(),
+                },
+            ],
+            created_at_epoch_ms: 0,
+        };
+        trim_repeated_overlap(&mut transcript, 5_040, "已经说过的话");
+        assert_eq!(transcript.segments.len(), 1);
+        assert_eq!(transcript.segments[0].text, "新的内容");
+    }
+
+    /// Text that does not repeat anything must survive untouched.
+    #[test]
+    fn keeps_text_that_repeats_nothing() {
+        let mut transcript = Transcript {
+            provider: "minimax".into(),
+            model: "asr-1.0".into(),
+            language: "zh".into(),
+            duration_ms: 10_000,
+            text: String::new(),
+            segments: vec![TranscriptSegment {
+                start_ms: 0,
+                end_ms: 9_000,
+                speaker: None,
+                text: "完全不同的另一句话".into(),
+            }],
+            created_at_epoch_ms: 0,
+        };
+        trim_repeated_overlap(&mut transcript, 5_040, "毫不相干的上一句");
+        assert_eq!(transcript.segments.len(), 1);
+        assert_eq!(transcript.segments[0].text, "完全不同的另一句话");
+    }
+
+    /// Without a previous report there is nothing to compare against, so the
+    /// result must be kept as it is.
+    #[test]
+    fn keeps_everything_when_there_is_no_previous_text() {
+        let mut transcript = Transcript {
+            provider: "minimax".into(),
+            model: "asr-1.0".into(),
+            language: "zh".into(),
+            duration_ms: 10_000,
+            text: String::new(),
+            segments: vec![TranscriptSegment {
+                start_ms: 0,
+                end_ms: 9_000,
+                speaker: None,
+                text: "第一句话".into(),
+            }],
+            created_at_epoch_ms: 0,
+        };
+        trim_repeated_overlap(&mut transcript, 5_040, "");
+        assert_eq!(transcript.segments.len(), 1);
+        assert_eq!(transcript.segments[0].text, "第一句话");
     }
 
     #[test]
@@ -866,6 +1055,7 @@ mod tests {
             endpoint: format!("http://{address}/v1/speech_to_text"),
             model: "asr-1.0".into(),
             language: "zh-CN".into(),
+            hotwords: String::new(),
         };
         let cancel = AtomicBool::new(false);
         let transcript = tauri::async_runtime::block_on(transcribe_chunks_with(
