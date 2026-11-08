@@ -199,4 +199,23 @@ describe("renderTranscript", () => {
     expect(container.querySelector(".transcript-line")).toBeNull();
     expect(container.textContent).toContain("大家好。");
   });
+
+  it("keeps tab and panel ARIA relationships in sync", () => {
+    const root = mount(baseState);
+    const transcriptTab = root.querySelector<HTMLElement>("#workspace-tab-transcript")!;
+    const transcriptPanel = root.querySelector<HTMLElement>("#workspace-panel-transcript")!;
+    expect(transcriptTab.getAttribute("aria-controls")).toBe("workspace-panel-transcript");
+    expect(transcriptPanel.getAttribute("role")).toBe("tabpanel");
+    expect(transcriptPanel.getAttribute("aria-labelledby")).toBe("workspace-tab-transcript");
+
+    applyTab(root, "tasks");
+    const tasksTab = root.querySelector<HTMLElement>("#workspace-tab-tasks")!;
+    const tasksPanel = root.querySelector<HTMLElement>("#workspace-panel-tasks")!;
+    expect(tasksTab.getAttribute("aria-selected")).toBe("true");
+    expect(tasksTab.tabIndex).toBe(0);
+    expect(transcriptTab.getAttribute("aria-selected")).toBe("false");
+    expect(transcriptTab.tabIndex).toBe(-1);
+    expect(tasksPanel.hidden).toBe(false);
+    expect(transcriptPanel.hidden).toBe(true);
+  });
 });
