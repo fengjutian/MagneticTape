@@ -37,6 +37,7 @@ import {
 import "@awesome.me/webawesome/dist/components/button/button.js";
 import type { AiConfiguration, AiResponse, AppSettings, AsrConfiguration, AudioDeviceSnapshot, AudioHealth, AudioLevels, CleanupResult, ExportResult, JobProgress, LibraryStats, LiveTranscript, LocalWhisperStatus, PlaybackTracks, RecorderViewState, RecordingListItem, SessionState, Transcript, TranscriptSegment, WhisperDownloadProgress } from "./types";
 import "./styles.css";
+import "./workspace-v2.css";
 
 // Playwright runs the real UI in Chromium; install the in-memory Tauri bridge
 // before any command is invoked.
@@ -79,6 +80,8 @@ let liveAiProvider: AiResponse["provider"] = "minimax";
 let sessionNotes = "";
 let activeTab: WorkspaceTab = "transcript";
 let liveAutoFollow = true;
+let liveUnread = 0;
+let lastLiveSegmentCount = 0;
 let chatBusy = false;
 let chatMessages: Array<{ role: "user" | "assistant"; text: string; pending?: boolean }> = [];
 let settings: AppSettings = {
@@ -196,6 +199,9 @@ function renderLive(): void {
       }
     }
     if (recognition) recognition.hidden = true;
+    lastLiveSegmentCount = 0;
+    liveUnread = 0;
+    updateFollowUi();
     updateInsights();
     syncTranscriptActions(app);
     return;
@@ -203,6 +209,11 @@ function renderLive(): void {
   const segments = livePartialText
     ? [...liveSegments, { startMs: liveSegments.at(-1)?.endMs ?? 0, endMs: liveSegments.at(-1)?.endMs ?? 0, text: livePartialText }]
     : liveSegments;
+  if (segments.length > lastLiveSegmentCount && !liveAutoFollow) {
+    liveUnread += segments.length - lastLiveSegmentCount;
+  }
+  lastLiveSegmentCount = segments.length;
+  if (liveAutoFollow) liveUnread = 0;
   renderTranscript(stream, {
     provider: "live",
     model: "",
@@ -240,9 +251,21 @@ function renderLive(): void {
   if (recognition) recognition.hidden = false;
   updateInsights();
   syncTranscriptActions(app);
+  updateFollowUi();
   if (liveAutoFollow) {
     const scroller = app.querySelector<HTMLElement>(".transcript-scroll");
     if (scroller) scroller.scrollTop = scroller.scrollHeight;
+  }
+}
+
+function updateFollowUi(): void {
+  const button = app.querySelector<HTMLButtonElement>(".follow-latest");
+  if (!button) return;
+  button.hidden = liveAutoFollow;
+  const count = button.querySelector<HTMLElement>(".follow-count");
+  if (count) {
+    count.hidden = liveUnread === 0;
+    count.textContent = String(liveUnread);
   }
 }
 
@@ -698,6 +721,9 @@ async function startRecording(): Promise<void> {
   pending = true;
   try {
     activeTab = "transcript";
+    liveAutoFollow = true;
+    liveUnread = 0;
+    lastLiveSegmentCount = 0;
     applyTab(app, "transcript");
     syncBackend(await invoke<SessionState>("start_session", { microphoneId, systemOutputId, title: view.title }));
     startLevelPolling();
@@ -1595,6 +1621,12 @@ function selectScene(scene: string): void {
     const selected = button.dataset.scene === scene;
     button.classList.toggle("selected", selected);
     button.setAttribute("aria-pressed", String(selected));
+    if (selected) {
+      const name = app.querySelector<HTMLElement>(".scene-compact-name");
+      const description = app.querySelector<HTMLElement>(".scene-compact-desc");
+      if (name) name.textContent = button.querySelector("span")?.textContent ?? "";
+      if (description) description.textContent = button.dataset.description ?? "";
+    }
   });
   localStorage.setItem("magnetic-tape.scene", scene);
 }
@@ -1612,7 +1644,20 @@ app.addEventListener("scroll", (event) => {
   const target = event.target as HTMLElement;
   if (!target.classList.contains("transcript-scroll")) return;
   liveAutoFollow = target.scrollHeight - target.scrollTop - target.clientHeight < 28;
+  if (liveAutoFollow) liveUnread = 0;
+  updateFollowUi();
 }, true);
+
+app.addEventListener("click", (event) => {
+  const button = (event.target as HTMLElement).closest<HTMLButtonElement>(".follow-latest");
+  if (!button) return;
+  liveAutoFollow = true;
+  liveUnread = 0;
+  lastLiveSegmentCount = liveSegments.length;
+  const scroller = app.querySelector<HTMLElement>(".transcript-scroll");
+  if (scroller) scroller.scrollTo({ top: scroller.scrollHeight, behavior: "smooth" });
+  updateFollowUi();
+});
 
 // ----- Content toolbar ------------------------------------------------------
 
@@ -1829,8 +1874,84 @@ app.querySelector<HTMLButtonElement>(".focus-toggle")!.addEventListener("click",
   button.title = active ? "退出专注阅读" : "专注阅读";
   button.setAttribute("aria-label", button.title);
 });
-app.querySelector<HTMLButtonElement>(".insight-drawer-toggle")!.addEventListener("click", () => {
-  app.querySelector<HTMLElement>(".insight-column")?.classList.toggle("open");
+const workspaceGrid = app.querySelector<HTMLElement>(".workspace-grid")!;
+const insightColumn = app.querySelector<HTMLElement>(".insight-column")!;
+const narrowInsight = window.matchMedia("(max-width: 1099px)");
+
+function setInsightOpen(open: boolean): void {
+  if (narrowInsight.matches) {
+    insightColumn.classList.toggle("open", open);
+    if (open) insightColumn.removeAttribute("aria-hidden");
+    else insightColumn.setAttribute("aria-hidden", "true");
+    return;
+  }
+  insightColumn.classList.remove("open");
+  insightColumn.removeAttribute("aria-hidden");
+  insightColumn.classList.toggle("collapsed", !open);
+  workspaceGrid.classList.toggle("insight-collapsed", !open);
+  localStorage.setItem("magnetic-tape.insight", open ? "open" : "collapsed");
+}
+
+function insightIsOpen(): boolean {
+  return narrowInsight.matches
+    ? insightColumn.classList.contains("open")
+    : !insightColumn.classList.contains("collapsed");
+}
+
+function syncInsightMode(): void {
+  if (narrowInsight.matches) {
+    insightColumn.classList.remove("collapsed");
+    workspaceGrid.classList.remove("insight-collapsed");
+    setInsightOpen(insightColumn.classList.contains("open"));
+  } else {
+    insightColumn.classList.remove("open");
+    setInsightOpen(localStorage.getItem("magnetic-tape.insight") !== "collapsed");
+  }
+}
+syncInsightMode();
+narrowInsight.addEventListener("change", syncInsightMode);
+
+app.addEventListener("click", (event) => {
+  const target = event.target as HTMLElement;
+  if (target.closest(".insight-toggle")) {
+    setInsightOpen(!insightIsOpen());
+    return;
+  }
+  if (target.closest(".insight-drawer-toggle")) {
+    setInsightOpen(true);
+    return;
+  }
+  if (target.closest(".insight-collapse")) {
+    setInsightOpen(false);
+    return;
+  }
+  const confirm = target.closest<HTMLButtonElement>(".insight-confirm");
+  if (confirm) {
+    confirm.classList.add("confirmed");
+    confirm.textContent = "已确认";
+    confirm.disabled = true;
+    const badge = confirm.closest(".insight-card")?.querySelector<HTMLElement>(".insight-badge.pending");
+    if (badge) {
+      badge.textContent = "已确认";
+      badge.classList.remove("pending");
+      badge.classList.add("summary");
+    }
+    return;
+  }
+  const source = target.closest<HTMLButtonElement>(".insight-source");
+  if (source && playbackPlayer) {
+    const start = Number(source.dataset.startMs);
+    if (Number.isFinite(start)) {
+      playbackPlayer.seek(start);
+      highlightTranscript(start);
+    }
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && narrowInsight.matches && insightColumn.classList.contains("open")) {
+    setInsightOpen(false);
+  }
 });
 app.querySelector<HTMLButtonElement>(".player-expand")!.addEventListener("click", async () => {
   try {
