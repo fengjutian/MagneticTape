@@ -5,14 +5,14 @@
 //! packed into WAV segments that stay below the providers' 500 second / 50 MB
 //! limits.
 
-use magnetic_tape_audio::{OPUS_SAMPLE_RATE, Track, decode_ogg_opus};
+use magnetic_tape_audio::{Track, decode_ogg_opus};
 use reqwest::{
     Client,
     multipart::{Form, Part},
 };
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::HashMap,
     fs,
     io::Write,
     path::{Path, PathBuf},
@@ -114,8 +114,71 @@ pub struct AsrConfigurationView {
 pub struct AudioChunkRef {
     pub track: Track,
     pub path: PathBuf,
-    pub start_frame: u64,
     pub frames: u64,
+    /// First sample on the shared session timeline.
+    pub start_ms: u64,
+}
+
+/// Audio is mixed on a fixed one-second grid so a chunk from either track can
+/// overlap any part of the other track. The callback receives 48 kHz mono f32
+/// blocks starting at `start_ms`; silence is emitted for gaps.
+pub(crate) const MIX_BLOCK_MS: u64 = 1_000;
+
+pub(crate) fn mix_timeline<F>(
+    chunks: &[AudioChunkRef],
+    block_ms: u64,
+    origin_ms: u64,
+    mut emit: F,
+) -> Result<(), String>
+where
+    F: FnMut(u64, &[f32]) -> Result<(), String>,
+{
+    let block_frames = block_ms.max(1) * 48;
+    let mut clips: Vec<(&AudioChunkRef, u64, u64)> = chunks
+        .iter()
+        .filter(|chunk| chunk.frames > 0)
+        .map(|chunk| {
+            let start = chunk.start_ms.saturating_mul(48);
+            (chunk, start, start.saturating_add(chunk.frames))
+        })
+        .collect();
+    clips.sort_by_key(|(_, start, _)| *start);
+    let max_end = clips.iter().map(|(_, _, end)| *end).max().unwrap_or(0);
+    let mut position = origin_ms.saturating_mul(48);
+    if position >= max_end {
+        return Ok(());
+    }
+
+    let mut active: Vec<(u64, Vec<f32>)> = Vec::new();
+    let mut index = 0;
+    while position < max_end {
+        let end = position.saturating_add(block_frames).min(max_end);
+        while index < clips.len() && clips[index].1 < end {
+            let (chunk, start, _) = clips[index];
+            active.push((start, decode_chunk(chunk)?));
+            index += 1;
+        }
+        active.retain(|(start, samples)| start.saturating_add(samples.len() as u64) > position);
+
+        let length = (end - position) as usize;
+        let mut block = vec![0.0_f32; length];
+        for (start, samples) in &active {
+            let offset = position.saturating_sub(*start) as usize;
+            if offset >= samples.len() {
+                continue;
+            }
+            let take = (samples.len() - offset).min(length);
+            for index in 0..take {
+                block[index] += samples[offset + index];
+            }
+        }
+        for sample in &mut block {
+            *sample = sample.clamp(-1.0, 1.0);
+        }
+        emit(position.saturating_mul(1_000) / 48, &block)?;
+        position = end;
+    }
+    Ok(())
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -138,6 +201,15 @@ pub struct Transcript {
     pub text: String,
     pub segments: Vec<TranscriptSegment>,
     pub created_at_epoch_ms: u64,
+}
+
+/// Transcript plus how much of the requested audio was actually processed.
+/// The desktop shell persists this next to `transcript.json` and refuses to
+/// delete audio when the coverage is below the safety threshold.
+pub struct TranscriptionOutcome {
+    pub transcript: Transcript,
+    pub covered_ms: u64,
+    pub failed_segments: u64,
 }
 
 impl AsrState {
@@ -398,89 +470,64 @@ pub(crate) fn build_segments(
     segment_seconds: u64,
 ) -> Result<Vec<AudioSegment>, String> {
     fs::create_dir_all(directory).map_err(|error| error.to_string())?;
-    let mut slots: BTreeMap<u64, [Option<&AudioChunkRef>; 2]> = BTreeMap::new();
-    for chunk in chunks {
-        let slot = slots.entry(chunk.start_frame).or_default();
-        match chunk.track {
-            Track::Microphone => slot[0] = Some(chunk),
-            Track::System => slot[1] = Some(chunk),
-        }
-    }
     let mut segments = Vec::new();
     let mut buffer: Vec<f32> = Vec::new();
-    let mut segment_start_frame = 0_u64;
-    let mut cursor_frame = 0_u64;
+    let origin_ms = chunks.iter().map(|chunk| chunk.start_ms).min().unwrap_or(0);
+    let mut segment_start_ms = origin_ms;
     let limit = (segment_seconds.max(1) * u64::from(ASR_SAMPLE_RATE)) as usize;
 
-    let flush = |buffer: &mut Vec<f32>,
-                 start_frame: u64,
-                 segments: &mut Vec<AudioSegment>|
-     -> Result<(), String> {
-        if buffer.is_empty() {
-            return Ok(());
-        }
-        let index = segments.len();
-        let path = directory.join(format!("segment-{index:03}.wav"));
-        write_wav(&path, buffer)?;
-        let duration_ms = buffer.len() as u64 * 1_000 / u64::from(ASR_SAMPLE_RATE);
-        segments.push(AudioSegment {
-            path,
-            start_ms: start_frame * 1_000 / u64::from(OPUS_SAMPLE_RATE),
-            duration_ms,
-        });
-        buffer.clear();
-        Ok(())
-    };
-
-    for (slot_start, slot) in slots {
-        if slot_start > cursor_frame {
-            let silence = ((slot_start - cursor_frame) / 3) as usize;
-            buffer.resize(buffer.len() + silence, 0.0);
-        }
-        while buffer.len() >= limit {
-            let remainder = buffer.split_off(limit);
-            let mut chunk = std::mem::take(&mut buffer);
-            chunk.truncate(limit);
-            flush(&mut chunk, segment_start_frame, &mut segments)?;
-            segment_start_frame +=
-                (limit as u64 * u64::from(OPUS_SAMPLE_RATE)) / u64::from(ASR_SAMPLE_RATE);
-            buffer = remainder;
-        }
-
-        let microphone = slot[0].map(decode_chunk).transpose()?;
-        let system = slot[1].map(decode_chunk).transpose()?;
-        let length = microphone
-            .as_ref()
-            .map(Vec::len)
-            .unwrap_or(0)
-            .max(system.as_ref().map(Vec::len).unwrap_or(0));
-        if length == 0 {
-            continue;
-        }
-        let mut mixed = Vec::with_capacity(length / 3 + 1);
-        for index in 0..length {
-            let left = microphone
-                .as_ref()
-                .map_or(0.0, |samples| samples.get(index).copied().unwrap_or(0.0));
-            let right = system
-                .as_ref()
-                .map_or(0.0, |samples| samples.get(index).copied().unwrap_or(0.0));
-            mixed.push((left + right).clamp(-1.0, 1.0));
-        }
-        buffer.extend(downsample(&mixed));
-        cursor_frame = slot_start + length as u64;
-
-        while buffer.len() >= limit {
-            let remainder = buffer.split_off(limit);
-            let mut chunk = std::mem::take(&mut buffer);
-            flush(&mut chunk, segment_start_frame, &mut segments)?;
-            segment_start_frame +=
-                (limit as u64 * u64::from(OPUS_SAMPLE_RATE)) / u64::from(ASR_SAMPLE_RATE);
-            buffer = remainder;
-        }
-    }
-    flush(&mut buffer, segment_start_frame, &mut segments)?;
+    mix_timeline(chunks, MIX_BLOCK_MS, origin_ms, |_, block| {
+        buffer.extend(downsample(block));
+        flush_full_segments(
+            directory,
+            &mut buffer,
+            &mut segment_start_ms,
+            &mut segments,
+            limit,
+        )
+    })?;
+    flush_segment(directory, &mut buffer, segment_start_ms, &mut segments)?;
     Ok(segments)
+}
+
+fn flush_segment(
+    directory: &Path,
+    buffer: &mut Vec<f32>,
+    start_ms: u64,
+    segments: &mut Vec<AudioSegment>,
+) -> Result<(), String> {
+    if buffer.is_empty() {
+        return Ok(());
+    }
+    let index = segments.len();
+    let path = directory.join(format!("segment-{index:03}.wav"));
+    write_wav(&path, buffer)?;
+    let duration_ms = buffer.len() as u64 * 1_000 / u64::from(ASR_SAMPLE_RATE);
+    segments.push(AudioSegment {
+        path,
+        start_ms,
+        duration_ms,
+    });
+    buffer.clear();
+    Ok(())
+}
+
+fn flush_full_segments(
+    directory: &Path,
+    buffer: &mut Vec<f32>,
+    segment_start_ms: &mut u64,
+    segments: &mut Vec<AudioSegment>,
+    limit: usize,
+) -> Result<(), String> {
+    while buffer.len() >= limit {
+        let remainder = buffer.split_off(limit);
+        let mut chunk = std::mem::take(buffer);
+        chunk.truncate(limit);
+        flush_segment(directory, &mut chunk, *segment_start_ms, segments)?;
+        *segment_start_ms += (limit as u64 * 1_000) / u64::from(ASR_SAMPLE_RATE);
+        *buffer = remainder;
+    }
+    Ok(())
 }
 
 fn decode_chunk(chunk: &AudioChunkRef) -> Result<Vec<f32>, String> {
@@ -586,7 +633,7 @@ pub async fn transcribe_chunks_with(
     session_id: &str,
     cancel: &AtomicBool,
     on_progress: &(dyn Fn(usize, usize) + Sync),
-) -> Result<Transcript, String> {
+) -> Result<TranscriptionOutcome, String> {
     transcribe_refs_with(
         chunks,
         config,
@@ -612,7 +659,9 @@ pub async fn transcribe_pair(
     session_id: &str,
 ) -> Result<Transcript, String> {
     let chunks: Vec<AudioChunkRef> = microphone.into_iter().chain(system).collect();
-    transcribe_refs(&chunks, config, session_id, 60, LIVE_REQUEST_TIMEOUT).await
+    transcribe_refs(&chunks, config, session_id, 60, LIVE_REQUEST_TIMEOUT)
+        .await
+        .map(|outcome| outcome.transcript)
 }
 
 /// Characters that cannot start a sentence, so they show that the previous
@@ -661,7 +710,7 @@ async fn transcribe_refs(
     session_id: &str,
     segment_seconds: u64,
     request_timeout: Duration,
-) -> Result<Transcript, String> {
+) -> Result<TranscriptionOutcome, String> {
     transcribe_refs_with(
         chunks,
         config,
@@ -682,7 +731,7 @@ async fn transcribe_refs_with(
     request_timeout: Duration,
     cancel: &AtomicBool,
     on_progress: &(dyn Fn(usize, usize) + Sync),
-) -> Result<Transcript, String> {
+) -> Result<TranscriptionOutcome, String> {
     let working =
         std::env::temp_dir().join(format!("magnetic-tape-asr-{session_id}-{}", epoch_ms()));
     let segments = build_segments(chunks, &working, segment_seconds)?;
@@ -704,6 +753,7 @@ async fn transcribe_refs_with(
         created_at_epoch_ms: epoch_ms(),
     };
     let mut failures = Vec::new();
+    let mut covered_ms = 0_u64;
     let total = segments.len();
     for (index, segment) in segments.iter().enumerate() {
         if cancel.load(Ordering::SeqCst) {
@@ -712,6 +762,7 @@ async fn transcribe_refs_with(
         }
         match upload_segment(&client, config, segment).await {
             Ok(response) => {
+                covered_ms = covered_ms.saturating_add(segment.duration_ms);
                 transcript.duration_ms = transcript
                     .duration_ms
                     .max(segment.start_ms + segment.duration_ms);
@@ -749,7 +800,11 @@ async fn transcribe_refs_with(
     if transcript.text.is_empty() && !failures.is_empty() {
         return Err(failures.join("；"));
     }
-    Ok(transcript)
+    Ok(TranscriptionOutcome {
+        transcript,
+        covered_ms,
+        failed_segments: failures.len() as u64,
+    })
 }
 
 #[cfg(test)]
@@ -864,8 +919,8 @@ mod tests {
             .map(|chunk| AudioChunkRef {
                 track: chunk.track,
                 path: chunk.path.clone(),
-                start_frame: chunk.start_frame,
                 frames: chunk.frames,
+                start_ms: chunk.start_frame * 1_000 / 48_000,
             })
             .collect();
         let working = directory.path().join("segments");
@@ -877,6 +932,87 @@ mod tests {
             let bytes = fs::read(&segment.path).unwrap();
             assert_eq!(bytes.len(), 44 + 16_000 * 2);
         }
+    }
+
+    #[test]
+    fn build_segments_keeps_the_live_window_offset() {
+        let directory = tempfile::tempdir().unwrap();
+        let chunks = Arc::new(Mutex::new(Vec::new()));
+        let mut writer = OpusTrackWriter::new(
+            directory.path(),
+            Track::Microphone,
+            48_000,
+            1,
+            Arc::clone(&chunks),
+        )
+        .unwrap();
+        writer.push_interleaved(&vec![0.2_f32; 48_000]).unwrap();
+        writer.finish().unwrap();
+
+        let refs: Vec<AudioChunkRef> = chunks
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|chunk| AudioChunkRef {
+                track: chunk.track,
+                path: chunk.path.clone(),
+                frames: chunk.frames,
+                start_ms: 50_400,
+            })
+            .collect();
+        let segments = build_segments(&refs, &directory.path().join("segments"), 10).unwrap();
+        assert_eq!(segments.len(), 1);
+        assert_eq!(segments[0].start_ms, 50_400);
+        assert_eq!(segments[0].duration_ms, 1_000);
+    }
+
+    #[test]
+    fn build_segments_fills_a_sparse_system_gap_with_silence() {
+        let directory = tempfile::tempdir().unwrap();
+        let chunks = Arc::new(Mutex::new(Vec::new()));
+        let mut microphone = OpusTrackWriter::new(
+            directory.path(),
+            Track::Microphone,
+            48_000,
+            1,
+            Arc::clone(&chunks),
+        )
+        .unwrap();
+        let mut system = OpusTrackWriter::new(
+            directory.path(),
+            Track::System,
+            48_000,
+            1,
+            Arc::clone(&chunks),
+        )
+        .unwrap();
+        let tone = vec![0.2_f32; 48_000];
+        microphone.push_interleaved(&tone).unwrap();
+        system.push_interleaved(&tone).unwrap();
+        microphone.finish().unwrap();
+        system.finish().unwrap();
+
+        let refs: Vec<AudioChunkRef> = chunks
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|chunk| AudioChunkRef {
+                track: chunk.track,
+                path: chunk.path.clone(),
+                frames: chunk.frames,
+                start_ms: if chunk.track == Track::System {
+                    5_000
+                } else {
+                    0
+                },
+            })
+            .collect();
+        let segments = build_segments(&refs, &directory.path().join("segments"), 10).unwrap();
+        assert_eq!(segments.len(), 1);
+        assert_eq!(segments[0].start_ms, 0);
+        assert_eq!(segments[0].duration_ms, 6_000);
+        let bytes = fs::read(&segments[0].path).unwrap();
+        assert_eq!(bytes.len(), 44 + 6 * 16_000 * 2);
     }
 
     fn read_request(stream: &mut TcpStream) -> Vec<u8> {
@@ -931,8 +1067,8 @@ mod tests {
             .map(|chunk| AudioChunkRef {
                 track: chunk.track,
                 path: chunk.path.clone(),
-                start_frame: chunk.start_frame,
                 frames: chunk.frames,
+                start_ms: chunk.start_frame * 1_000 / 48_000,
             })
             .collect();
 
@@ -961,7 +1097,7 @@ mod tests {
             hotwords: String::new(),
         };
         let cancel = AtomicBool::new(false);
-        let transcript = tauri::async_runtime::block_on(transcribe_chunks_with(
+        let outcome = tauri::async_runtime::block_on(transcribe_chunks_with(
             &refs,
             &config,
             "session",
@@ -969,6 +1105,9 @@ mod tests {
             &|_, _| {},
         ))
         .unwrap();
+        let transcript = outcome.transcript;
+        assert_eq!(outcome.covered_ms, 2_000);
+        assert_eq!(outcome.failed_segments, 0);
         let request = String::from_utf8_lossy(&server.join().unwrap()).into_owned();
 
         assert!(request.contains(r#"name="model""#));

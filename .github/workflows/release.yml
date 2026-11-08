@@ -36,9 +36,12 @@ jobs:
       - name: Collect installer
         shell: pwsh
         run: |
-          $installer = Get-ChildItem "apps/desktop/src-tauri/target/release/bundle/nsis/*.exe"
+          $installer = @(Get-ChildItem "target/release/bundle/nsis/*.exe" -File -ErrorAction Stop)
+          if ($installer.Count -ne 1) {
+            throw "Expected exactly one NSIS installer, found $($installer.Count)"
+          }
           New-Item -ItemType Directory -Force -Path dist-installer | Out-Null
-          Copy-Item $installer.FullName dist-installer/
+          Copy-Item -LiteralPath $installer[0].FullName dist-installer/
           Get-ChildItem dist-installer
 
       - uses: actions/upload-artifact@v4

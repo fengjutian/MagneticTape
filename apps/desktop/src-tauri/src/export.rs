@@ -3,11 +3,10 @@
 //! Exports are written to `Documents/MagneticTape/<title>-<session>` so the
 //! user can move them anywhere without a native save dialog.
 
-use crate::asr::{AudioChunkRef, Transcript};
-use magnetic_tape_audio::{OPUS_SAMPLE_RATE, Track, decode_ogg_opus};
+use crate::asr::{AudioChunkRef, MIX_BLOCK_MS, Transcript, mix_timeline};
+use magnetic_tape_audio::OPUS_SAMPLE_RATE;
 use serde::Serialize;
 use std::{
-    collections::BTreeMap,
     fs::{self, File},
     io::{Seek, SeekFrom, Write},
     path::{Path, PathBuf},
@@ -173,45 +172,26 @@ fn write_wav_header(file: &mut File, data_len: u32) -> std::io::Result<()> {
     file.write_all(&header)
 }
 
-/// Decodes both tracks and writes one mixed mono 48 kHz WAV. Chunks are paired
-/// by their start frame; missing audio is rendered as silence so the timeline
-/// stays intact.
+/// Decodes both tracks and writes one mixed mono 48 kHz WAV. Chunks are mixed
+/// on a shared timeline; missing audio is rendered as silence.
 pub fn write_mixed_wav(chunks: &[AudioChunkRef], path: &Path) -> Result<u64, String> {
-    let mut slots: BTreeMap<u64, (Option<&AudioChunkRef>, Option<&AudioChunkRef>)> =
-        BTreeMap::new();
-    for chunk in chunks {
-        let entry = slots.entry(chunk.start_frame).or_default();
-        match chunk.track {
-            Track::Microphone => entry.0 = Some(chunk),
-            Track::System => entry.1 = Some(chunk),
-        }
-    }
     let mut file = File::create(path).map_err(|error| error.to_string())?;
     write_wav_header(&mut file, 0).map_err(|error| error.to_string())?;
-    let mut cursor = 0_u64;
     let mut samples_written = 0_u64;
-    let mut buffer = Vec::new();
-    for (start, (microphone, system)) in slots {
-        if start > cursor {
-            let silence = (start - cursor) as usize;
-            buffer.extend(std::iter::repeat_n(0_i16, silence));
-            samples_written += silence as u64;
+    let mut buffer: Vec<i16> = Vec::new();
+
+    mix_timeline(chunks, MIX_BLOCK_MS, 0, |_, block| {
+        for sample in block {
+            buffer.push((sample * f32::from(i16::MAX)) as i16);
         }
-        let microphone = microphone.map(decode).transpose()?.unwrap_or_default();
-        let system = system.map(decode).transpose()?.unwrap_or_default();
-        let length = microphone.len().max(system.len());
-        for index in 0..length {
-            let left = microphone.get(index).copied().unwrap_or(0.0);
-            let right = system.get(index).copied().unwrap_or(0.0);
-            buffer.push(((left + right).clamp(-1.0, 1.0) * f32::from(i16::MAX)) as i16);
-        }
-        samples_written += length as u64;
-        cursor = start + length as u64;
-        if buffer.len() >= 1_000_000 {
+        samples_written += block.len() as u64;
+        while buffer.len() >= 1_000_000 {
+            let remainder = buffer.split_off(1_000_000);
             write_samples(&mut file, &buffer)?;
-            buffer.clear();
+            buffer = remainder;
         }
-    }
+        Ok(())
+    })?;
     write_samples(&mut file, &buffer)?;
     let data_len = samples_written * 2;
     let data_len = u32::try_from(data_len).map_err(|_| "导出音频超过 4 GB".to_owned())?;
@@ -220,12 +200,6 @@ pub fn write_mixed_wav(chunks: &[AudioChunkRef], path: &Path) -> Result<u64, Str
     write_wav_header(&mut file, data_len).map_err(|error| error.to_string())?;
     file.sync_all().map_err(|error| error.to_string())?;
     Ok(samples_written * 1_000 / u64::from(OPUS_SAMPLE_RATE))
-}
-
-fn decode(chunk: &AudioChunkRef) -> Result<Vec<f32>, String> {
-    let mut samples = decode_ogg_opus(&chunk.path).map_err(|error| error.to_string())?;
-    samples.truncate(chunk.frames as usize);
-    Ok(samples)
 }
 
 fn write_samples(file: &mut File, samples: &[i16]) -> Result<(), String> {
@@ -260,7 +234,7 @@ pub fn export_all(input: &ExportInput<'_>, parent: &Path) -> Result<ExportResult
     let directory = parent.join(format!(
         "{}-{}",
         sanitize_component(input.title),
-        &input.session_id[..input.session_id.len().min(8)]
+        sanitize_component(input.session_id)
     ));
     fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
     let mut files = Vec::new();
@@ -336,7 +310,7 @@ fn write_text_bytes(path: &Path, content: &[u8]) -> Result<(), String> {
 mod tests {
     use super::*;
     use crate::asr::TranscriptSegment;
-    use magnetic_tape_audio::{ChunkInfo, OpusTrackWriter};
+    use magnetic_tape_audio::{ChunkInfo, OpusTrackWriter, Track};
     use std::sync::{Arc, Mutex};
 
     fn transcript() -> Transcript {
@@ -408,8 +382,8 @@ mod tests {
             .map(|chunk: &ChunkInfo| AudioChunkRef {
                 track: chunk.track,
                 path: chunk.path.clone(),
-                start_frame: chunk.start_frame,
                 frames: chunk.frames,
+                start_ms: chunk.start_frame * 1_000 / 48_000,
             })
             .collect();
 
@@ -430,6 +404,14 @@ mod tests {
         };
         let exported = export_all(&input, directory.path()).unwrap();
         assert!(exported.directory.exists());
+        assert!(
+            exported
+                .directory
+                .file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.ends_with("0011223344556677")),
+            "export directory must keep the full session id"
+        );
         for name in [
             "meeting.md",
             "transcript.txt",
@@ -454,5 +436,77 @@ mod tests {
         )
         .unwrap();
         assert_eq!(metadata["transcriptProvider"], "minimax");
+    }
+
+    #[test]
+    fn mixed_wav_keeps_a_sparse_system_track_at_its_timeline_position() {
+        let directory = tempfile::tempdir().unwrap();
+        let chunks_dir = directory.path().join("chunks");
+        std::fs::create_dir_all(&chunks_dir).unwrap();
+        let chunks = Arc::new(Mutex::new(Vec::new()));
+        let mut microphone = OpusTrackWriter::new(
+            &chunks_dir,
+            Track::Microphone,
+            48_000,
+            1,
+            Arc::clone(&chunks),
+        )
+        .unwrap();
+        let mut system =
+            OpusTrackWriter::new(&chunks_dir, Track::System, 48_000, 1, Arc::clone(&chunks))
+                .unwrap();
+        microphone.push_interleaved(&vec![0.2; 48_000]).unwrap();
+        system.push_interleaved(&vec![0.2; 48_000]).unwrap();
+        microphone.finish().unwrap();
+        system.finish().unwrap();
+
+        let refs: Vec<AudioChunkRef> = chunks
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|chunk: &ChunkInfo| AudioChunkRef {
+                track: chunk.track,
+                path: chunk.path.clone(),
+                frames: chunk.frames,
+                start_ms: if chunk.track == Track::System {
+                    5_000
+                } else {
+                    0
+                },
+            })
+            .collect();
+        let path = directory.path().join("audio.wav");
+        let duration = write_mixed_wav(&refs, &path).unwrap();
+        assert_eq!(duration, 6_000);
+        let audio = std::fs::read(path).unwrap();
+        assert_eq!(&audio[..4], b"RIFF");
+        let data_len = u32::from_le_bytes(audio[40..44].try_into().unwrap()) as usize;
+        assert_eq!(data_len, 6 * 48_000 * 2);
+        assert_eq!(data_len, audio.len() - 44);
+    }
+
+    #[test]
+    fn same_title_sessions_get_separate_export_directories() {
+        let directory = tempfile::tempdir().unwrap();
+        let translations: [TranslationDoc; 0] = [];
+        let mut exported = Vec::new();
+
+        for session_id in ["00000001aaaaaaaa", "00000002bbbbbbbb"] {
+            let input = ExportInput {
+                title: "周会",
+                session_id,
+                started_at_epoch_ms: 0,
+                duration_ms: 0,
+                transcript: None,
+                translations: &translations,
+                notes: "",
+                chunks: &[],
+            };
+            exported.push(export_all(&input, directory.path()).unwrap().directory);
+        }
+
+        assert_ne!(exported[0], exported[1]);
+        assert!(exported[0].exists());
+        assert!(exported[1].exists());
     }
 }

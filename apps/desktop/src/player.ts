@@ -19,7 +19,7 @@ export interface TimelinePlayerOptions {
 }
 
 /// Plays the microphone and system tracks as one continuous timeline built
-/// from 15 second Opus chunks. Seeking maps a timeline position to the chunk
+/// from 5 second Opus chunks. Seeking maps a timeline position to the chunk
 /// that contains it, so the user can scrub the whole session instead of
 /// stepping through individual files.
 export class TimelinePlayer {

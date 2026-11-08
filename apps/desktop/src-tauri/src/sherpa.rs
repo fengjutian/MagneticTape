@@ -1341,67 +1341,18 @@ pub fn assign_speakers(transcript: &mut crate::asr::Transcript, spans: &[Diarize
     assigned
 }
 
-fn decode_chunk(chunk: &crate::asr::AudioChunkRef) -> Result<Vec<f32>, String> {
-    let mut samples =
-        magnetic_tape_audio::decode_ogg_opus(&chunk.path).map_err(|error| error.to_string())?;
-    samples.truncate(chunk.frames as usize);
-    Ok(samples)
-}
-
 /// Decodes and mixes every committed chunk into 16 kHz mono f32, preserving
 /// the session timeline (gaps become silence).
 pub fn session_pcm(chunks: &[crate::asr::AudioChunkRef]) -> Result<Vec<f32>, String> {
-    use magnetic_tape_audio::Track;
-    use std::collections::BTreeMap;
+    use crate::asr::{MIX_BLOCK_MS, mix_timeline};
 
-    let mut slots: BTreeMap<u64, [Option<&crate::asr::AudioChunkRef>; 2]> = BTreeMap::new();
-    for chunk in chunks {
-        let slot = slots.entry(chunk.start_frame).or_default();
-        match chunk.track {
-            Track::Microphone => slot[0] = Some(chunk),
-            Track::System => slot[1] = Some(chunk),
-        }
-    }
     let mut output = Vec::new();
-    let mut cursor = 0_u64;
-    for (start, pair) in slots {
-        if start > cursor {
-            output.resize(output.len() + ((start - cursor) / 3) as usize, 0.0);
+    mix_timeline(chunks, MIX_BLOCK_MS, 0, |_, block| {
+        for frame in block.chunks(3) {
+            output.push(frame.iter().sum::<f32>() / frame.len() as f32);
         }
-        let microphone = pair[0].map(decode_chunk).transpose()?;
-        let system = pair[1].map(decode_chunk).transpose()?;
-        let length = microphone
-            .as_ref()
-            .map(Vec::len)
-            .unwrap_or(0)
-            .max(system.as_ref().map(Vec::len).unwrap_or(0));
-        let mut index = 0;
-        while index < length {
-            let mut sum = 0.0;
-            let mut count = 0;
-            for offset in 0..3 {
-                let position = index + offset;
-                if position >= length {
-                    break;
-                }
-                let left = microphone
-                    .as_ref()
-                    .and_then(|samples| samples.get(position))
-                    .copied()
-                    .unwrap_or(0.0);
-                let right = system
-                    .as_ref()
-                    .and_then(|samples| samples.get(position))
-                    .copied()
-                    .unwrap_or(0.0);
-                sum += (left + right).clamp(-1.0, 1.0);
-                count += 1;
-            }
-            output.push(sum / count.max(1) as f32);
-            index += 3;
-        }
-        cursor = start + length as u64;
-    }
+        Ok(())
+    })?;
     Ok(output)
 }
 

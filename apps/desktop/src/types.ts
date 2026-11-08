@@ -222,7 +222,7 @@ export interface SavedTranslation {
   content: string;
 }
 
-/// One 15 second Opus chunk placed on the shared session timeline.
+/// One 5 second Opus chunk placed on the shared session timeline.
 export interface PlaybackChunk {
   path: string;
   startMs: number;

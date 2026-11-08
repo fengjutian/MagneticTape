@@ -978,8 +978,8 @@ mod tests {
         let chunk = AudioChunkRef {
             track: magnetic_tape_audio::Track::Microphone,
             path: Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../doc/chunk_00000.ogg"),
-            start_frame: 0,
             frames: 144_000,
+            start_ms: 0,
         };
         let prompt = std::env::var("WHISPER_PROMPT").unwrap_or_default();
         let options = LocalOptions {

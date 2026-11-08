@@ -8,6 +8,9 @@ use thiserror::Error;
 
 const CHECKPOINT_PREFIX: &str = "checkpoint-";
 const CHECKPOINT_SUFFIX: &str = ".json";
+/// Number of checkpoint files kept per session. Older files are pruned after
+/// every successful write so a long meeting cannot grow without bound.
+pub const CHECKPOINT_RETENTION: usize = 10;
 
 #[derive(Debug, Error)]
 pub enum RecoveryError {
@@ -63,7 +66,42 @@ impl RecoveryStore {
             let _ = fs::remove_file(&temporary_path);
         }
         write_result?;
+        // Keep only the newest checkpoints. Pruning is best-effort: failing to
+        // delete an old file must never fail the checkpoint that was just
+        // committed.
+        let _ = self.prune(CHECKPOINT_RETENTION);
         Ok(final_path)
+    }
+
+    /// Deletes all but the newest `keep` checkpoints and any abandoned
+    /// temporary files left by an interrupted write. Returns the number of
+    /// files removed.
+    pub fn prune(&self, keep: usize) -> Result<usize, RecoveryError> {
+        let keep = keep.max(1);
+        let mut checkpoints = self.checkpoints()?;
+        checkpoints.sort_unstable_by_key(|(sequence, _)| std::cmp::Reverse(*sequence));
+
+        let mut removed = 0;
+        for (_, path) in checkpoints.into_iter().skip(keep) {
+            if fs::remove_file(&path).is_ok() {
+                removed += 1;
+            }
+        }
+
+        let temporary_prefix = format!(".{CHECKPOINT_PREFIX}");
+        for entry in fs::read_dir(&self.directory)?.flatten() {
+            let path = entry.path();
+            let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+                continue;
+            };
+            if name.starts_with(&temporary_prefix)
+                && name.ends_with(".tmp")
+                && fs::remove_file(&path).is_ok()
+            {
+                removed += 1;
+            }
+        }
+        Ok(removed)
     }
 
     pub fn load_latest(&self) -> Result<Option<RecoveryManifest>, RecoveryError> {
@@ -135,5 +173,49 @@ mod tests {
             store.checkpoint(&manifest),
             Err(RecoveryError::CheckpointExists(0))
         ));
+    }
+
+    #[test]
+    fn prunes_old_checkpoints_and_abandoned_temporary_files() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = RecoveryStore::open(directory.path()).unwrap();
+
+        for sequence in 0..15 {
+            let mut manifest = RecoveryManifest::new("session-1");
+            manifest.checkpoint_sequence = sequence;
+            store.checkpoint(&manifest).unwrap();
+        }
+
+        assert_eq!(checkpoint_files(directory.path()), CHECKPOINT_RETENTION);
+        assert_eq!(
+            store.load_latest().unwrap().unwrap().checkpoint_sequence,
+            14
+        );
+
+        let temporary = directory
+            .path()
+            .join(format!(".{CHECKPOINT_PREFIX}00000000000000000099.tmp"));
+        fs::write(&temporary, b"stale").unwrap();
+
+        store.prune(3).unwrap();
+
+        assert_eq!(checkpoint_files(directory.path()), 3);
+        assert!(!temporary.exists());
+        assert_eq!(
+            store.load_latest().unwrap().unwrap().checkpoint_sequence,
+            14
+        );
+    }
+
+    fn checkpoint_files(directory: &Path) -> usize {
+        fs::read_dir(directory)
+            .unwrap()
+            .flatten()
+            .filter(|entry| {
+                entry.file_name().to_str().is_some_and(|name| {
+                    name.starts_with(CHECKPOINT_PREFIX) && name.ends_with(CHECKPOINT_SUFFIX)
+                })
+            })
+            .count()
     }
 }

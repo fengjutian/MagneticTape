@@ -6,7 +6,7 @@ use magnetic_tape_audio::{
 };
 use magnetic_tape_core::{
     manifest::{ChunkMetadata, RecoveryManifest, SessionStatus},
-    recovery::RecoveryStore,
+    recovery::{CHECKPOINT_RETENTION, RecoveryStore},
     timeline::{AudioSource, TimelineSpan},
 };
 use serde::{Deserialize, Serialize};
@@ -58,6 +58,20 @@ const TRANSCRIPT_FILE: &str = "transcript.json";
 const TRANSCRIPT_MARKDOWN: &str = "transcript.md";
 const AUDIO_DISCARDED: &str = "audio-discarded";
 const SETTINGS_FILE: &str = "settings.json";
+/// Compact, atomically replaced session metadata (storage v2).
+const SESSION_STATE_FILE: &str = "session.json";
+/// Append-only journal of committed chunks (storage v2).
+const CHUNK_JOURNAL_FILE: &str = "chunks.ndjson";
+const SESSION_STATE_SCHEMA: u32 = 2;
+/// Per-transcript upload/recognition coverage, written next to transcript.json.
+const TRANSCRIPT_COVERAGE_FILE: &str = "transcript-coverage.json";
+/// Live captions schedule chunks in five-second buckets. 5,040 ms is the
+/// actual duration of one committed chunk (241,920 frames at 48 kHz).
+const LIVE_WINDOW_MS: u64 = 5_040;
+/// Only drop audio when the ASR provider processed at least 98% of it and no
+/// upload segment failed. Older transcripts without coverage fall back to a
+/// conservative duration comparison.
+const MIN_TRANSCRIPT_COVERAGE_PERMILLE: u64 = 980;
 
 /// Non-secret preferences persisted between launches. API keys never enter
 /// this file; they stay in the Windows Credential Manager.
@@ -208,6 +222,29 @@ struct LegacySessionMarker {
     title: String,
 }
 
+/// Small storage-v2 session header. The chunk list lives in the append-only
+/// journal, so this file stays small and can be replaced atomically per commit.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SessionStateFile {
+    schema_version: u32,
+    session_id: String,
+    started_at_epoch_ms: u64,
+    status: SessionStatus,
+    committed_timeline_frames: u64,
+    chunk_count: usize,
+    updated_at_epoch_ms: u64,
+}
+
+/// Audio actually processed by the ASR provider, used by the deletion guard.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TranscriptCoverage {
+    covered_ms: u64,
+    duration_ms: u64,
+    failed_segments: u64,
+}
+
 /// Audio paths and duration for a finished, recovered, or opened session.
 #[derive(Debug, Clone, Default)]
 struct RecordedSession {
@@ -300,15 +337,33 @@ struct RecorderState(Arc<Mutex<Option<AudioRecording>>>);
 #[derive(Default)]
 struct TranscriptionRun(Mutex<Option<Arc<AtomicBool>>>);
 
+/// Releases the transcription slot even when the command returns early.
+struct TranscriptionGuard<'a> {
+    run: &'a TranscriptionRun,
+    flag: Arc<AtomicBool>,
+}
+
+impl TranscriptionGuard<'_> {
+    fn flag(&self) -> Arc<AtomicBool> {
+        Arc::clone(&self.flag)
+    }
+}
+
+impl Drop for TranscriptionGuard<'_> {
+    fn drop(&mut self) {
+        self.run.clear();
+    }
+}
+
 impl TranscriptionRun {
-    fn begin(&self) -> Result<Arc<AtomicBool>, String> {
+    fn begin(&self) -> Result<TranscriptionGuard<'_>, String> {
         let mut slot = self.0.lock().expect("transcription state poisoned");
         if slot.is_some() {
             return Err("已有转写任务正在运行".into());
         }
         let flag = Arc::new(AtomicBool::new(false));
         *slot = Some(Arc::clone(&flag));
-        Ok(flag)
+        Ok(TranscriptionGuard { run: self, flag })
     }
 
     fn cancel(&self) -> bool {
@@ -474,6 +529,14 @@ fn finish_live_transcription(directory: &Path, state: &mut LiveTranscriptionStat
     if !state.segments.is_empty() {
         let transcript = live_transcript(state);
         let _ = write_transcript(directory, &transcript);
+        let _ = write_transcript_coverage(
+            directory,
+            &TranscriptCoverage {
+                covered_ms: transcript.duration_ms,
+                duration_ms: transcript.duration_ms,
+                failed_segments: 0,
+            },
+        );
     }
     state.active = false;
 }
@@ -628,6 +691,265 @@ fn write_checkpoint(directory: &Path, manifest: &RecoveryManifest) -> Result<(),
         .map_err(|error| error.to_string())
 }
 
+/// Trims legacy sessions that accumulated one checkpoint per five-second chunk
+/// before retention was introduced. Runs once at startup; the newest
+/// checkpoints are always preserved.
+fn prune_session_checkpoints(root: &Path) -> usize {
+    let Ok(entries) = fs::read_dir(root) else {
+        return 0;
+    };
+    let mut removed = 0;
+    for entry in entries.flatten() {
+        let directory = entry.path();
+        if !directory.is_dir() {
+            continue;
+        }
+        if let Ok(store) = RecoveryStore::open(&directory)
+            && let Ok(count) = store.prune(CHECKPOINT_RETENTION)
+        {
+            removed += count;
+        }
+    }
+    removed
+}
+
+/// Replaces a small file atomically. Used for the session header; the chunk
+/// journal is append-only and never needs this path.
+fn write_bytes_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    let temporary = path.with_extension("tmp");
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(&temporary)
+        .map_err(|error| error.to_string())?;
+    file.write_all(bytes).map_err(|error| error.to_string())?;
+    file.sync_all().map_err(|error| error.to_string())?;
+    fs::rename(&temporary, path).map_err(|error| error.to_string())
+}
+
+fn write_session_state(
+    directory: &Path,
+    manifest: &RecoveryManifest,
+    chunk_count: usize,
+) -> Result<(), String> {
+    let state = SessionStateFile {
+        schema_version: SESSION_STATE_SCHEMA,
+        session_id: manifest.session_id.clone(),
+        started_at_epoch_ms: manifest.started_at_epoch_ms,
+        status: manifest.status,
+        committed_timeline_frames: manifest.committed_timeline_frames,
+        chunk_count,
+        updated_at_epoch_ms: epoch_ms(),
+    };
+    let bytes = serde_json::to_vec_pretty(&state).map_err(|error| error.to_string())?;
+    write_bytes_atomic(&directory.join(SESSION_STATE_FILE), &bytes)
+}
+
+fn read_session_state(directory: &Path) -> Option<SessionStateFile> {
+    let bytes = fs::read(directory.join(SESSION_STATE_FILE)).ok()?;
+    let state: SessionStateFile = serde_json::from_slice(&bytes).ok()?;
+    (state.schema_version == SESSION_STATE_SCHEMA).then_some(state)
+}
+
+fn write_transcript_coverage(
+    directory: &Path,
+    coverage: &TranscriptCoverage,
+) -> Result<(), String> {
+    let bytes = serde_json::to_vec_pretty(coverage).map_err(|error| error.to_string())?;
+    write_bytes_atomic(&directory.join(TRANSCRIPT_COVERAGE_FILE), &bytes)
+}
+
+fn read_transcript_coverage(directory: &Path) -> Option<TranscriptCoverage> {
+    let bytes = fs::read(directory.join(TRANSCRIPT_COVERAGE_FILE)).ok()?;
+    serde_json::from_slice(&bytes).ok()
+}
+
+/// Reads the valid prefix of the append-only journal. A torn final line (power
+/// loss during append) is ignored; earlier committed lines stay usable.
+fn read_chunk_journal(directory: &Path) -> Vec<ChunkInfo> {
+    let Ok(text) = fs::read_to_string(directory.join(CHUNK_JOURNAL_FILE)) else {
+        return Vec::new();
+    };
+    text.lines()
+        .filter(|line| !line.trim().is_empty())
+        .filter_map(|line| serde_json::from_str::<ChunkInfo>(line).ok())
+        .collect()
+}
+
+/// Appends chunks that are not in the journal yet. The journal is keyed by
+/// `(track, index)`, so calling this repeatedly is idempotent and a crashed
+/// checkpoint thread can simply retry.
+fn sync_chunk_journal(directory: &Path, chunks: &[ChunkInfo]) -> Result<usize, String> {
+    let existing = read_chunk_journal(directory);
+    let mut max_index = [0_u64; 2];
+    let mut seen = [false; 2];
+    for chunk in &existing {
+        let slot = usize::from(track_slot(chunk.track));
+        if !seen[slot] || chunk.index > max_index[slot] {
+            max_index[slot] = chunk.index;
+        }
+        seen[slot] = true;
+    }
+
+    let mut missing = chunks
+        .iter()
+        .filter(|chunk| {
+            let slot = usize::from(track_slot(chunk.track));
+            !seen[slot] || chunk.index > max_index[slot]
+        })
+        .collect::<Vec<_>>();
+    missing.sort_by_key(|chunk| (track_slot(chunk.track), chunk.index));
+    if missing.is_empty() {
+        return Ok(0);
+    }
+
+    let path = directory.join(CHUNK_JOURNAL_FILE);
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .map_err(|error| error.to_string())?;
+    // A crash can leave a torn line without its newline. Start the next append
+    // on a fresh line so the previous partial record is skipped instead of
+    // corrupting the new record.
+    if fs::metadata(&path)
+        .map(|metadata| metadata.len() > 0)
+        .unwrap_or(false)
+        && fs::read(&path).ok().and_then(|bytes| bytes.last().copied()) != Some(b'\n')
+    {
+        file.write_all(b"\n").map_err(|error| error.to_string())?;
+    }
+    for chunk in &missing {
+        serde_json::to_writer(&mut file, chunk).map_err(|error| error.to_string())?;
+        file.write_all(b"\n").map_err(|error| error.to_string())?;
+    }
+    file.sync_all().map_err(|error| error.to_string())?;
+    Ok(missing.len())
+}
+
+fn read_sidecar_chunks(directory: &Path) -> Vec<ChunkInfo> {
+    let Ok(entries) = fs::read_dir(directory) else {
+        return Vec::new();
+    };
+    let mut chunks = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        if !name.ends_with(".json") || name.starts_with("checkpoint-") || name == LEGACY_MARKER {
+            continue;
+        }
+        if name == SESSION_STATE_FILE {
+            continue;
+        }
+        let Ok(bytes) = fs::read(&path) else {
+            continue;
+        };
+        let Ok(info) = serde_json::from_slice::<ChunkInfo>(&bytes) else {
+            continue;
+        };
+        if directory.join(format!("{}.ogg", info.uuid)).is_file() {
+            chunks.push(info);
+        }
+    }
+    chunks
+}
+
+fn recorded_from_journal(directory: &Path, chunks: &[ChunkInfo]) -> Option<RecordedSession> {
+    let mut microphone = Vec::new();
+    let mut system = Vec::new();
+    let mut duration_ms = 0_u64;
+    for chunk in chunks {
+        let path = directory.join(format!("{}.ogg", chunk.uuid));
+        if !path.is_file() {
+            continue;
+        }
+        duration_ms = duration_ms.max(
+            chunk.start_frame.saturating_mul(1_000)
+                / u64::from(magnetic_tape_audio::OPUS_SAMPLE_RATE)
+                + chunk.duration_ms,
+        );
+        match chunk.track {
+            Track::Microphone => microphone.push((chunk.index, path)),
+            Track::System => system.push((chunk.index, path)),
+        }
+    }
+    if microphone.is_empty() && system.is_empty() {
+        return None;
+    }
+    microphone.sort_by_key(|(index, _)| *index);
+    system.sort_by_key(|(index, _)| *index);
+    Some(RecordedSession {
+        microphone_chunks: microphone.into_iter().map(|(_, path)| path).collect(),
+        system_chunks: system.into_iter().map(|(_, path)| path).collect(),
+        duration_ms,
+        dropped_blocks: 0,
+    })
+}
+
+/// Creates storage-v2 headers/journals for sessions recorded by an older
+/// build. Legacy checkpoints and sidecars stay in place, so the old version can
+/// still open the session after a rollback.
+fn migrate_legacy_sessions(root: &Path) -> usize {
+    let Ok(entries) = fs::read_dir(root) else {
+        return 0;
+    };
+    let mut migrated = 0;
+    for entry in entries.flatten() {
+        let directory = entry.path();
+        if !directory.is_dir() || directory.join(SESSION_STATE_FILE).is_file() {
+            continue;
+        }
+        let chunks = read_sidecar_chunks(&directory);
+        if chunks.is_empty() {
+            continue;
+        }
+        let session_id = directory
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let legacy = latest_manifest(&directory);
+        let started_at_epoch_ms = legacy
+            .as_ref()
+            .map(|manifest| manifest.started_at_epoch_ms)
+            .filter(|value| *value > 0)
+            .or_else(|| {
+                chunks
+                    .iter()
+                    .map(|chunk| chunk.start_epoch_ms)
+                    .filter(|value| *value > 0)
+                    .min()
+            })
+            .or_else(|| legacy_marker(&directory).map(|marker| marker.started_at_epoch_ms))
+            .unwrap_or(0);
+        let status = if directory.join(COMPLETED_MARKER).is_file()
+            || directory.join(RECOVERED_MARKER).is_file()
+        {
+            SessionStatus::Completed
+        } else {
+            SessionStatus::Recording
+        };
+        let committed_timeline_frames = chunks
+            .iter()
+            .map(|chunk| chunk.start_frame.saturating_add(chunk.frames))
+            .max()
+            .unwrap_or(0);
+        let mut manifest = RecoveryManifest::new(&session_id);
+        manifest.started_at_epoch_ms = started_at_epoch_ms;
+        manifest.status = status;
+        manifest.committed_timeline_frames = committed_timeline_frames;
+
+        if sync_chunk_journal(&directory, &chunks).is_ok()
+            && write_session_state(&directory, &manifest, chunks.len()).is_ok()
+        {
+            migrated += 1;
+        }
+    }
+    migrated
+}
+
 fn track_of(chunk: &ChunkInfo) -> AudioSource {
     match chunk.track {
         Track::Microphone => AudioSource::Microphone,
@@ -647,14 +969,25 @@ fn build_manifest(
     manifest.started_at_epoch_ms = started_at_epoch_ms;
     manifest.checkpoint_sequence = sequence;
     manifest.status = status;
-    manifest.committed_timeline_frames = snapshot.microphone_frames.max(snapshot.system_frames);
+    let anchors = microphone_anchors(snapshot.chunks.iter());
+    let origin = timeline_origin_epoch(snapshot.chunks.iter(), started_at_epoch_ms);
+    let mut track_end = [0_u64; 2];
+    let mut committed_timeline_frames = 0_u64;
     for chunk in &snapshot.chunks {
         let source = track_of(chunk);
+        let slot = usize::from(track_slot(chunk.track));
+        let projected_ms = project_epoch_to_ms(chunk.start_epoch_ms, origin, &anchors);
+        let timeline_start_frame = projected_ms
+            .saturating_mul(TIMELINE_FRAMES_PER_MS)
+            .max(track_end[slot]);
+        let timeline_end_frame = timeline_start_frame.saturating_add(chunk.frames);
+        track_end[slot] = timeline_end_frame;
+        committed_timeline_frames = committed_timeline_frames.max(timeline_end_frame);
         let _ = manifest.timeline.push(TimelineSpan {
             source,
             generation: 0,
             source_start_frame: chunk.start_frame,
-            timeline_start_frame: chunk.start_frame,
+            timeline_start_frame,
             frame_count: chunk.frames,
         });
         manifest.chunks.push(ChunkMetadata {
@@ -669,6 +1002,7 @@ fn build_manifest(
             track: source,
         });
     }
+    manifest.committed_timeline_frames = committed_timeline_frames;
     manifest
 }
 
@@ -744,6 +1078,9 @@ fn recorded_from_sidecars(directory: &Path) -> Option<RecordedSession> {
         if !name.ends_with(".json") || name.starts_with("checkpoint-") || name == LEGACY_MARKER {
             continue;
         }
+        if name == SESSION_STATE_FILE {
+            continue;
+        }
         let Ok(info) = fs::read(entry.path())
             .ok()
             .and_then(|bytes| serde_json::from_slice::<ChunkInfo>(&bytes).ok())
@@ -809,23 +1146,41 @@ struct LoadedSession {
 }
 
 fn load_session(directory: &Path) -> Option<LoadedSession> {
+    let state = read_session_state(directory);
+    let journal = read_chunk_journal(directory);
     let manifest = latest_manifest(directory);
-    let recorded = manifest
-        .as_ref()
-        .and_then(|manifest| recorded_from_manifest(directory, manifest))
+    let mut recorded = recorded_from_journal(directory, &journal)
+        .or_else(|| {
+            manifest
+                .as_ref()
+                .and_then(|manifest| recorded_from_manifest(directory, manifest))
+        })
         .or_else(|| recorded_from_sidecars(directory))
         .or_else(|| recorded_from_wav(directory))
         .or_else(|| transcript_only_session(directory))?;
-    let started_at_epoch_ms = manifest
+    if let Some(state) = &state
+        && state.committed_timeline_frames > 0
+    {
+        recorded.duration_ms = recorded.duration_ms.max(
+            state.committed_timeline_frames.saturating_mul(1_000)
+                / u64::from(magnetic_tape_audio::OPUS_SAMPLE_RATE),
+        );
+    }
+    let started_at_epoch_ms = state
         .as_ref()
-        .map(|manifest| manifest.started_at_epoch_ms)
+        .map(|state| state.started_at_epoch_ms)
         .filter(|value| *value > 0)
         .or_else(|| {
             manifest
-                .as_ref()?
-                .chunks
+                .as_ref()
+                .map(|manifest| manifest.started_at_epoch_ms)
+                .filter(|value| *value > 0)
+        })
+        .or_else(|| {
+            journal
                 .iter()
                 .map(|chunk| chunk.start_epoch_ms)
+                .filter(|value| *value > 0)
                 .min()
         })
         .or_else(|| legacy_marker(directory).map(|marker| marker.started_at_epoch_ms))
@@ -847,6 +1202,12 @@ fn finalize_session(
         let _ = handle.join();
     }
     let recorded = recorded_from_snapshot(snapshot);
+    if let Err(error) = sync_chunk_journal(directory, &snapshot.chunks) {
+        logging::warn(
+            "recording",
+            &format!("failed to append final chunk journal: {error}"),
+        );
+    }
     let sequence = state.sequence.fetch_add(1, Ordering::SeqCst);
     let manifest = build_manifest(
         state.session_id.as_deref().unwrap_or("unknown"),
@@ -855,6 +1216,12 @@ fn finalize_session(
         SessionStatus::Completed,
         snapshot,
     );
+    if let Err(error) = write_session_state(directory, &manifest, snapshot.chunks.len()) {
+        logging::warn(
+            "recording",
+            &format!("failed to write final session state: {error}"),
+        );
+    }
     if let Err(error) = write_checkpoint(directory, &manifest) {
         logging::warn(
             "recording",
@@ -876,6 +1243,7 @@ fn spawn_checkpointer(
         .spawn(move || {
             let mut committed = 0_usize;
             let mut last_health_check = Instant::now();
+            let mut last_checkpoint = Instant::now();
             loop {
                 thread::sleep(Duration::from_millis(500));
                 let mut guard = recorder.lock().expect("audio recorder state poisoned");
@@ -900,6 +1268,17 @@ fn spawn_checkpointer(
                 if snapshot.chunks.len() <= committed {
                     continue;
                 }
+                // Storage v2: append the new chunks, then replace the small
+                // session header. The journal is the source of truth; the
+                // legacy checkpoint is written only once a minute so an older
+                // build can still open the session.
+                if let Err(error) = sync_chunk_journal(&directory, &snapshot.chunks) {
+                    logging::warn(
+                        "recording",
+                        &format!("failed to append chunk journal: {error}"),
+                    );
+                    continue;
+                }
                 committed = snapshot.chunks.len();
                 let sequence = sequence.fetch_add(1, Ordering::SeqCst);
                 let manifest = build_manifest(
@@ -909,8 +1288,17 @@ fn spawn_checkpointer(
                     SessionStatus::Recording,
                     &snapshot,
                 );
-                if let Err(error) = write_checkpoint(&directory, &manifest) {
-                    logging::warn("recording", &format!("failed to write checkpoint: {error}"));
+                if let Err(error) = write_session_state(&directory, &manifest, committed) {
+                    logging::warn(
+                        "recording",
+                        &format!("failed to write session state: {error}"),
+                    );
+                }
+                if last_checkpoint.elapsed() >= Duration::from_secs(60) {
+                    last_checkpoint = Instant::now();
+                    if let Err(error) = write_checkpoint(&directory, &manifest) {
+                        logging::warn("recording", &format!("failed to write checkpoint: {error}"));
+                    }
                 }
             }
         })
@@ -1157,13 +1545,19 @@ fn cleanup_old_audio(
         {
             continue;
         }
-        let Some(started_at) = load_session(&directory)
-            .map(|session| session.started_at_epoch_ms)
-            .filter(|started_at| *started_at > 0)
-        else {
+        let Some(loaded) = load_session(&directory) else {
             continue;
         };
-        if started_at >= cutoff_epoch_ms {
+        // A transcript-only fallback has no reliable audio duration; never use
+        // it to justify deleting Ogg files.
+        if loaded.recorded.is_empty() {
+            continue;
+        }
+        let started_at = loaded.started_at_epoch_ms;
+        if started_at == 0
+            || started_at >= cutoff_epoch_ms
+            || !session_transcript_is_complete(&directory, loaded.recorded.duration_ms)
+        {
             continue;
         }
         result.bytes_freed += discard_audio_files(&directory)?;
@@ -1206,10 +1600,16 @@ fn enforce_storage_quota(
         {
             continue;
         }
-        let started_at = load_session(&directory)
-            .map(|session| session.started_at_epoch_ms)
-            .unwrap_or(0);
-        candidates.push((started_at, session_id.to_owned(), directory));
+        let Some(loaded) = load_session(&directory) else {
+            continue;
+        };
+        if loaded.recorded.is_empty() {
+            continue;
+        }
+        if !session_transcript_is_complete(&directory, loaded.recorded.duration_ms) {
+            continue;
+        }
+        candidates.push((loaded.started_at_epoch_ms, session_id.to_owned(), directory));
     }
     if total <= quota_bytes {
         return Ok(result);
@@ -1437,6 +1837,7 @@ fn start_session(
     write_session_title(&output, &title)?;
     let mut initial = RecoveryManifest::new(&session_id);
     initial.started_at_epoch_ms = now_ms;
+    write_session_state(&output, &initial, 0)?;
     write_checkpoint(&output, &initial)?;
 
     let audio = AudioRecording::start(&microphone_id, &system_output_id, &output)
@@ -1558,17 +1959,29 @@ fn stop_session(
     let snapshot = match active.finish() {
         Ok(snapshot) => snapshot,
         Err(error) => {
+            *sherpa_live.lock().expect("sherpa live state poisoned") = None;
+            {
+                let mut live = live.lock().expect("live transcription state poisoned");
+                live.active = false;
+                live.stream_tx.take();
+            }
             let mut state = state.lock().expect("session state poisoned");
             state.status = RecorderStatus::Idle;
             return Err(error.to_string());
         }
     };
     let mut state = state.lock().expect("session state poisoned");
-    let session_id = state
-        .session_id
-        .clone()
-        .ok_or_else(|| "当前没有录音会话".to_owned())?;
-    let directory = recordings_root(&app)?.join(&session_id);
+    let Some(session_id) = state.session_id.clone() else {
+        state.status = RecorderStatus::Idle;
+        return Err("当前没有录音会话".into());
+    };
+    let directory = match recordings_root(&app) {
+        Ok(root) => root.join(&session_id),
+        Err(error) => {
+            state.status = RecorderStatus::Idle;
+            return Err(error);
+        }
+    };
     let mut recorded = finalize_session(&directory, &mut state, &snapshot);
     {
         let mut live = live.lock().expect("live transcription state poisoned");
@@ -1579,14 +1992,39 @@ fn stop_session(
         .lock()
         .expect("settings state poisoned")
         .retain_audio;
-    if discard_audio && directory.join(TRANSCRIPT_FILE).is_file() {
-        discard_audio_files(&directory)?;
-        recorded = RecordedSession {
-            duration_ms: recorded.duration_ms,
-            ..RecordedSession::default()
-        };
+    if discard_audio {
+        if session_transcript_is_complete(&directory, recorded.duration_ms) {
+            match discard_audio_files(&directory) {
+                Ok(_) => {
+                    recorded = RecordedSession {
+                        duration_ms: recorded.duration_ms,
+                        ..RecordedSession::default()
+                    };
+                }
+                Err(error) => logging::warn(
+                    "recording",
+                    &format!("failed to discard audio after stop: {error}"),
+                ),
+            }
+        } else {
+            logging::warn(
+                "recording",
+                &format!(
+                    "kept audio for session {session_id}: transcript covers less than 90% of the recording"
+                ),
+            );
+        }
     }
-    write_new_file(&directory.join(COMPLETED_MARKER), b"completed\n")?;
+    if let Err(error) = write_new_file(&directory.join(COMPLETED_MARKER), b"completed\n")
+        && !directory.join(COMPLETED_MARKER).is_file()
+    {
+        logging::warn(
+            "recording",
+            &format!("failed to write completion marker: {error}"),
+        );
+    }
+    // The recording is finalized even when a best-effort tail step failed, so
+    // the next start/open command never sees a half-finished session.
     state.resumed_at_epoch_ms = None;
     state.status = RecorderStatus::Finished;
     state.accumulated_ms = recorded.duration_ms;
@@ -1688,6 +2126,48 @@ fn read_transcript(directory: &Path) -> Option<asr::Transcript> {
         .and_then(|bytes| serde_json::from_slice(&bytes).ok())
 }
 
+/// True when the transcript covers most of the expected recording duration.
+/// This is a conservative guard: if the transcript is empty, corrupted, or
+/// clearly shorter than the audio, the audio is kept.
+fn transcript_is_complete(
+    transcript: &asr::Transcript,
+    expected_ms: u64,
+    coverage: Option<&TranscriptCoverage>,
+) -> bool {
+    if transcript.text.trim().is_empty() && transcript.segments.is_empty() {
+        return false;
+    }
+    let (covered_ms, failed_segments) = match coverage {
+        Some(coverage) => (coverage.covered_ms, coverage.failed_segments),
+        None => (
+            transcript.duration_ms.max(
+                transcript
+                    .segments
+                    .iter()
+                    .map(|segment| segment.end_ms)
+                    .max()
+                    .unwrap_or(0),
+            ),
+            0,
+        ),
+    };
+    if failed_segments > 0 {
+        return false;
+    }
+    if expected_ms == 0 {
+        return covered_ms > 0;
+    }
+    covered_ms.saturating_mul(1_000) >= expected_ms.saturating_mul(MIN_TRANSCRIPT_COVERAGE_PERMILLE)
+}
+
+fn session_transcript_is_complete(directory: &Path, expected_ms: u64) -> bool {
+    let Some(transcript) = read_transcript(directory) else {
+        return false;
+    };
+    let coverage = read_transcript_coverage(directory);
+    transcript_is_complete(&transcript, expected_ms, coverage.as_ref())
+}
+
 /// Source text for AI jobs: the plain transcript when present, otherwise the
 /// segment texts (some providers only return timed segments).
 fn transcript_source(transcript: &asr::Transcript) -> String {
@@ -1736,14 +2216,93 @@ fn transcript_only_session(directory: &Path) -> Option<RecordedSession> {
     })
 }
 
-fn audio_chunks(directory: &Path) -> Result<Vec<asr::AudioChunkRef>, String> {
-    let mut chunks = Vec::new();
+/// Timeline frames per millisecond at the internal 48 kHz rate.
+const TIMELINE_FRAMES_PER_MS: u64 = 48;
+
+/// Uses the earliest capture timestamp as a fallback when the session start
+/// was not recorded (legacy sessions or a partially written manifest).
+fn timeline_origin_epoch<'a>(
+    chunks: impl Iterator<Item = &'a ChunkInfo>,
+    session_start_epoch_ms: u64,
+) -> u64 {
+    if session_start_epoch_ms > 0 {
+        return session_start_epoch_ms;
+    }
+    chunks
+        .map(|chunk| chunk.start_epoch_ms)
+        .filter(|epoch| *epoch > 0)
+        .min()
+        .unwrap_or(0)
+}
+
+/// Dense microphone chunks act as the session clock: they advance only while
+/// recording is active, so pauses are excluded without persisting pause events.
+fn microphone_anchors<'a>(chunks: impl Iterator<Item = &'a ChunkInfo>) -> Vec<(u64, u64)> {
+    let mut anchors: Vec<(u64, u64)> = chunks
+        .filter(|chunk| chunk.track == Track::Microphone && chunk.start_epoch_ms > 0)
+        .map(|chunk| (chunk.start_epoch_ms, chunk.start_frame))
+        .collect();
+    anchors.sort_by_key(|(epoch, _)| *epoch);
+    anchors
+}
+
+/// Maps a chunk's wall-clock capture time to a position on the shared session
+/// timeline. Between two anchors the mapping is linear; before the first and
+/// after the last anchor it extrapolates at 48 kHz.
+fn project_epoch_to_ms(epoch_ms: u64, origin_epoch_ms: u64, anchors: &[(u64, u64)]) -> u64 {
+    if epoch_ms == 0 {
+        return 0;
+    }
+    let frame = if anchors.is_empty() {
+        epoch_ms
+            .saturating_sub(origin_epoch_ms)
+            .saturating_mul(TIMELINE_FRAMES_PER_MS)
+    } else {
+        let (first_epoch, first_frame) = anchors[0];
+        let (last_epoch, last_frame) = anchors[anchors.len() - 1];
+        if epoch_ms <= first_epoch {
+            first_frame.saturating_sub(
+                first_epoch
+                    .saturating_sub(epoch_ms)
+                    .saturating_mul(TIMELINE_FRAMES_PER_MS),
+            )
+        } else if epoch_ms >= last_epoch {
+            last_frame.saturating_add(
+                epoch_ms
+                    .saturating_sub(last_epoch)
+                    .saturating_mul(TIMELINE_FRAMES_PER_MS),
+            )
+        } else {
+            let index = anchors.partition_point(|(epoch, _)| *epoch <= epoch_ms);
+            let (start_epoch, start_frame) = anchors[index - 1];
+            let (end_epoch, end_frame) = anchors[index];
+            if end_epoch <= start_epoch {
+                start_frame
+            } else {
+                let offset = u128::from(epoch_ms - start_epoch);
+                let span = u128::from(end_epoch - start_epoch);
+                let frame_span = u128::from(end_frame.saturating_sub(start_frame));
+                start_frame.saturating_add((offset * frame_span / span) as u64)
+            }
+        }
+    };
+    frame.saturating_mul(1_000) / u64::from(OPUS_SAMPLE_RATE)
+}
+
+fn audio_chunks(
+    directory: &Path,
+    session_start_epoch_ms: u64,
+) -> Result<Vec<asr::AudioChunkRef>, String> {
+    let mut infos = Vec::new();
     for entry in fs::read_dir(directory).map_err(|error| error.to_string())? {
         let path = entry.map_err(|error| error.to_string())?.path();
         let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
             continue;
         };
         if !name.ends_with(".json") || name.starts_with("checkpoint-") || name == LEGACY_MARKER {
+            continue;
+        }
+        if name == SESSION_STATE_FILE {
             continue;
         }
         let Ok(bytes) = fs::read(&path) else {
@@ -1756,22 +2315,21 @@ fn audio_chunks(directory: &Path) -> Result<Vec<asr::AudioChunkRef>, String> {
         if !audio_path.is_file() {
             continue;
         }
-        chunks.push(asr::AudioChunkRef {
+        infos.push((info, audio_path));
+    }
+
+    let anchors = microphone_anchors(infos.iter().map(|(info, _)| info));
+    let origin = timeline_origin_epoch(infos.iter().map(|(info, _)| info), session_start_epoch_ms);
+    let mut chunks = infos
+        .into_iter()
+        .map(|(info, audio_path)| asr::AudioChunkRef {
             track: info.track,
             path: audio_path,
-            start_frame: info.start_frame,
             frames: info.frames,
-        });
-    }
-    chunks.sort_by_key(|chunk| {
-        (
-            match chunk.track {
-                Track::Microphone => 0_u8,
-                Track::System => 1_u8,
-            },
-            chunk.start_frame,
-        )
-    });
+            start_ms: project_epoch_to_ms(info.start_epoch_ms, origin, &anchors),
+        })
+        .collect::<Vec<_>>();
+    chunks.sort_by_key(|chunk| (chunk.start_ms, track_slot(chunk.track)));
     Ok(chunks)
 }
 
@@ -1785,7 +2343,7 @@ async fn transcribe_session(
     settings: tauri::State<'_, Mutex<AppSettings>>,
     transcription: tauri::State<'_, TranscriptionRun>,
 ) -> Result<asr::Transcript, String> {
-    let (directory, session_id) = {
+    let (directory, session_id, expected_ms, started_at_epoch_ms) = {
         let state = state.lock().expect("session state poisoned");
         if state.status != RecorderStatus::Finished {
             return Err("只有已结束的录音才能转写".into());
@@ -1795,13 +2353,20 @@ async fn transcribe_session(
             .clone()
             .ok_or_else(|| "当前没有录音会话".to_owned())?;
         let directory = recordings_root(&app)?.join(&session_id);
-        (directory, session_id)
+        let expected_ms = state
+            .recorded
+            .as_ref()
+            .map(|recorded| recorded.duration_ms)
+            .unwrap_or(state.accumulated_ms);
+        let started_at_epoch_ms = state.started_at_epoch_ms.unwrap_or(0);
+        (directory, session_id, expected_ms, started_at_epoch_ms)
     };
-    let chunks = audio_chunks(&directory)?;
+    let chunks = audio_chunks(&directory, started_at_epoch_ms)?;
     if chunks.is_empty() {
         return Err("当前会话没有可转写的 Opus 分片".into());
     }
-    let cancel = transcription.begin()?;
+    let guard = transcription.begin()?;
+    let cancel = guard.flag();
     logging::info(
         "transcribe",
         &format!(
@@ -1849,7 +2414,7 @@ async fn transcribe_session(
                 language: &local_language,
                 initial_prompt: &hotwords,
             };
-            local_whisper::transcribe(
+            let transcript = local_whisper::transcribe(
                 &app_data,
                 &chunks,
                 &local_session,
@@ -1865,7 +2430,12 @@ async fn transcribe_session(
                         },
                     );
                 },
-            )
+            )?;
+            Ok(asr::TranscriptionOutcome {
+                covered_ms: transcript.duration_ms,
+                failed_segments: 0,
+                transcript,
+            })
         })
         .await
         .map_err(|error| format!("本地转写任务失败：{error}"))?
@@ -1877,9 +2447,8 @@ async fn transcribe_session(
         asr::transcribe_chunks_with(&chunks, &config, &session_id, cancel.as_ref(), &on_progress)
             .await
     };
-    transcription.clear();
-    let transcript = match result {
-        Ok(transcript) => transcript,
+    let outcome = match result {
+        Ok(outcome) => outcome,
         Err(error) => {
             logging::error(
                 "transcribe",
@@ -1891,16 +2460,23 @@ async fn transcribe_session(
             return Err(error);
         }
     };
+    let mut transcript = outcome.transcript;
+    let coverage = TranscriptCoverage {
+        covered_ms: outcome.covered_ms,
+        duration_ms: transcript.duration_ms,
+        failed_segments: outcome.failed_segments,
+    };
     logging::info(
         "transcribe",
         &format!(
-            "finished provider={} session={} segments={}",
+            "finished provider={} session={} segments={} covered_ms={} failed={}",
             provider.as_str(),
             session_id,
-            transcript.segments.len()
+            transcript.segments.len(),
+            coverage.covered_ms,
+            coverage.failed_segments
         ),
     );
-    let mut transcript = transcript;
     // The decoder would need ~460 MB of f32 for a two-hour session, so skip
     // diarization before allocating the buffer; the live labels survive via
     // carry-over below.
@@ -1944,20 +2520,37 @@ async fn transcribe_session(
         }
     }
     write_transcript(&directory, &transcript)?;
+    write_transcript_coverage(&directory, &coverage)?;
     // A new transcript invalidates translations of the old text.
     clear_translations(&directory);
-    if !settings
+    let retain_audio = settings
         .lock()
         .expect("settings state poisoned")
-        .retain_audio
-    {
-        discard_audio_files(&directory)?;
-        let mut state = state.lock().expect("session state poisoned");
-        if state.session_id.as_deref() == Some(session_id.as_str()) {
-            state.recorded = Some(RecordedSession {
-                duration_ms: transcript.duration_ms,
-                ..RecordedSession::default()
-            });
+        .retain_audio;
+    if !retain_audio {
+        if transcript_is_complete(&transcript, expected_ms, Some(&coverage)) {
+            match discard_audio_files(&directory) {
+                Ok(_) => {
+                    let mut state = state.lock().expect("session state poisoned");
+                    if state.session_id.as_deref() == Some(session_id.as_str()) {
+                        state.recorded = Some(RecordedSession {
+                            duration_ms: transcript.duration_ms,
+                            ..RecordedSession::default()
+                        });
+                    }
+                }
+                Err(error) => logging::warn(
+                    "transcribe",
+                    &format!("failed to discard audio after transcription: {error}"),
+                ),
+            }
+        } else {
+            logging::warn(
+                "transcribe",
+                &format!(
+                    "kept audio for session {session_id}: transcript covers less than 90% of the recording"
+                ),
+            );
         }
     }
     Ok(transcript)
@@ -2014,7 +2607,7 @@ fn get_transcript(
     Ok(read_transcript(&directory))
 }
 
-/// One 15 second Opus chunk placed on the shared session timeline.
+/// One 5 second Opus chunk placed on the shared session timeline.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct PlaybackChunk {
@@ -2037,13 +2630,18 @@ fn get_session_playback(
     app: tauri::AppHandle,
     state: tauri::State<'_, Mutex<SessionState>>,
 ) -> Result<PlaybackTracks, String> {
+    let started_at_epoch_ms = state
+        .lock()
+        .expect("session state poisoned")
+        .started_at_epoch_ms
+        .unwrap_or(0);
     let directory = current_session_directory(&app, &state)?;
-    let chunks = audio_chunks(&directory)?;
+    let chunks = audio_chunks(&directory, started_at_epoch_ms)?;
     let mut microphone = Vec::new();
     let mut system = Vec::new();
     let mut duration_ms = 0_u64;
     for chunk in chunks {
-        let start_ms = chunk.start_frame.saturating_mul(1_000) / u64::from(OPUS_SAMPLE_RATE);
+        let start_ms = chunk.start_ms;
         let chunk_duration_ms = chunk.frames.saturating_mul(1_000) / u64::from(OPUS_SAMPLE_RATE);
         let entry = PlaybackChunk {
             path: chunk.path,
@@ -2080,15 +2678,25 @@ fn discard_session_audio(
         .clone()
         .ok_or_else(|| "当前没有录音会话".to_owned())?;
     let directory = recordings_root(&app)?.join(&session_id);
-    if read_transcript(&directory).is_none() {
+    let Some(transcript) = read_transcript(&directory) else {
         return Err("请先完成转写，再删除音频；转写是保留内容的唯一副本".into());
+    };
+    let expected_ms = state
+        .recorded
+        .as_ref()
+        .map(|recorded| recorded.duration_ms)
+        .unwrap_or(state.accumulated_ms);
+    if !transcript_is_complete(
+        &transcript,
+        expected_ms,
+        read_transcript_coverage(&directory).as_ref(),
+    ) {
+        return Err("转写覆盖不足 90%，已保留音频；请重新转写后再删除".into());
     }
     if !directory.join(AUDIO_DISCARDED).is_file() {
         discard_audio_files(&directory)?;
     }
-    let duration_ms = read_transcript(&directory)
-        .map(|transcript| transcript.duration_ms)
-        .unwrap_or(state.accumulated_ms);
+    let duration_ms = transcript.duration_ms;
     state.recorded = Some(RecordedSession {
         duration_ms,
         ..RecordedSession::default()
@@ -2409,7 +3017,7 @@ fn poll_live_inner(
     live: &tauri::State<'_, Mutex<LiveTranscriptionState>>,
     sherpa_live: &tauri::State<'_, Mutex<Option<SherpaLive>>>,
 ) -> Result<(), String> {
-    let (session_id, directory) = {
+    let (session_id, directory, started_at_epoch_ms) = {
         let state = state.lock().expect("session state poisoned");
         if !matches!(
             state.status,
@@ -2422,7 +3030,8 @@ fn poll_live_inner(
             .clone()
             .ok_or_else(|| "当前没有录音会话".to_owned())?;
         let directory = recordings_root(app)?.join(&session_id);
-        (session_id, directory)
+        let started_at_epoch_ms = state.started_at_epoch_ms.unwrap_or(0);
+        (session_id, directory, started_at_epoch_ms)
     };
     if live
         .lock()
@@ -2504,6 +3113,18 @@ fn poll_live_inner(
     let Some(snapshot) = snapshot else {
         return Ok(());
     };
+    let anchors = microphone_anchors(snapshot.chunks.iter());
+    let origin = timeline_origin_epoch(snapshot.chunks.iter(), started_at_epoch_ms);
+    let live_chunks = snapshot
+        .chunks
+        .iter()
+        .map(|chunk| asr::AudioChunkRef {
+            track: chunk.track,
+            path: chunk.path.clone(),
+            frames: chunk.frames,
+            start_ms: project_epoch_to_ms(chunk.start_epoch_ms, origin, &anchors),
+        })
+        .collect::<Vec<_>>();
 
     let (ready, provider, language) = {
         let mut live = live.lock().expect("live transcription state poisoned");
@@ -2517,23 +3138,35 @@ fn poll_live_inner(
         if capacity == 0 {
             return Ok(());
         }
+        let pending = live_chunks
+            .iter()
+            .filter(|chunk| {
+                let bucket = chunk.start_ms / LIVE_WINDOW_MS * LIVE_WINDOW_MS;
+                !live.processed.contains(&(track_slot(chunk.track), bucket))
+                    && !live.inflight.contains(&bucket)
+            })
+            .cloned()
+            .collect::<Vec<_>>();
         let mut slots: BTreeMap<u64, (Option<asr::AudioChunkRef>, Option<asr::AudioChunkRef>)> =
             BTreeMap::new();
-        for chunk in &snapshot.chunks {
-            let key = (track_slot(chunk.track), chunk.start_frame);
-            if live.processed.contains(&key) || live.inflight.contains(&chunk.start_frame) {
-                continue;
-            }
-            let entry = slots.entry(chunk.start_frame).or_default();
-            let reference = asr::AudioChunkRef {
-                track: chunk.track,
-                path: chunk.path.clone(),
-                start_frame: chunk.start_frame,
-                frames: chunk.frames,
-            };
-            match chunk.track {
-                Track::Microphone => entry.0 = Some(reference),
-                Track::System => entry.1 = Some(reference),
+        for chunk in pending {
+            let mut slot = chunk.start_ms / LIVE_WINDOW_MS * LIVE_WINDOW_MS;
+            loop {
+                let entry = slots.entry(slot).or_default();
+                let occupied = if chunk.track == Track::Microphone {
+                    entry.0.is_some()
+                } else {
+                    entry.1.is_some()
+                };
+                if !occupied {
+                    if chunk.track == Track::Microphone {
+                        entry.0 = Some(chunk);
+                    } else {
+                        entry.1 = Some(chunk);
+                    }
+                    break;
+                }
+                slot = slot.saturating_add(LIVE_WINDOW_MS);
             }
         }
         for slot in slots.keys() {
@@ -2554,12 +3187,17 @@ fn poll_live_inner(
             .take(capacity)
             .map(|(slot, entry)| (*slot, entry.0.clone(), entry.1.clone()))
             .collect::<Vec<_>>();
-        for (slot, _, _) in &chosen {
+        for (slot, microphone, system) in &chosen {
             live.inflight.insert(*slot);
-            // Reserve both track keys immediately. A late second track for a
-            // window already sent to ASR must not create a duplicate request.
-            live.processed.insert((0, *slot));
-            live.processed.insert((1, *slot));
+            // Reserve only the tracks that are actually part of this request:
+            // a late second track for the same window must still be able to
+            // produce its own request instead of being dropped.
+            if microphone.is_some() {
+                live.processed.insert((0, *slot));
+            }
+            if system.is_some() {
+                live.processed.insert((1, *slot));
+            }
             live.first_seen.remove(slot);
         }
         (chosen, live.provider, live.language.clone())
@@ -2697,6 +3335,14 @@ fn apply_live_result(
     if !live.active && !live.segments.is_empty() {
         let transcript = live_transcript(&live);
         let _ = write_transcript(directory, &transcript);
+        let _ = write_transcript_coverage(
+            directory,
+            &TranscriptCoverage {
+                covered_ms: transcript.duration_ms,
+                duration_ms: transcript.duration_ms,
+                failed_segments: 0,
+            },
+        );
     }
 }
 
@@ -2843,7 +3489,7 @@ fn export_session(
     };
     let transcript = read_transcript(&directory);
     let notes = fs::read_to_string(directory.join(NOTES_FILE)).unwrap_or_default();
-    let chunks = audio_chunks(&directory)?;
+    let chunks = audio_chunks(&directory, started_at_epoch_ms)?;
     let translations = read_translations(&directory);
     let root = exports_root(&app)?;
     let input = export::ExportInput {
@@ -3004,6 +3650,20 @@ pub fn run() {
             );
             let recordings = data_directory.join("recordings");
             fs::create_dir_all(&recordings)?;
+            let pruned = prune_session_checkpoints(&recordings);
+            if pruned > 0 {
+                logging::info(
+                    "storage",
+                    &format!("pruned {pruned} stale checkpoint files"),
+                );
+            }
+            let migrated = migrate_legacy_sessions(&recordings);
+            if migrated > 0 {
+                logging::info(
+                    "storage",
+                    &format!("migrated {migrated} sessions to the chunk journal"),
+                );
+            }
             app.asset_protocol_scope()
                 .allow_directory(&recordings, true)?;
             let settings = load_settings(&data_directory);
@@ -3152,6 +3812,152 @@ mod tests {
             frame_size: 2_880,
             bytes: 1,
         }
+    }
+
+    fn write_test_chunk(directory: &Path, track: Track, index: u64, frames: u64) {
+        let info = chunk(index, track, index * frames, frames);
+        fs::write(
+            directory.join(info.sidecar_path()),
+            serde_json::to_vec(&info).unwrap(),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn audio_chunks_projects_a_sparse_system_track_to_session_time() {
+        let directory = tempfile::tempdir().unwrap();
+        let microphone = [
+            chunk(0, Track::Microphone, 0, 241_920),
+            chunk(1, Track::Microphone, 241_920, 241_920),
+        ];
+        let mut system = chunk(0, Track::System, 0, 241_920);
+        system.start_epoch_ms = 1_501_000;
+
+        for info in microphone.iter().chain(std::iter::once(&system)) {
+            fs::write(
+                directory.path().join(info.sidecar_path()),
+                serde_json::to_vec(info).unwrap(),
+            )
+            .unwrap();
+            fs::write(directory.path().join(format!("{}.ogg", info.uuid)), b"OggS").unwrap();
+        }
+
+        let chunks = audio_chunks(directory.path(), 1_000).unwrap();
+        let projected = chunks
+            .iter()
+            .find(|chunk| chunk.track == Track::System)
+            .unwrap();
+        assert_eq!(projected.start_ms, 1_500_000);
+    }
+
+    #[test]
+    fn storage_v2_journal_is_idempotent_and_survives_a_torn_line() {
+        let directory = tempfile::tempdir().unwrap();
+        let chunks = vec![
+            chunk(0, Track::Microphone, 0, 48_000),
+            chunk(1, Track::Microphone, 48_000, 48_000),
+            chunk(0, Track::System, 0, 48_000),
+        ];
+        for info in &chunks {
+            fs::write(directory.path().join(format!("{}.ogg", info.uuid)), b"OggS").unwrap();
+        }
+
+        assert_eq!(
+            sync_chunk_journal(directory.path(), &chunks[..2]).unwrap(),
+            2
+        );
+        assert_eq!(sync_chunk_journal(directory.path(), &chunks).unwrap(), 1);
+        assert_eq!(sync_chunk_journal(directory.path(), &chunks).unwrap(), 0);
+
+        // Simulate a power loss in the middle of the last append.
+        let journal = directory.path().join(CHUNK_JOURNAL_FILE);
+        let mut file = OpenOptions::new().append(true).open(&journal).unwrap();
+        file.write_all(br#"{"index":"#).unwrap();
+        drop(file);
+
+        assert_eq!(read_chunk_journal(directory.path()).len(), 3);
+        let mut manifest = RecoveryManifest::new("session-1");
+        manifest.started_at_epoch_ms = 1_000;
+        manifest.status = SessionStatus::Completed;
+        manifest.committed_timeline_frames = 96_000;
+        write_session_state(directory.path(), &manifest, 3).unwrap();
+
+        let loaded = load_session(directory.path()).unwrap();
+        assert_eq!(loaded.recorded.microphone_chunks.len(), 2);
+        assert_eq!(loaded.recorded.system_chunks.len(), 1);
+        assert_eq!(loaded.recorded.duration_ms, 2_000);
+        assert_eq!(loaded.started_at_epoch_ms, 1_000);
+    }
+
+    #[test]
+    fn journal_continues_after_a_torn_line() {
+        let directory = tempfile::tempdir().unwrap();
+        let first = chunk(0, Track::Microphone, 0, 48_000);
+        fs::write(
+            directory.path().join(format!("{}.ogg", first.uuid)),
+            b"OggS",
+        )
+        .unwrap();
+        assert_eq!(sync_chunk_journal(directory.path(), &[first]).unwrap(), 1);
+
+        let journal = directory.path().join(CHUNK_JOURNAL_FILE);
+        let mut file = OpenOptions::new().append(true).open(&journal).unwrap();
+        file.write_all(br#"{"index":"#).unwrap();
+        drop(file);
+
+        let second = chunk(1, Track::Microphone, 48_000, 48_000);
+        fs::write(
+            directory.path().join(format!("{}.ogg", second.uuid)),
+            b"OggS",
+        )
+        .unwrap();
+        assert_eq!(sync_chunk_journal(directory.path(), &[second]).unwrap(), 1);
+        assert_eq!(read_chunk_journal(directory.path()).len(), 2);
+    }
+
+    #[test]
+    fn legacy_sessions_are_migrated_to_the_chunk_journal() {
+        let root = tempfile::tempdir().unwrap();
+        let directory = root.path().join("0000000000000001");
+        fs::create_dir_all(&directory).unwrap();
+        fs::write(
+            directory.join(LEGACY_MARKER),
+            br#"{"startedAtEpochMs":1000,"title":"legacy"}"#,
+        )
+        .unwrap();
+        for (track, index) in [(Track::Microphone, 0), (Track::System, 0)] {
+            write_test_chunk(&directory, track, index, 48_000);
+            let info = chunk(index, track, index * 48_000, 48_000);
+            fs::write(directory.join(format!("{}.ogg", info.uuid)), b"OggS").unwrap();
+        }
+
+        assert_eq!(migrate_legacy_sessions(root.path()), 1);
+        assert!(directory.join(SESSION_STATE_FILE).is_file());
+        assert!(directory.join(CHUNK_JOURNAL_FILE).is_file());
+        assert_eq!(read_chunk_journal(&directory).len(), 2);
+        let loaded = load_session(&directory).unwrap();
+        assert_eq!(loaded.started_at_epoch_ms, 1_000);
+        assert_eq!(loaded.recorded.duration_ms, 1_000);
+    }
+
+    #[test]
+    fn projection_keeps_sparse_system_audio_at_its_wall_time() {
+        let origin = 1_000_000_u64;
+        // Four dense microphone chunks, one every ~5.04s.
+        let anchors = (0..4)
+            .map(|index| (origin + index * 5_040, index * 241_920))
+            .collect::<Vec<_>>();
+        // A system chunk whose first packets only arrive 25 minutes in still
+        // has source frame 0; the projection must put it at 25 minutes.
+        let projected = project_epoch_to_ms(origin + 1_500_000, origin, &anchors);
+        assert_eq!(projected, 1_500_000);
+    }
+
+    #[test]
+    fn projection_interpolates_between_microphone_anchors() {
+        let anchors = vec![(0, 0), (10_000, 48_000)];
+        assert_eq!(project_epoch_to_ms(5_000, 0, &anchors), 500);
+        assert_eq!(project_epoch_to_ms(25_000, 0, &anchors), 16_000);
     }
 
     #[test]
@@ -3369,7 +4175,7 @@ mod tests {
             )
             .unwrap();
             fs::write(directory.join("mic-00000.ogg"), b"OggS-audio").unwrap();
-            fs::write(directory.join("mic-00000.json"), b"{}").unwrap();
+            write_test_chunk(&directory, Track::Microphone, 0, 48_000);
             if with_transcript {
                 fs::write(directory.join(TRANSCRIPT_FILE), &transcript).unwrap();
             }
@@ -3406,7 +4212,7 @@ mod tests {
         );
 
         let stats = library_stats(root.path()).unwrap();
-        assert_eq!(stats.session_count, 2);
+        assert_eq!(stats.session_count, 3);
         assert_eq!(stats.transcript_only_count, 1);
         assert!(stats.audio_bytes > 0);
     }
@@ -3439,7 +4245,7 @@ mod tests {
             .unwrap();
             fs::write(directory.join(TRANSCRIPT_FILE), &transcript).unwrap();
             fs::write(directory.join("mic-00000.ogg"), vec![0_u8; audio_len]).unwrap();
-            fs::write(directory.join("mic-00000.json"), b"{}").unwrap();
+            write_test_chunk(&directory, Track::Microphone, 0, 48_000);
             total += directory_size(&directory);
         }
         // Freeing the oldest 100 byte chunk is enough to get back under quota.
@@ -3651,5 +4457,144 @@ mod tests {
         clear_translations(directory.path());
         assert!(!directory.path().join("translation-zh.md").exists());
         assert!(directory.path().join("notes.md").exists());
+    }
+
+    #[test]
+    fn transcript_coverage_requires_ninety_eight_percent_without_failures() {
+        let transcript = asr::Transcript {
+            provider: "minimax".into(),
+            model: "asr-1.0".into(),
+            language: "auto".into(),
+            duration_ms: 9_000,
+            text: "内容".into(),
+            segments: vec![asr::TranscriptSegment {
+                start_ms: 0,
+                end_ms: 9_000,
+                speaker: None,
+                text: "内容".into(),
+            }],
+            created_at_epoch_ms: 0,
+        };
+        let complete = TranscriptCoverage {
+            covered_ms: 9_800,
+            duration_ms: 10_000,
+            failed_segments: 0,
+        };
+        assert!(transcript_is_complete(&transcript, 10_000, Some(&complete)));
+        assert!(!transcript_is_complete(
+            &transcript,
+            10_000,
+            Some(&TranscriptCoverage {
+                covered_ms: 9_700,
+                ..complete
+            })
+        ));
+        assert!(!transcript_is_complete(
+            &transcript,
+            10_000,
+            Some(&TranscriptCoverage {
+                failed_segments: 1,
+                ..complete
+            })
+        ));
+        // Old transcripts have no coverage file; the duration fallback is
+        // conservative (90% is no longer enough).
+        assert!(!transcript_is_complete(&transcript, 10_000, None));
+
+        let empty = asr::Transcript {
+            text: String::new(),
+            segments: Vec::new(),
+            duration_ms: 0,
+            ..transcript
+        };
+        assert!(!transcript_is_complete(&empty, 10_000, Some(&complete)));
+    }
+
+    #[test]
+    fn transcription_guard_releases_the_slot_on_drop() {
+        let run = TranscriptionRun::default();
+        {
+            let guard = run.begin().unwrap();
+            assert!(run.begin().is_err());
+            assert!(!guard.flag().load(Ordering::SeqCst));
+        }
+        assert!(run.begin().is_ok());
+    }
+
+    #[test]
+    fn cancelling_marks_the_active_transcription() {
+        let run = TranscriptionRun::default();
+        let guard = run.begin().unwrap();
+        assert!(run.cancel());
+        assert!(guard.flag().load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn startup_pruning_trims_legacy_checkpoint_piles() {
+        let root = tempfile::tempdir().unwrap();
+        let session = root.path().join("0000000000000001");
+        fs::create_dir_all(&session).unwrap();
+
+        for sequence in 0..15 {
+            let mut manifest = RecoveryManifest::new("0000000000000001");
+            manifest.checkpoint_sequence = sequence;
+            fs::write(
+                session.join(format!("checkpoint-{sequence:020}.json")),
+                serde_json::to_vec(&manifest).unwrap(),
+            )
+            .unwrap();
+        }
+
+        let removed = prune_session_checkpoints(root.path());
+        assert_eq!(removed, 5);
+        let remaining = fs::read_dir(&session)
+            .unwrap()
+            .flatten()
+            .filter(|entry| {
+                entry
+                    .file_name()
+                    .to_str()
+                    .is_some_and(|name| name.starts_with("checkpoint-"))
+            })
+            .count();
+        assert_eq!(remaining, CHECKPOINT_RETENTION);
+        let latest = RecoveryStore::open(&session)
+            .unwrap()
+            .load_latest()
+            .unwrap()
+            .unwrap();
+        assert_eq!(latest.checkpoint_sequence, 14);
+    }
+
+    #[test]
+    fn cleanup_keeps_audio_when_transcript_coverage_is_low() {
+        let root = tempfile::tempdir().unwrap();
+        let directory = root.path().join("0000000000000001");
+        fs::create_dir_all(&directory).unwrap();
+        fs::write(
+            directory.join(LEGACY_MARKER),
+            br#"{"startedAtEpochMs":1000,"title":"short"}"#,
+        )
+        .unwrap();
+        fs::write(directory.join("mic-00000.ogg"), b"OggS-audio").unwrap();
+        write_test_chunk(&directory, Track::Microphone, 0, 48_000);
+        fs::write(
+            directory.join(TRANSCRIPT_FILE),
+            serde_json::to_vec(&asr::Transcript {
+                provider: "minimax".into(),
+                model: "asr-1.0".into(),
+                language: "zh-CN".into(),
+                duration_ms: 100,
+                text: "只识别到开头".into(),
+                segments: Vec::new(),
+                created_at_epoch_ms: 0,
+            })
+            .unwrap(),
+        )
+        .unwrap();
+
+        let result = cleanup_old_audio(root.path(), 10_000, None).unwrap();
+        assert_eq!(result.sessions, 0);
+        assert!(directory.join("mic-00000.ogg").exists());
     }
 }
