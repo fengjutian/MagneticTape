@@ -44,6 +44,7 @@ import {
   Settings2,
   Sparkles,
   Square,
+  Star,
   Trash2,
   Users,
   Volume2,
@@ -99,7 +100,7 @@ export function renderApp(): string {
           </div>
         </div>
         <nav class="app-nav" aria-label="全局导航">
-          <button class="nav-action nav-workspace active" type="button" aria-current="page">${iconNode(Mic)}<span>工作台</span></button>
+          <button class="nav-action nav-workspace active" type="button" aria-current="page" title="录音工作台">${iconNode(Mic)}<span>工作台</span></button>
           <button class="nav-action history-button" type="button" title="打开历史录音">${iconNode(History)}<span>历史录音</span></button>
           <button class="nav-action knowledge-button" type="button" title="打开知识中心">${iconNode(BookOpen)}<span>知识中心</span></button>
           <button class="nav-action settings-button" type="button" title="打开设置">${iconNode(Settings)}<span>设置</span></button>
@@ -258,6 +259,15 @@ export function renderApp(): string {
         </section>
 
         <aside class="insight-column" aria-label="AI 洞察">
+          <div class="insight-rail" aria-label="AI 洞察快捷入口">
+            <button class="rail-action" type="button" data-rail-target=".insight-topic" title="当前主题" aria-label="当前主题">${iconNode(Sparkles)}</button>
+            <button class="rail-action" type="button" data-rail-target=".insight-points-card" title="关键观点" aria-label="关键观点">${iconNode(Lightbulb)}</button>
+            <button class="rail-action" type="button" data-rail-target=".insight-decisions" title="决策事项" aria-label="决策事项">${iconNode(Check)}</button>
+            <button class="rail-action" type="button" data-rail-target=".insight-todos" title="待办事项" aria-label="待办事项">${iconNode(ListTodo)}</button>
+            <button class="rail-action" type="button" data-rail-target=".insight-questions" title="待确认问题" aria-label="待确认问题">${iconNode(CircleHelp)}</button>
+            <button class="rail-expand" type="button" title="展开 AI 洞察" aria-label="展开 AI 洞察">${iconNode(ChevronRight)}</button>
+          </div>
+          <div class="insight-resizer" role="separator" aria-orientation="vertical" aria-label="调整 AI 洞察宽度" tabindex="0" title="拖拽调整宽度，双击恢复默认"></div>
           <section class="panel insight-panel" aria-labelledby="insight-heading">
             <header class="insight-head">
               <div class="insight-heading">
@@ -494,6 +504,8 @@ export function applyView(root: HTMLElement, state: RecorderViewState, forceCont
   root.querySelector<HTMLElement>(".control-status-label")!.textContent = text.state;
   root.querySelector<HTMLElement>(".content-status-text")!.textContent = state.status === "recording" ? "LIVE" : text.badge;
   root.querySelector<HTMLElement>(".title-display")!.textContent = state.title;
+  const contentTitle = root.querySelector<HTMLElement>(".content-title");
+  if (contentTitle) contentTitle.textContent = state.status === "idle" ? "实时转录" : (state.title || "实时转录");
 
   const elapsed = root.querySelector<HTMLTimeElement>(".elapsed")!;
   elapsed.textContent = formatElapsed(state.elapsedMs);
@@ -738,7 +750,7 @@ export function renderTranscript(
   container: HTMLElement,
   transcript: Transcript,
   translation?: { label: string; content: string },
-  options: { partial?: boolean } = {},
+  options: { partial?: boolean; pinned?: Set<number> } = {},
 ): void {
   container.replaceChildren();
   if (transcript.segments.length === 0) {
@@ -750,6 +762,8 @@ export function renderTranscript(
       const line = document.createElement("article");
       line.className = "transcript-line";
       if (options.partial && index === transcript.segments.length - 1) line.classList.add("partial");
+      const pinned = options.pinned?.has(segment.startMs) ?? false;
+      if (pinned) line.classList.add("pinned");
       line.dataset.startMs = String(segment.startMs);
       line.tabIndex = 0;
       line.setAttribute("role", "button");
@@ -767,18 +781,22 @@ export function renderTranscript(
       const state = document.createElement("span");
       state.className = "recognized-pill";
       state.textContent = options.partial && index === transcript.segments.length - 1 ? "识别中" : "已识别";
-      const play = document.createElement("button");
-      play.type = "button";
-      play.className = "transcript-play";
-      play.title = "播放这一段";
-      play.setAttribute("aria-label", "播放这一段");
-      play.innerHTML = icon("play");
-      meta.append(dot, speaker, time, state, play);
+      meta.append(dot, speaker, time, state);
 
       const content = document.createElement("p");
       content.className = "transcript-content";
       content.textContent = segment.text;
-      line.append(meta, content);
+
+      const actions = document.createElement("div");
+      actions.className = "segment-actions";
+      actions.setAttribute("role", "group");
+      actions.setAttribute("aria-label", "片段操作");
+      actions.innerHTML = `
+        <button class="segment-action segment-play" type="button" title="播放这一段" aria-label="播放这一段">${icon("play")}</button>
+        <button class="segment-action segment-edit" type="button" title="编辑文本" aria-label="编辑文本">${iconNode(Pencil)}</button>
+        <button class="segment-action segment-copy" type="button" title="复制" aria-label="复制这段文字">${iconNode(Copy)}</button>
+        <button class="segment-action segment-pin${pinned ? " active" : ""}" type="button" title="${pinned ? "取消固定" : "固定片段"}" aria-label="${pinned ? "取消固定" : "固定片段"}" aria-pressed="${pinned}">${iconNode(Star)}</button>`;
+      line.append(meta, content, actions);
       container.append(line);
     });
   }

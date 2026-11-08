@@ -82,6 +82,7 @@ let activeTab: WorkspaceTab = "transcript";
 let liveAutoFollow = true;
 let liveUnread = 0;
 let lastLiveSegmentCount = 0;
+let pinnedSegments = new Set<number>();
 let chatBusy = false;
 let chatMessages: Array<{ role: "user" | "assistant"; text: string; pending?: boolean }> = [];
 let settings: AppSettings = {
@@ -222,7 +223,7 @@ function renderLive(): void {
     text: "",
     segments,
     createdAtEpochMs: 0,
-  }, undefined, { partial: Boolean(livePartialText) });
+  }, undefined, { partial: Boolean(livePartialText), pinned: pinnedSegments });
   stream.querySelectorAll<HTMLElement>(".transcript-line").forEach((line, index) => {
     const translation = liveTranslations[index];
     if (!translation) return;
@@ -414,10 +415,33 @@ liveButton.addEventListener("click", () => {
 });
 let view: RecorderViewState = { title: "新录音", status: "idle", elapsedMs: 0, language: "auto", translation: "none", retainAudio: true, volumeLevel: 0, sessionId: null, microphoneChunks: [], systemChunks: [] };
 
+function pinStorageKey(): string {
+  return `magnetic-tape.pins.${view.sessionId ?? "draft"}`;
+}
+
+function loadPins(): void {
+  try {
+    const raw = localStorage.getItem(pinStorageKey());
+    const parsed: unknown = raw ? JSON.parse(raw) : [];
+    pinnedSegments = new Set(
+      Array.isArray(parsed)
+        ? parsed.filter((value): value is number => typeof value === "number" && Number.isFinite(value))
+        : [],
+    );
+  } catch {
+    pinnedSegments = new Set();
+  }
+}
+
+function savePins(): void {
+  localStorage.setItem(pinStorageKey(), JSON.stringify([...pinnedSegments]));
+}
+
 function syncBackend(next: SessionState): void {
   const sessionChanged = backendState?.sessionId !== next.sessionId;
   backendState = next;
   view = { ...view, title: next.title, status: next.status, elapsedMs: next.elapsedMs, sessionId: next.sessionId, microphonePath: next.microphonePath, systemPath: next.systemPath, microphoneChunks: next.microphoneChunks, systemChunks: next.systemChunks, droppedBlocks: next.droppedBlocks, recovered: next.recovered, errorMessage: undefined };
+  if (sessionChanged) loadPins();
   restartClock();
   applyView(app, view);
   syncAsrProviderSelect();
@@ -527,6 +551,7 @@ function highlightTranscript(positionMs: number): void {
 }
 
 function seekFromTranscript(target: HTMLElement): void {
+  if (target.closest("button, [contenteditable=true]")) return;
   const line = target.closest<HTMLElement>(".transcript-line[data-start-ms]");
   if (!line || !playbackPlayer) return;
   const start = Number(line.dataset.startMs);
@@ -593,7 +618,7 @@ function renderTranscriptBody(): void {
     currentTranslation && currentTranslation.code === code
       ? { label: translationLabel(code), content: currentTranslation.content }
       : undefined;
-  renderTranscript(body, currentTranscript, translation);
+  renderTranscript(body, currentTranscript, translation, { pinned: pinnedSegments });
 }
 
 function setTranscriptStatus(suffix?: string): void {
@@ -1746,6 +1771,98 @@ app.querySelector<HTMLButtonElement>(".edit-transcript")!.addEventListener("clic
   }, { once: true });
 });
 
+// ----- Segment actions ------------------------------------------------------
+
+function beginSegmentEdit(line: HTMLElement): void {
+  const content = line.querySelector<HTMLElement>(".transcript-content");
+  if (!content || content.isContentEditable) return;
+  const original = content.textContent ?? "";
+  content.contentEditable = "plaintext-only";
+  content.classList.add("editing");
+  content.focus();
+  const range = document.createRange();
+  range.selectNodeContents(content);
+  const selection = window.getSelection();
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+
+  const finish = (cancel = false): void => {
+    content.contentEditable = "false";
+    content.classList.remove("editing");
+    content.removeEventListener("blur", onBlur);
+    if (cancel) {
+      content.textContent = original;
+      return;
+    }
+    const text = (content.textContent ?? "").trim();
+    const start = Number(line.dataset.startMs);
+    const segments = currentTranscript?.segments ?? liveSegments;
+    const segment = segments.find((item) => item.startMs === start);
+    if (segment && text) segment.text = text;
+    content.textContent = text || original;
+    const pill = line.querySelector<HTMLElement>(".recognized-pill");
+    if (pill) pill.textContent = "已编辑";
+    updateInsights();
+    syncTranscriptActions(app);
+  };
+  const onBlur = (): void => finish(false);
+  content.addEventListener("blur", onBlur);
+  content.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      content.blur();
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      finish(true);
+      content.blur();
+    }
+  });
+}
+
+app.addEventListener("click", async (event) => {
+  const action = (event.target as HTMLElement).closest<HTMLButtonElement>(".segment-action");
+  if (!action) return;
+  const line = action.closest<HTMLElement>(".transcript-line");
+  if (!line) return;
+  event.stopPropagation();
+  const start = Number(line.dataset.startMs);
+
+  if (action.classList.contains("segment-play")) {
+    seekFromTranscript(line);
+    return;
+  }
+  if (action.classList.contains("segment-edit")) {
+    beginSegmentEdit(line);
+    return;
+  }
+  if (action.classList.contains("segment-copy")) {
+    const content = line.querySelector<HTMLElement>(".transcript-content")?.textContent ?? "";
+    const speaker = line.querySelector<HTMLElement>(".transcript-speaker")?.textContent ?? "";
+    const time = line.querySelector<HTMLElement>("time")?.textContent ?? "";
+    try {
+      await navigator.clipboard.writeText(`[${time}] ${speaker}：${content}`);
+      action.classList.add("done");
+      window.setTimeout(() => action.classList.remove("done"), 1200);
+    } catch {
+      view.errorMessage = "无法写入剪贴板，请检查系统权限。";
+      applyView(app, view);
+    }
+    return;
+  }
+  if (action.classList.contains("segment-pin")) {
+    const active = !pinnedSegments.has(start);
+    if (active) pinnedSegments.add(start);
+    else pinnedSegments.delete(start);
+    savePins();
+    line.classList.toggle("pinned", active);
+    action.classList.toggle("active", active);
+    action.setAttribute("aria-pressed", String(active));
+    action.title = active ? "取消固定" : "固定片段";
+    action.setAttribute("aria-label", action.title);
+  }
+});
+
 // ----- AI chat --------------------------------------------------------------
 
 function renderChatThreads(): void {
@@ -1911,8 +2028,79 @@ function syncInsightMode(): void {
 syncInsightMode();
 narrowInsight.addEventListener("change", syncInsightMode);
 
+const insightResizer = app.querySelector<HTMLElement>(".insight-resizer");
+let resizingInsight = false;
+
+function insightWidthLimits(): { padding: number; left: number; gap: number; max: number } {
+  const styles = getComputedStyle(document.documentElement);
+  const padding = Number.parseFloat(styles.getPropertyValue("--ws-pad-x")) || 24;
+  const left = Number.parseFloat(styles.getPropertyValue("--ws-left")) || 288;
+  const gap = Number.parseFloat(styles.getPropertyValue("--ws-gap")) || 16;
+  const maxByCenter = window.innerWidth - padding * 2 - left - gap * 2 - 520;
+  return { padding, left, gap, max: Math.max(280, Math.min(400, maxByCenter)) };
+}
+
+function applyInsightWidth(width: number, persist = true): void {
+  const { max } = insightWidthLimits();
+  const next = Math.round(Math.max(280, Math.min(max, width)));
+  document.documentElement.style.setProperty("--ws-right", `${next}px`);
+  if (persist) localStorage.setItem("magnetic-tape.insightWidth", String(next));
+}
+
+function resetInsightWidth(): void {
+  document.documentElement.style.removeProperty("--ws-right");
+  localStorage.removeItem("magnetic-tape.insightWidth");
+}
+
+const savedInsightWidth = Number(localStorage.getItem("magnetic-tape.insightWidth"));
+if (!narrowInsight.matches && Number.isFinite(savedInsightWidth) && savedInsightWidth >= 280) {
+  applyInsightWidth(savedInsightWidth, false);
+}
+
+insightResizer?.addEventListener("pointerdown", (event) => {
+  if (narrowInsight.matches) return;
+  resizingInsight = true;
+  insightResizer.setPointerCapture(event.pointerId);
+  document.body.classList.add("resizing");
+  event.preventDefault();
+});
+window.addEventListener("pointermove", (event) => {
+  if (!resizingInsight) return;
+  const { padding } = insightWidthLimits();
+  applyInsightWidth(window.innerWidth - event.clientX - padding, false);
+});
+window.addEventListener("pointerup", () => {
+  if (!resizingInsight) return;
+  resizingInsight = false;
+  document.body.classList.remove("resizing");
+  const current = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--ws-right"));
+  if (Number.isFinite(current)) applyInsightWidth(current);
+});
+insightResizer?.addEventListener("dblclick", resetInsightWidth);
+insightResizer?.addEventListener("keydown", (event) => {
+  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+  event.preventDefault();
+  const current = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--ws-right")) || 304;
+  applyInsightWidth(current + (event.key === "ArrowLeft" ? 16 : -16));
+});
+window.addEventListener("resize", () => {
+  const current = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--ws-right"));
+  if (Number.isFinite(current) && !narrowInsight.matches) applyInsightWidth(current, false);
+});
+
 app.addEventListener("click", (event) => {
   const target = event.target as HTMLElement;
+  const rail = target.closest<HTMLButtonElement>(".rail-action");
+  if (rail?.dataset.railTarget) {
+    setInsightOpen(true);
+    const panel = insightColumn.querySelector<HTMLElement>(rail.dataset.railTarget);
+    requestAnimationFrame(() => panel?.scrollIntoView({ block: "start", behavior: "smooth" }));
+    return;
+  }
+  if (target.closest(".rail-expand")) {
+    setInsightOpen(true);
+    return;
+  }
   if (target.closest(".insight-toggle")) {
     setInsightOpen(!insightIsOpen());
     return;
@@ -1953,6 +2141,13 @@ document.addEventListener("keydown", (event) => {
     setInsightOpen(false);
   }
 });
+
+document.addEventListener("click", (event) => {
+  if (!narrowInsight.matches || !insightColumn.classList.contains("open")) return;
+  const target = event.target as HTMLElement;
+  if (target.closest(".insight-column, .insight-toggle, .insight-drawer-toggle")) return;
+  setInsightOpen(false);
+});
 app.querySelector<HTMLButtonElement>(".player-expand")!.addEventListener("click", async () => {
   try {
     if (document.fullscreenElement) await document.exitFullscreen();
@@ -1965,6 +2160,18 @@ app.querySelector<HTMLButtonElement>(".player-expand")!.addEventListener("click"
 document.addEventListener("keydown", (event) => {
   const target = event.target as HTMLElement;
   if (target.matches("input, textarea, select, [contenteditable=true]")) return;
+  if (event.altKey && /^Digit[1-5]$/.test(event.code)) {
+    event.preventDefault();
+    const tabs: WorkspaceTab[] = ["transcript", "translation", "analysis", "tasks", "chat"];
+    const index = Number(event.code.slice(5)) - 1;
+    if (tabs[index]) selectTab(tabs[index]);
+    return;
+  }
+  if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "i") {
+    event.preventDefault();
+    setInsightOpen(!insightIsOpen());
+    return;
+  }
   if (event.code === "Space" && (view.status === "recording" || view.status === "paused")) {
     event.preventDefault();
     void command(view.status === "paused" ? "resume_session" : "pause_session");

@@ -105,6 +105,32 @@ describe("workspace", () => {
     expect(root.querySelector(".todo-count")!.textContent).toBe("2 项");
     expect(root.querySelector(".insight-todos-list")!.textContent).toContain("评估技术方案");
   });
+
+  it("separates decisions, disputes and open questions", () => {
+    const root = mount(baseState);
+    applyInsights(root, {
+      title: "技术评审",
+      status: "finished",
+      segments: [{ startMs: 0, endMs: 1_000, text: "先修复稳定性。" }],
+      notes: "- 决策：先修复稳定性\n- 争议：是否延后新功能\n- 验收指标是什么？",
+    });
+    expect(root.querySelector(".insight-decisions-list")!.textContent).toContain("先修复稳定性");
+    expect(root.querySelector(".insight-disputes-text")!.textContent).toContain("是否延后新功能");
+    expect(root.querySelector(".insight-questions-list")!.textContent).toContain("验收指标");
+  });
+
+  it("shows the compact scene summary and chunk count while recording", () => {
+    const root = mount({
+      ...baseState,
+      status: "recording",
+      sessionId: "session-1",
+      microphoneChunks: ["mic-0.ogg", "mic-1.ogg"],
+      systemChunks: ["sys-0.ogg"],
+    });
+    expect(root.querySelector<HTMLElement>(".scene-compact")!.hidden).toBe(false);
+    expect(root.querySelector(".chunk-count")!.textContent).toBe("3");
+    expect(root.querySelector(".header-elapsed")!.textContent).toBe("00:00");
+  });
 });
 
 describe("renderTranscript", () => {
@@ -140,6 +166,17 @@ describe("renderTranscript", () => {
     expect(translation).not.toBeNull();
     expect(translation!.textContent).toContain("English");
     expect(translation!.textContent).toContain("Hello everyone.");
+  });
+
+  it("renders per-segment actions and pinned state", () => {
+    const container = document.createElement("div");
+    renderTranscript(container, transcript, undefined, { pinned: new Set([1_500]) });
+    const lines = container.querySelectorAll<HTMLElement>(".transcript-line");
+    expect(lines[0].querySelector(".segment-actions")).not.toBeNull();
+    expect(lines[0].querySelectorAll(".segment-action")).toHaveLength(4);
+    expect(lines[1].classList.contains("pinned")).toBe(true);
+    expect(lines[1].querySelector(".segment-pin")!.getAttribute("aria-pressed")).toBe("true");
+    expect(lines[0].querySelector(".segment-pin")!.getAttribute("aria-pressed")).toBe("false");
   });
 
   it("falls back to plain text when no segments were returned", () => {
