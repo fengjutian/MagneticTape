@@ -199,9 +199,12 @@ transcript.json / transcript.md（现有格式不变）
 ## 11. 后续迭代
 
 - v3：说话人分离（sherpa-onnx / pyannote 类模型）与更完善的标点/热词管理。
+  - 路线已收敛为 **sherpa-rs**（Rust 绑定），模型资产与参数起点见 [端侧模型选型调研](端侧模型选型调研.md)。
 - v3：内嵌 whisper.cpp 绑定，去掉子进程与外部二进制。
 - v2 收尾：CUDA 引擎的本机运行验证、Vulkan 引擎、下载限速/断点续传优化。
 - 实时字幕进一步降低延迟（滚动窗口 + VAD + 去重）。
+  - VAD 前端复用 sherpa-rs 的 Silero VAD / Ten VAD，与说话人分离同一依赖。
+- 离线 AI：本地小模型承担要点抽取与短文本翻译，长文纪要仍走云端（LLM-1，见 [功能规划](功能规划.md)）。
 
 ## 12. 验证记录（v1 / v2）
 

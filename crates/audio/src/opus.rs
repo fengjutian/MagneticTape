@@ -133,7 +133,12 @@ fn opus_error(context: &str, error: audiopus::Error) -> ChunkError {
 }
 
 fn create_encoder() -> Result<(Encoder, u16), ChunkError> {
-    let mut encoder = Encoder::new(SampleRate::Hz48000, Channels::Mono, Application::Audio)
+    // VOIP mode is what Feishu's recorder uses (OPUS_APPLICATION_VOIP). It tunes
+    // the encoder for speech: wider band allocation on voice frequencies and a
+    // stronger noise floor than the generic AUDIO mode. Both modes report the
+    // same lookahead of 312 samples at 48 kHz, so the pre-skip value below is
+    // unaffected by the switch.
+    let mut encoder = Encoder::new(SampleRate::Hz48000, Channels::Mono, Application::Voip)
         .map_err(|error| opus_error("cannot create Opus encoder", error))?;
     encoder
         .set_bitrate(Bitrate::BitsPerSecond(32_000))
@@ -236,6 +241,8 @@ impl OpusTrackWriter {
             input_channels: input_channels.max(1),
             resampler: LinearResampler::new(input_sample_rate),
             encoder: None,
+            // Placeholder until the first chunk creates an encoder; the real
+            // value comes from `Encoder::lookahead()` in `ensure_chunk`.
             pre_skip: 312,
             serial: SERIAL_BASE + track.serial_offset(),
             current_serial: SERIAL_BASE + track.serial_offset(),
@@ -442,6 +449,15 @@ mod tests {
                 phase.sin() * 0.4
             })
             .collect()
+    }
+
+    #[test]
+    fn encoder_uses_voip_mode_with_the_expected_lookahead() {
+        let (encoder, pre_skip) = create_encoder().unwrap();
+        assert_eq!(encoder.application().unwrap(), Application::Voip);
+        // 48 kHz VOIP lookahead is 312 samples; the Ogg pre-skip must match it
+        // or every chunk decodes with a 312-sample offset.
+        assert_eq!(pre_skip, 312);
     }
 
     #[test]
