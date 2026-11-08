@@ -2143,7 +2143,12 @@ async fn start_live_transcription(
             .path()
             .app_data_dir()
             .map_err(|error| format!("无法定位应用数据目录：{error}"))?;
-        let model = local_whisper::pick_live_model(&app_data)?;
+        let preferred = settings
+            .lock()
+            .expect("settings state poisoned")
+            .local_whisper_model
+            .clone();
+        let model = local_whisper::pick_live_model(&app_data, &preferred)?;
         let language = language
             .filter(|value| !value.trim().is_empty())
             .unwrap_or_else(|| "auto".to_owned());

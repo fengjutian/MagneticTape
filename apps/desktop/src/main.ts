@@ -667,7 +667,9 @@ function stopHealthPolling(): void {
 async function refreshAudioDevices(): Promise<void> {
   const button = app.querySelector<HTMLElement & { disabled: boolean }>(".refresh-devices")!;
   button.disabled = true;
-  button.textContent = "检测中…";
+  button.classList.add("is-busy");
+  button.title = "正在检测音频设备…";
+  button.setAttribute("aria-label", "正在检测音频设备");
   try {
     applyAudioDevices(app, await invoke<AudioDeviceSnapshot>("list_audio_devices"));
   } catch (error) {
@@ -675,7 +677,9 @@ async function refreshAudioDevices(): Promise<void> {
     applyView(app, view);
   } finally {
     button.disabled = false;
-    button.textContent = "重新检测";
+    button.classList.remove("is-busy");
+    button.title = "重新检测音频设备";
+    button.setAttribute("aria-label", "重新检测音频设备");
   }
 }
 

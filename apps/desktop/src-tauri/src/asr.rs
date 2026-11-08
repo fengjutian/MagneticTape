@@ -91,6 +91,9 @@ pub struct AsrCredential {
     pub endpoint: String,
     pub model: String,
     pub language: String,
+    /// Hints about names and jargon. Sent to providers that support a prompt
+    /// field, and used as the initial prompt for local Whisper.
+    pub hotwords: String,
 }
 
 #[derive(Default)]
@@ -150,7 +153,16 @@ impl AsrState {
                 endpoint,
                 model,
                 language,
+                hotwords: String::new(),
             });
+    }
+
+    /// Stores the hotwords the user configured so every provider can use them.
+    pub fn set_hotwords(&self, provider: AsrProvider, hotwords: String) {
+        let mut state = self.0.lock().expect("ASR state poisoned");
+        if let Some(credential) = state.get_mut(&provider) {
+            credential.hotwords = hotwords;
+        }
     }
 
     pub fn credential(&self, provider: AsrProvider) -> Result<AsrCredential, String> {
@@ -177,12 +189,14 @@ impl AsrState {
             endpoint: provider.default_endpoint().to_owned(),
             model: provider.default_model().to_owned(),
             language: "auto".to_owned(),
+            hotwords: String::new(),
         };
         Ok(match cached {
             Some(cached) => AsrCredential {
                 endpoint: cached.endpoint,
                 model: cached.model,
                 language: cached.language,
+                hotwords: cached.hotwords,
                 ..defaults
             },
             None => defaults,

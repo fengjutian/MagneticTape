@@ -21,6 +21,7 @@ import {
   Sparkles,
   Square,
   Trash2,
+  Volume2,
   WandSparkles,
   type IconNode,
 } from "lucide";
@@ -65,7 +66,7 @@ export function renderApp(): string {
           <div class="device-strip" aria-label="音频设备">
             <label><span class="device-icon">${iconNode(Mic)}</span><span class="device-kind">麦克风</span><select class="microphone-select" aria-label="麦克风设备"><option>正在检测…</option></select><small class="microphone-detail"></small></label>
             <label><span class="device-icon">${iconNode(MonitorUp)}</span><span class="device-kind">系统声音</span><select class="system-output-select" aria-label="系统输出设备"><option>正在检测…</option></select><small class="system-output-detail"></small></label>
-            <wa-button class="refresh-devices" type="button" size="small" title="重新检测音频设备">${iconNode(RefreshCw)}<span>重新检测</span></wa-button>
+            <wa-button class="refresh-devices" type="button" size="small" title="重新检测音频设备" aria-label="重新检测音频设备">${iconNode(RefreshCw)}</wa-button>
           </div>
         </header>
 
@@ -81,8 +82,8 @@ export function renderApp(): string {
         <section class="controls" aria-label="录音控制">
           <div class="waveform" aria-hidden="true">${Array.from({ length: 48 }, (_, index) => `<i style="--bar:${index}"></i>`).join("")}</div>
           <div class="level-meters" aria-label="实时输入电平">
-            <div class="level-channel microphone-level"><span class="level-name">麦克风</span><div class="level-track" role="meter" aria-label="麦克风电平" aria-valuemin="-60" aria-valuemax="0" aria-valuenow="-60"><i></i><b class="clip-flag">CLIP</b></div><output class="level-readout">−60 dB</output></div>
-            <div class="level-channel system-level"><span class="level-name">系统声音</span><div class="level-track" role="meter" aria-label="系统声音电平" aria-valuemin="-60" aria-valuemax="0" aria-valuenow="-60"><i></i><b class="clip-flag">CLIP</b></div><output class="level-readout">−60 dB</output></div>
+            <div class="level-channel microphone-level"><span class="level-name">${iconNode(Mic)}麦克风</span><div class="level-track" role="meter" aria-label="麦克风电平" aria-valuemin="-60" aria-valuemax="0" aria-valuenow="-60"><i></i><b class="clip-flag">CLIP</b></div><output class="level-readout">−60 dB</output></div>
+            <div class="level-channel system-level"><span class="level-name">${iconNode(Volume2)}系统声音</span><div class="level-track" role="meter" aria-label="系统声音电平" aria-valuemin="-60" aria-valuemax="0" aria-valuenow="-60"><i></i><b class="clip-flag">CLIP</b></div><output class="level-readout">−60 dB</output></div>
           </div>
           <div class="control-row">
             <span class="elapsed-wrap">${iconNode(Clock3)}<time class="elapsed" datetime="PT0S">00:00</time></span>
@@ -253,7 +254,7 @@ export function applyView(root: HTMLElement, state: RecorderViewState): void {
   pause.title = state.status === "paused" ? "继续录音" : "暂停录音";
   const stop = root.querySelector<HTMLElement & { disabled: boolean }>(".stop-button")!;
   stop.disabled = !active || busy;
-  stop.innerHTML = `${icon("stop")}<span>${busy ? "正在保存" : "结束并保存录音"}</span>`;
+  stop.innerHTML = `${icon("stop")}<span>${busy ? "正在保存" : "结束并保存"}</span>`;
   const start = root.querySelector<HTMLElement>(".start-button")!;
   start.hidden = active || busy;
   start.innerHTML = `${iconNode(Mic)}<span>${state.status === "finished" ? "开始新录音" : "开始录音"}</span>`;
@@ -304,7 +305,7 @@ function contentForStatus(state: RecorderViewState): string {
       <div class="export-row"><wa-button class="export-session" type="button" size="small">${iconNode(Download)}导出会议资料</wa-button>${revealPath ? `<wa-button class="reveal-recording" type="button" size="small" data-path="${escapeHtml(revealPath)}">${iconNode(FolderOpen)}打开文件夹</wa-button>` : ""}<wa-button class="discard-audio" type="button" size="small" title="删除分片音频，保留转写与笔记">${iconNode(Trash2)}删除音频</wa-button><span class="export-state"></span></div>
     </div>`;
   }
-  return `<div class="empty-content"><div class="cassette-mini" aria-hidden="true"><i></i><i></i></div><h3>内容将在这里出现</h3><p>开始录音后，这里将承载实时字幕。停止后可继续生成摘要、章节和待办。</p></div>`;
+  return `<div class="empty-content"><span class="empty-illustration" aria-hidden="true">${iconNode(CassetteTape)}</span><h3>内容将在这里出现</h3><p>开始录音后，这里将承载实时字幕。停止后可继续生成摘要、章节和待办。</p></div>`;
 }
 
 /// Renders provider segments with timestamps and speaker labels. When a saved

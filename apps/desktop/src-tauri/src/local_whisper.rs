@@ -649,17 +649,25 @@ pub fn transcribe(
     result
 }
 
-/// Picks the smallest installed model suitable for live captions.
-pub fn pick_live_model(app_data: &Path) -> Result<String, String> {
+/// Picks the model used for live captions.
+///
+/// The user picks a model in the settings, so that choice wins whenever it is
+/// installed. Falling back to the smallest installed model keeps live captions
+/// working after a model was deleted, but it must not silently downgrade a
+/// deliberate choice such as `large-v3-turbo-q5_0`.
+pub fn pick_live_model(app_data: &Path, preferred: &str) -> Result<String, String> {
     if active_engine(app_data).is_none() {
         return Err("本地 Whisper 引擎未安装，请在转写设置中下载".into());
+    }
+    if is_known_model(preferred) && model_path(app_data, preferred).is_file() {
+        return Ok(preferred.to_owned());
     }
     for id in ["tiny", "base", "small", "large-v3-turbo-q5_0"] {
         if model_path(app_data, id).is_file() {
             return Ok(id.to_owned());
         }
     }
-    Err("本地实时字幕需要先下载 tiny 或 base 模型（转写设置 → 本地 Whisper）".into())
+    Err("本地实时字幕需要先下载模型（转写设置 → 本地 Whisper）".into())
 }
 
 fn transcribe_in(job: &LocalJob<'_>, chunks: &[AudioChunkRef]) -> Result<Transcript, String> {
