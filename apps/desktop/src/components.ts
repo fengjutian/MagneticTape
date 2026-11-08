@@ -80,7 +80,7 @@ export function renderApp(): string {
         </section>
 
         <section class="controls" aria-label="录音控制">
-          <div class="waveform" aria-hidden="true">${Array.from({ length: 48 }, (_, index) => `<i style="--bar:${index}"></i>`).join("")}</div>
+          <div class="waveform" aria-hidden="true">${Array.from({ length: 48 }, (_, index) => `<i style="--bar:${index};height:${6 + (index % 6) * 3}px"></i>`).join("")}</div>
           <div class="level-meters" aria-label="实时输入电平">
             <div class="level-channel microphone-level"><span class="level-name">${iconNode(Mic)}麦克风</span><div class="level-track" role="meter" aria-label="麦克风电平" aria-valuemin="-60" aria-valuemax="0" aria-valuenow="-60"><i></i><b class="clip-flag">CLIP</b></div><output class="level-readout">−60 dB</output></div>
             <div class="level-channel system-level"><span class="level-name">${iconNode(Volume2)}系统声音</span><div class="level-track" role="meter" aria-label="系统声音电平" aria-valuemin="-60" aria-valuemax="0" aria-valuenow="-60"><i></i><b class="clip-flag">CLIP</b></div><output class="level-readout">−60 dB</output></div>
@@ -282,7 +282,7 @@ function contentForStatus(state: RecorderViewState): string {
       </section>
       <section class="playback" aria-label="录音回放">
         <div class="track-legend" aria-label="音轨图例"><span class="system-track"><i></i>系统声音</span><span class="microphone-track"><i></i>麦克风</span></div>
-        <div class="track-preview" aria-hidden="true"><div class="system-wave">${Array.from({ length: 64 }, (_, index) => `<i style="--wave:${index}"></i>`).join("")}</div><div class="microphone-wave">${Array.from({ length: 64 }, (_, index) => `<i style="--wave:${index + 3}"></i>`).join("")}</div></div>
+        <div class="track-preview" aria-hidden="true"><div class="system-wave">${Array.from({ length: 64 }, (_, index) => `<i style="--wave:${index};height:${8 + (index % 7) * 4}px"></i>`).join("")}</div><div class="microphone-wave">${Array.from({ length: 64 }, (_, index) => `<i style="--wave:${index + 3};height:${9 + ((index + 2) % 6) * 4}px"></i>`).join("")}</div></div>
         <div class="playback-row"><wa-button class="playback-toggle" type="button" size="small" variant="brand" aria-label="播放录音">${icon("play", "ui-icon play")} ${icon("pause", "ui-icon pause")}<span>播放</span></wa-button><time class="playback-current" datetime="PT0S">00:00</time><input class="playback-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="播放进度" /><time class="playback-total" datetime="PT0S">00:00</time><select class="playback-rate" aria-label="播放速度"><option value="0.75">0.75×</option><option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option></select></div>
         <p class="playback-hint">双轨音频已自动对齐 · 点击字幕可跳转到对应时间</p>
       </section>

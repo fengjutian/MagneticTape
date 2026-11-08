@@ -345,9 +345,6 @@ struct LiveTranscriptionState {
     error: Option<String>,
     partial_text: String,
     stream_tx: Option<mpsc::UnboundedSender<Vec<i16>>>,
-    /// Text already reported for a window, keyed by its timeline slot. The
-    /// next window uses it to drop the part it repeats.
-    reported_text: HashMap<u64, String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -406,7 +403,26 @@ fn live_transcript(state: &LiveTranscriptionState) -> asr::Transcript {
 }
 
 fn merge_live_transcript(state: &mut LiveTranscriptionState, transcript: asr::Transcript) {
-    state.segments.extend(transcript.segments);
+    for mut segment in transcript.segments {
+        // The model closes the sentence at the chunk edge, so a chunk that
+        // continues the previous sentence starts with a word that cannot begin
+        // one. The terminator on the previous segment is removed, otherwise
+        // the caption reads "...杜邦分析法。的方法呢？".
+        if let Some(previous) = state
+            .segments
+            .iter_mut()
+            .filter(|candidate| candidate.end_ms <= segment.start_ms)
+            .max_by_key(|candidate| candidate.end_ms)
+        {
+            let mut previous_text = previous.text.clone();
+            let merged = asr::merge_chunk_text(&mut previous_text, &segment.text);
+            if previous_text != previous.text {
+                previous.text = previous_text;
+            }
+            segment.text = merged;
+        }
+        state.segments.push(segment);
+    }
     // Concurrent requests can finish out of order. The UI and persisted
     // transcript must always follow the shared recording timeline.
     state
@@ -2198,7 +2214,6 @@ async fn start_live_transcription(
         error: None,
         partial_text: String::new(),
         stream_tx,
-        reported_text: HashMap::new(),
     };
     Ok(live_view(&live))
 }
@@ -2284,7 +2299,7 @@ fn poll_live_inner(
         return Ok(());
     };
 
-    let (ready, provider, language, context, newest_slot) = {
+    let (ready, provider, language) = {
         let mut live = live.lock().expect("live transcription state poisoned");
         // Local inference is CPU bound, so run a single window at a time.
         let max_inflight: usize = if live.provider == Some(asr::AsrProvider::LocalWhisper) {
@@ -2298,25 +2313,6 @@ fn poll_live_inner(
         }
         let mut slots: BTreeMap<u64, (Option<asr::AudioChunkRef>, Option<asr::AudioChunkRef>)> =
             BTreeMap::new();
-        // Every committed chunk, including ones already transcribed, so the
-        // window that precedes the newest one can be used as context.
-        let mut all_chunks: BTreeMap<
-            u64,
-            (Option<asr::AudioChunkRef>, Option<asr::AudioChunkRef>),
-        > = BTreeMap::new();
-        for chunk in &snapshot.chunks {
-            let reference = asr::AudioChunkRef {
-                track: chunk.track,
-                path: chunk.path.clone(),
-                start_frame: chunk.start_frame,
-                frames: chunk.frames,
-            };
-            let entry = all_chunks.entry(chunk.start_frame).or_default();
-            match chunk.track {
-                Track::Microphone => entry.0 = Some(reference),
-                Track::System => entry.1 = Some(reference),
-            }
-        }
         for chunk in &snapshot.chunks {
             let key = (track_slot(chunk.track), chunk.start_frame);
             if live.processed.contains(&key) || live.inflight.contains(&chunk.start_frame) {
@@ -2352,27 +2348,6 @@ fn poll_live_inner(
             .take(capacity)
             .map(|(slot, entry)| (*slot, entry.0.clone(), entry.1.clone()))
             .collect::<Vec<_>>();
-        // The window that directly precedes the newest one is sent along as
-        // context, so the model hears the sentence the new chunk sits in
-        // instead of treating the chunk edge as a sentence boundary.
-        let newest_slot = chosen.iter().map(|(slot, _, _)| *slot).max();
-        let context = newest_slot.and_then(|newest| {
-            let previous = all_chunks
-                .keys()
-                .rev()
-                .find(|slot| **slot < newest)
-                .copied()?;
-            let entry = all_chunks.get(&previous)?;
-            let microphone = entry.0.clone()?;
-            Some((
-                microphone,
-                entry.1.clone(),
-                live.reported_text
-                    .get(&previous)
-                    .cloned()
-                    .unwrap_or_default(),
-            ))
-        });
         for (slot, _, _) in &chosen {
             live.inflight.insert(*slot);
             // Reserve both track keys immediately. A late second track for a
@@ -2381,13 +2356,7 @@ fn poll_live_inner(
             live.processed.insert((1, *slot));
             live.first_seen.remove(slot);
         }
-        (
-            chosen,
-            live.provider,
-            live.language.clone(),
-            context,
-            newest_slot,
-        )
+        (chosen, live.provider, live.language.clone())
     };
 
     if ready.is_empty() {
@@ -2434,12 +2403,6 @@ fn poll_live_inner(
         let task_app = app.clone();
         let task_session = session_id.clone();
         let task_directory = directory.clone();
-        // Only the newest window can use the context chunk, otherwise two
-        // requests would report the same overlapping audio.
-        let context = context
-            .as_ref()
-            .filter(|_| Some(slot) == newest_slot)
-            .cloned();
         let hotwords = settings
             .lock()
             .expect("settings state poisoned")
@@ -2478,21 +2441,9 @@ fn poll_live_inner(
             let Some(task_config) = config.clone() else {
                 continue;
             };
-            let (context_microphone, context_system, context_text) = match context {
-                Some((microphone, system, text)) => (Some(microphone), system, text),
-                None => (None, None, String::new()),
-            };
             tauri::async_runtime::spawn(async move {
-                let result = asr::transcribe_pair(
-                    microphone,
-                    system,
-                    context_microphone,
-                    context_system,
-                    &context_text,
-                    &task_config,
-                    &task_session,
-                )
-                .await;
+                let result =
+                    asr::transcribe_pair(microphone, system, &task_config, &task_session).await;
                 apply_live_result(&task_app, slot, &task_session, &task_directory, result);
             });
         }
@@ -2528,15 +2479,7 @@ fn apply_live_result(
         return;
     }
     match result {
-        Ok(transcript) => {
-            // Remember what this window reported, so the next window can drop
-            // the part it repeats.
-            let text = transcript.text.trim().to_owned();
-            if !text.is_empty() {
-                live.reported_text.insert(slot, text);
-            }
-            merge_live_transcript(&mut live, transcript);
-        }
+        Ok(transcript) => merge_live_transcript(&mut live, transcript),
         Err(error) => {
             // A transient failure must not permanently discard this window.
             live.processed.remove(&(0, slot));
