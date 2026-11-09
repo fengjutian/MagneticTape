@@ -32,8 +32,8 @@ MagneticTape 的工作台分三栏：**左侧录音控制**、**中间实时转�
 设备列表下方是实时电平，说话或放音时应该能看到电平跳动。设备不对时点「重新检测设备」。
 
 <figure class="mt-shot">
-  <img src="/screenshots/recorder.png" alt="录音控制栏：场景预设、设备选择与状态卡" />
-  <figcaption>录音控制栏：场景预设、语音与音频配置、状态卡</figcaption>
+  <img src="/screenshots/app-workspace.png" alt="三栏工作台界面：录音控制、实时转录、AI 洞察" />
+  <figcaption>三栏工作台：左侧录音控制，中间实时转录，右侧 AI 洞察</figcaption>
 </figure>
 
 :::tip
@@ -51,8 +51,8 @@ MagneticTape 的工作台分三栏：**左侧录音控制**、**中间实时转�
 点击「开始录音」。状态卡会显示录音中状态、计时和已写入的分片数，右侧实时出现字幕。
 
 <figure class="mt-shot">
-  <img src="/screenshots/transcript.png" alt="中间栏的实时转录视图" />
-  <figcaption>中间栏「实时转录」：转录 / 翻译 / AI 分析 / 任务 / AI 对话五个页签</figcaption>
+  <img src="/screenshots/app-recording.png" alt="录音中的工作台界面" />
+  <figcaption>录音中：状态卡显示计时与分片数，中间栏实时出现字幕</figcaption>
 </figure>
 
 录音过程中可以随时暂停与恢复，麦克风和系统声音都按同一时间轴记录，恢复后继续对齐。
@@ -66,8 +66,8 @@ MagneticTape 的工作台分三栏：**左侧录音控制**、**中间实时转�
 3. 需要其他语言时点「翻译」，译文会保存下来，之后重新打开会话或导出时直接复用。
 
 <figure class="mt-shot">
-  <img src="/screenshots/insights.png" alt="右侧栏的 AI 洞察" />
-  <figcaption>右侧栏「AI 洞察」：录音摘要、关键观点、决策记录与待办事项</figcaption>
+  <img src="/screenshots/design/review-1220.png" alt="录音完成后的转写复盘页" />
+  <figcaption>完成页：转写、关键观点、决策记录与待办事项，可逐条确认</figcaption>
 </figure>
 
 ## 7. 回放与导出

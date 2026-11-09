@@ -1,5 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="MagneticTape">
-  <rect width="32" height="32" rx="9" fill="#128456" />
-  <path d="M16 7a4 4 0 0 0-4 4v5a4 4 0 0 0 8 0v-5a4 4 0 0 0-4-4Z" fill="white" />
-  <path d="M9 15a7 7 0 0 0 14 0M16 22v4M12 26h8" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" />
-</svg>

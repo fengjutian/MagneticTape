@@ -13,8 +13,9 @@ npm run dev      # http://localhost:4321
 构建（与 Netlify 上线用同一条命令）：
 
 ```powershell
-npm run build    # 先同步设计文档，再 astro build，产物在 dist/
-npm run preview  # 本地预览构建产物
+npm run build        # 先同步设计文档，再 astro build，产物在 dist/
+npm run check:links  # 校验产物里的站内链接是否都指向真实页面
+npm run preview      # 本地预览构建产物
 ```
 
 ## 目录结构
@@ -24,9 +25,11 @@ apps/site/
 ├── astro.config.mjs            # 站点配置：标题、语言、侧边栏、主题色
 ├── netlify.toml                # 部署配置（在仓库根目录）
 ├── scripts/
-│   └── sync-design-docs.mjs    # 把仓库 doc/ 同步成站点内容
+│   ├── sync-design-docs.mjs    # 把仓库 doc/ 同步成站点内容
+│   ├── check-links.mjs         # 校验构建产物里的站内链接
+│   └── make-placeholder.ps1    # 生成截图占位图
 ├── src/
-│   ├── assets/                 # logo / favicon
+│   ├── assets/                 # logo
 │   ├── content/docs/
 │   │   ├── index.mdx           # 落地页（splash 模板）
 │   │   ├── start/              # 安装、快速开始
@@ -55,25 +58,30 @@ apps/site/
 
 ## 截图约定
 
-真实界面截图放在 `apps/site/public/screenshots/`，用 `.png`：
+截图分两类，都放在 `apps/site/public/screenshots/` 下：
 
-```text
-apps/site/public/screenshots/
-├── recorder.png
-├── transcript.png
-└── insights.png
-```
+| 目录 / 文件 | 来源 | 说明 |
+| --- | --- | --- |
+| `app-workspace.png`、`app-recording.png` | 从仓库 `doc/` 拷来的界面设计图 | 落地页与快速开始用的产品图 |
+| `design/*.png` | `npm run sync:docs` 从 `doc/` 同步 | 设计文档里的配图 |
+| `recorder.png` / `transcript.png` / `insights.png` / `workspace.png` | `scripts/make-placeholder.ps1` 生成 | 真实截图到位前的占位图 |
 
-页面里这样引用（占位图会在图片缺失时自动顶替）：
+页面里这样引用：
 
 ```md
 <figure class="mt-shot">
-  <img src="/screenshots/recorder.png" alt="录音控制栏与状态卡" />
-  <figcaption>录音控制栏：场景预设、设备选择与状态卡</figcaption>
+  <img src="/screenshots/app-workspace.png" alt="MagneticTape 三栏工作台界面" />
+  <figcaption>三栏工作台：录音控制、实时转录、AI 洞察</figcaption>
 </figure>
 ```
 
-未提供截图前，`public/screenshots/*.svg` 里的占位图会显示在页面上（尺寸一致，不会破版）。真实截图到位后，把同名 `.png` 放进该目录即可，`.svg` 占位图可以保留作为兜底。
+**换成真实截图**：把真实捕获按同名放进 `apps/site/public/screenshots/` 即可覆盖占位图，尺寸比例保持 16:10 左右最合适。
+
+需要重新生成占位图时：
+
+```powershell
+powershell -File apps/site/scripts/make-placeholder.ps1
+```
 
 ## 部署（Netlify）
 

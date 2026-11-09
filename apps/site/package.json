@@ -7,6 +7,7 @@
     "dev": "astro dev",
     "sync:docs": "node scripts/sync-design-docs.mjs",
     "build": "npm run sync:docs && astro build",
+    "check:links": "node scripts/check-links.mjs",
     "preview": "astro preview",
     "astro": "astro"
   },

@@ -68,3 +68,7 @@ jobs:
       - name: Build docs site
         working-directory: apps/site
         run: npm run build
+
+      - name: Check docs site links
+        working-directory: apps/site
+        run: npm run check:links
