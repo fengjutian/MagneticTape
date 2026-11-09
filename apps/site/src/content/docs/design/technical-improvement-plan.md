@@ -1,0 +1,602 @@
+---
+title: "技术改进与修复计划"
+description: "围绕正确性、稳定性与工程化的改进计划。"
+sidebar:
+  order: 12
+  label: "技术改进与修复计划"
+editLink: false
+---
+> 本页由仓库 `doc/技术改进与修复计划.md` 自动同步，内容以主仓库为准。
+> [在 GitHub 上查看源文件](https://github.com/fengjutian/MagneticTape/blob/main/doc/%E6%8A%80%E6%9C%AF%E6%94%B9%E8%BF%9B%E4%B8%8E%E4%BF%AE%E5%A4%8D%E8%AE%A1%E5%88%92.md)
+
+> 状态：执行中
+> 制定日期：2026-11-08
+> 适用范围：`apps/desktop`、`crates/*`、CI 与发布流程
+> 依据：2026-11-08 代码审查与真实资料库实测
+> 关联文档：[功能规划](/design/feature-roadmap/)（产品功能路线）、[README(https://github.com/fengjutian/MagneticTape/blob/main/README.md)
+> 实施进度：2026-11-08，Phase 0 的 FIX-001–FIX-007 已完成代码与单测；Phase 1a 的时间轴投影、按时间混音和 manifest 投影已落地；Phase 1b 的 `session.json` + `chunks.ndjson`、旧会话启动迁移、崩溃尾行恢复、按成功分片统计的 98% 覆盖率门禁已落地；Phase 2 已开始：导出/历史库/回放/轮询等重 command 改为 async threadpool，回放器按 session 重载并释放监听器，实时字幕未变化时跳过重绘，长转录改用 `content-visibility` 原生跳过并去掉 300 段截断，笔记 dirty 保护、快捷键/断点修正和 Tab/Panel ARIA 关系已落地；Phase 3 已开始：release 增加 tag/三处版本一致性校验、安装包 SHA-256 生成与上传、本地 build/check/dev 脚本补全。待真实设备 10 分钟双轨验证后发布 `v0.1.1` / `v0.1.2` / `v0.1.3` / `v0.2.0`。
+
+## 0. 如何使用本计划
+
+- 本计划只覆盖“修正确性、稳定性、工程化”，不替代 [功能规划](/design/feature-roadmap/) 里的新功能。
+- 阶段（Phase）是发布单位，工作流（W1–W9）是技术主题；每个阶段结束都应能独立发版、独立回滚。
+- 每个任务都应拆成可独立 review 的 PR，并先补测试再改行为。
+- 状态标记：`TODO` / `DOING` / `DONE` / `BLOCKED`；完成后在本文件更新，不另建进度文档。
+
+## 1. 摘要
+
+当前项目功能覆盖已经很完整，但有三类问题必须先处理，否则功能越多、数据风险越大：
+
+1. **双轨时间轴不是真正共享的**：系统声音按自身帧数计时，遇到 loopback 空洞会被压缩到会话开头，播放、导出、转写、说话人分离全部错位。
+2. **检查点文件二次方增长且不清理**：本机 16 个会话已产生 1,918 个 checkpoint、96.0 MB，而 Ogg 音频只有 20.4 MB；2 小时以上会议会到数百 MB，删除音频也无法回收。
+3. **转写未完成也会删除音频**：云端分片上传部分失败时仍返回成功，`retainAudio=false` 会直接删掉唯一录音；实时字幕只覆盖一部分时也一样。
+
+修复顺序遵循：**数据正确性 → 数据不丢 → 不卡顿 → 可交付 → 可维护**。
+
+## 2. 基线（2026-11-08）
+
+| 维度 | 现状 | 说明 |
+|---|---|---|
+| Rust 构建 | `cargo clippy --workspace --all-targets -- -D warnings` 通过 | 0 warning |
+| Rust 测试 | 66 passed，2 ignored | 桌面 54、audio 7、core 5 |
+| 前端类型检查 | `tsc --noEmit` 通过 | strict 模式 |
+| 前端测试 | 本次环境未能运行 `npm run test:coverage` | 沙箱禁止 esbuild 子进程；覆盖率门禁未验证 |
+| 真实资料库 | 16 个会话；1,918 个 checkpoint（96.0 MB）；1,187 个 Ogg（20.4 MB） | checkpoint 是音频的 4.7 倍 |
+| 时间轴实测 | 某 27.6 分钟会话：麦克风 330 个分片，系统轨 21 个；系统帧跨度 100.8 秒，实际跨度 1,612.3 秒 | 系统声音被压缩约 16 倍 |
+| 单会话 checkpoint | 347 个分片时最新文件 0.15 MB | 线性外推 2 小时约 0.4 GB，5 小时约 2.5 GB |
+| 命令线程 | 50 个 command，无 `#[tauri::command(async)]` | 导出、停止、历史扫描、实时轮询都在同步路径上 |
+| 前端渲染 | 实时字幕 4 Hz 全量重建；>300 段后固定 112px + 两行截断 | 长会议会掉帧、丢选区、隐藏正文 |
+| 发布 | `release.yml` 收集路径指向 `src-tauri/target`；未签名、无自动更新 | 与仓库根 `target/` 不一致 |
+| 测试覆盖 | 覆盖率只包含 `timeline.ts`、`settings.ts`、`transcription.ts` | `main.ts`、`components.ts`、`player.ts` 不在门禁内 |
+
+## 3. 目标与非目标
+
+### 3.1 目标
+
+| ID | 目标 | 可验证标准 |
+|---|---|---|
+| G1 | 双轨时间轴正确 | 合成 30 分钟双轨素材（系统轨中间静音 5 分钟）导出后时长与麦克风一致；已知音调的时间偏差 ≤ 50 ms |
+| G2 | 录音不因部分失败被删除 | 模拟 50% ASR 分片失败时，音频必须保留；覆盖率达阈值才允许删除 |
+| G3 | 存储开销可控 | 4 小时合成会话，元数据/音频字节比 < 5%；清理音频后元数据也能回收 |
+| G4 | 长会议 UI 稳定 | 2 小时实时字幕长跑，长任务 > 200 ms 不超过 1 次/分钟；切换两条录音回放内容正确 |
+| G5 | 可交付、可追溯 | `v*` 标签产出已签名安装包、SHA-256、更新清单；干净 Windows VM 可安装 |
+| G6 | 质量门禁可信 | 覆盖率覆盖全部前端源码；关键模块 ≥ 85%；CI 包含打包冒烟 |
+
+### 3.2 非目标（本计划不做）
+
+- 不做说话人分离精度优化（DIAR-1 验收线仍在功能规划中）。
+- 不做云同步、团队协作、macOS/Linux 支持。
+- 不重做视觉设计；UI 调整只服务于正确性和性能。
+- 不在本计划中引入本地 LLM。
+
+## 4. 工作流
+
+### W1 时间轴与音频管线（P0）
+
+**问题**
+
+- 每个 `OpusTrackWriter` 从 0 独立累加帧数，`chunk.start_frame` 是“该轨自己的帧数”，不是会话时间。
+- WASAPI loopback 在没有音频渲染时可能不产生回调，系统轨帧数只在“有声音”时增长。
+- `start_epoch_ms` 已经记录，但播放、导出、ASR、diarization 都按 `start_frame` 定位。
+- 下游用 `start_frame` 做 `BTreeMap` 精确 key 配对；一旦某轨丢块或出现空洞，两条轨的 key 不再相等，同一时间窗被拆成两个 slot，混音变成串接。
+
+**设计方向**
+
+- 引入会话时钟：以会话开始为 0，`Instant` 为单调基准，暂停区间单独记录。
+- 每个分片同时保存：
+  - `source_start_frame`：本轨帧号，保留用于调试/兼容；
+  - `timeline_start_frame`：会话时间轴位置；
+  - `capture_start_epoch_ms`：来自 cpal `InputCallbackInfo` 或采样回调时间；
+  - `generation`：设备重建次数。
+- 播放/导出/ASR/diarization 统一调用 `merge_tracks_by_time(tolerance=20ms)`：
+  - 按时间区间重叠配对，不再要求帧号完全相等；
+  - 每条轨缺失的时间段补静音；
+  - 输出时长以会话时间轴为准，而不是 `max(track_frames)`。
+- 设备重建/休眠唤醒时递增 `generation`，记录 gap；manifest 能表达“这里没有采集到数据”。
+
+**任务**
+
+| ID | 任务 | 预计 | 依赖 |
+|---|---|---|---|
+| T1.1 | 设计并实现 `SessionClock`（开始、暂停、恢复、当前时间） | 2 人日 | 无 |
+| T1.2 | `ChunkInfo` 增加 `timeline_start_frame`、`generation`、`capture_start_epoch_ms`；兼容旧 sidecar 默认值 | 1 人日 | T1.1 |
+| T1.3 | 播放、导出、ASR、`session_pcm` 改为按时间配对 + 补静音 | 3 人日 | T1.2 |
+| T1.4 | 实时字幕 slot 配对改为时间重叠；系统轨空洞不再丢整段 | 1 人日 | T1.3 |
+| T1.5 | 旧会话迁移：用麦克风分片的 `start_epoch_ms ↔ start_frame` 分段映射系统分片；无法映射的标记 legacy | 2 人日 | T1.2 |
+| T1.6 | 合成双轨测试素材与对齐断言（含 5 分钟系统静音、丢块、暂停） | 2 人日 | T1.3 |
+
+**验收**
+
+- 合成素材导出时长与麦克风轨一致（±1 秒）。
+- 系统轨在 10:00–10:30 和 20:00–20:30 两段有声音，导出后两段出现在正确时间，互相关偏差 ≤ 50 ms。
+- 暂停 5 分钟后再继续，恢复后的时间轴不包含暂停时长。
+- 实时字幕在系统轨空洞期间不丢麦克风内容，空洞结束后系统内容回到正确时间。
+
+### W2 存储、恢复与配额（P0/P1）
+
+**问题**
+
+- 每 5 秒写一个完整 manifest，内容包含全部 chunks 和 timeline；从不删除。
+- `discard_audio_files` 只删 `mic-*`/`sys-*`，checkpoint 永远保留。
+- `load_latest` 只取最高 sequence，最新文件损坏就直接失败，不回退旧 checkpoint。
+- 临时 `.checkpoint-*.tmp` 崩溃后不清理，重复 sequence 会永久失败。
+- 进行中的分片没有 sidecar，崩溃最多丢 5 秒。
+
+**设计方向**
+
+- 拆成两个文件：
+  - `session.json`：小体积、原子替换，保存状态、sequence、开始时间、已提交时间轴；
+  - `chunks.ndjson`：只追加，一行一个已提交分片，启动时解析到最后一个完整行。
+- 保留最近 N 个 `session.json` 快照（建议 3 个）用于损坏回退；成功写入后删除更旧的。
+- 恢复顺序：`chunks.ndjson` 尾部 → 最近有效 `session.json` → 旧 `checkpoint-*` → sidecar 扫描；每一步失败只告警，不阻断后续。
+- 启动时清理 `.tmp` 和超过保留数的旧 checkpoint。
+- 旧格式只读兼容；首次打开旧会话时做一次迁移并保留备份，不原地删除旧 checkpoint。
+- `discard_audio_files` 同时回收音频相关元数据；历史库/配额统计区分“音频字节”和“元数据字节”。
+
+**任务**
+
+| ID | 任务 | 预计 | 依赖 |
+|---|---|---|---|
+| T2.1 | `session.json` + `chunks.ndjson` 写入器与读取器；尾部截断恢复 | 3 人日 | 无 |
+| T2.2 | checkpoint 轮转/保留 N 个；启动清理旧文件 | 1 人日 | T2.1 |
+| T2.3 | 恢复回退链：损坏最新、stale temp、sidecar 优先/合并 | 2 人日 | T2.1 |
+| T2.4 | 旧会话迁移工具 + 备份 + 迁移报告 | 2 人日 | T2.1 |
+| T2.5 | 配额/历史库统计拆分元数据与音频；清理顺序先元数据后音频 | 1 人日 | T2.2 |
+| T2.6 | 崩溃注入测试：写到一半 kill、截断 ndjson、损坏 session.json | 2 人日 | T2.3 |
+
+**验收**
+
+- 4 小时合成会话元数据/音频 < 5%。
+- 删除最新 checkpoint 后仍能恢复到上一有效版本。
+- `kill -9` 后最多丢 1 个分片（≤ 5.04 秒）。
+- 历史库 100 个会话打开时间 < 300 ms（本机基准）。
+- 删除音频后目录只剩转写/笔记/小型元数据，配额能真正降下来。
+
+### W3 删除保护与数据安全（P0）
+
+**问题**
+
+- ASR 分片失败被 `failures` 收集但忽略；只要有一段成功就返回 `Ok`。
+- `retainAudio=false` 时立即删音频；实时字幕只覆盖一部分也会触发删除。
+- 自动清理只检查 `transcript.json` 是否存在，不校验内容。
+
+**设计方向**
+
+- 转写结果增加覆盖率元数据：`covered_ms`（成功上传/成功识别的音频分片时长之和，不是最后一句的结束时间）、`duration_ms`、`failed_segments`、`provider`。
+- 实时字幕的覆盖率按“已处理分片覆盖的音频时长”计算，避免尾部静音导致误判。
+- 删除条件：`covered_ms / duration_ms ≥ 98%` 且 `failed_segments == 0` 且转写非空。
+- 不满足时保留音频，并在 UI 明确提示“转写覆盖不足，音频已保留”。
+- 自动清理同样走覆盖率校验；损坏/空 transcript 不触发删除。
+- 可选：删除改为“移入应用内回收站”，7 天后自动清空，给误删留后路。
+
+**任务**
+
+| ID | 任务 | 预计 | 依赖 |
+|---|---|---|---|
+| T3.1 | 转写覆盖率统计与持久化 | 1 人日 | 无 |
+| T3.2 | 删除前置校验（手动/停止/自动清理三处统一） | 1 人日 | T3.1 |
+| T3.3 | UI 提示与“仍然删除”二次确认 | 0.5 人日 | T3.2 |
+| T3.4 | 失败注入测试：30%/50%/90% 分片失败 | 1 人日 | T3.2 |
+
+**验收**
+
+- 50% 分片失败时音频必须保留，UI 显示失败分片数。
+- 100% 覆盖且用户确认后才删除；删除后元数据可恢复转写。
+- 自动清理遇到空/损坏 transcript 不删除。
+
+### W4 并发、状态机与错误处理（P1）
+
+**问题**
+
+- `TranscriptionRun` 占位后，任何 `?` 提前返回都不会释放。
+- `stop_session` 在录音器已取走后，尾部 I/O 失败会让状态卡在 `Recording`。
+- 66 处 `.expect("... poisoned")`；一次持锁 panic 会让后续命令级联失效。
+- 大量同步 command 阻塞 UI 线程。
+
+**设计方向**
+
+- `TranscriptionRun` 用 RAII guard，Drop 时清理；所有错误路径自动释放。
+- `stop_session` 用“先保证状态收敛”的收尾流程：无论写标记/删音频是否成功，都设置 `Finished` 并保存 `recorded`，错误通过事件/返回值上报。
+- 后端拆出 `AppState` + `JobRegistry`；锁访问统一走 poison-tolerant helper（记录错误而不是 panic）。
+- 建立 command 线程矩阵：
+  - 纯内存/极短操作：保持同步；
+  - 磁盘/解码/网络/ONNX：`#[tauri::command(async)]` + `spawn_blocking`；
+  - 轮询只返回增量快照。
+
+**任务**
+
+| ID | 任务 | 预计 | 依赖 |
+|---|---|---|---|
+| T4.1 | `TranscriptionRun` guard + 单测 | 0.5 人日 | 无 |
+| T4.2 | `stop_session` 收敛式收尾 + 失败注入测试 | 1 人日 | 无 |
+| T4.3 | `AppState`/`JobRegistry` 骨架与 poison 处理 | 2 人日 | 无 |
+| T4.4 | command 异步化：export、stop、list、live poll、transcribe 预处理 | 3 人日 | T4.3 |
+| T4.5 | 前端统一错误提示与未处理 rejection | 1 人日 | T4.4 |
+
+**验收**
+
+- 未配置 API Key 点转写：报错一次，之后可再次转写。
+- 模拟磁盘满/写标记失败：停止后状态仍可开始新录音/打开历史。
+- 2 小时导出期间窗口不进入“未响应”。
+
+### W5 前端性能与交互（P1）
+
+**问题**
+
+- 两条 finished 录音之间切换时 `ensurePlayback()` 提前返回，播放器仍是上一条。
+- 实时字幕每 250ms 全量 `replaceChildren()`，清掉选区/焦点/编辑。
+- >300 段后虚拟列表固定 112px + 两行截断，隐藏正文。
+- 笔记未保存时切 Tab 会被 `sessionNotes` 覆盖。
+- 空格键同时触发片段跳转和录音暂停。
+- 1099/1140 断点不一致，1100–1140px 洞察栏不可用。
+- 异步加载没有 session generation guard，快速切换会话会串数据。
+
+**设计方向**
+
+- 播放器绑定 sessionId，切换时重建；提供 `load(tracks)`。
+- 实时字幕增量渲染：只在 segment 数/partial/翻译版本变化时更新，append 新行；编辑/选择时暂停重绘。
+- 虚拟列表动态行高，不裁剪正文；滚动重绘时重新挂载译文。
+- 笔记 dirty flag + blur/定时保存；切 Tab 不覆盖未保存内容。
+- 所有跨 await 的会话加载加 request token；不一致就丢弃。
+- 统一快捷键处理：行内 Enter 跳转，全局 Space 只在非交互元素上生效。
+- 断点统一为 1099/1100 一套。
+
+**任务**
+
+| ID | 任务 | 预计 | 依赖 |
+|---|---|---|---|
+| T5.1 | 播放器按 session 重建 + 两条录音切换 E2E | 1 人日 | 无 |
+| T5.2 | 实时字幕增量渲染 + 编辑保护 | 2 人日 | T5.1 |
+| T5.3 | 虚拟列表动态行高/不截断 | 1.5 人日 | 无 |
+| T5.4 | 笔记 dirty 与异步 generation guard | 1 人日 | 无 |
+| T5.5 | 快捷键/断点/ARIA 修正 | 1 人日 | 无 |
+| T5.6 | 长会议性能基准（2 小时） | 1 人日 | T5.2 |
+
+**验收**
+
+- 历史库连续打开 A/B 两条录音，播放内容与标题一致。
+- 2 小时实时字幕：选区/焦点不再被轮询清掉；长任务 > 200ms ≤ 1 次/分钟。
+- 转录超过 300 段后正文完整可见；滚动后译文仍在。
+- 1100–1140px 宽度洞察栏可打开。
+
+### W6 发布与供应链（P1）
+
+**问题**
+
+- Release 收集路径指向 `apps/desktop/src-tauri/target`，实际工作区 target 在仓库根。
+- Release 不依赖 CI，红提交也可发版。
+- 安装包未签名、无自动更新、无 SHA-256。
+- sherpa 三个模型只校验大小。
+- 版本号三处独立，tag 不校验。
+- 构建脚本在干净 clone 上不装依赖。
+
+**设计方向**
+
+- 从 `cargo metadata` 计算 target 目录，或在 workflow 里显式 `CARGO_TARGET_DIR`。
+- Release 用 `workflow_run` 依赖 CI 成功，或复用同一 reusable workflow。
+- 引入 Authenticode 签名 + `tauri-plugin-updater` + `createUpdaterArtifacts`；发布 `.sig`、`latest.json`、`.sha256`。
+- 三个 sherpa 模型补 SHA-256，参数改为非 `Option`。
+- 单一版本源：`package.json` 生成/覆盖 `tauri.conf.json`，CI 校验 tag 与三处版本。
+- `build.ps1` 先 `npm ci`；`check.ps1` 补 E2E；CI 增加 `tauri build --debug` 打包冒烟。
+- GitHub Actions 固定 SHA、最小权限、`persist-credentials: false`；增加 Dependabot 与 audit。
+
+**任务**
+
+| ID | 任务 | 预计 | 依赖 |
+|---|---|---|---|
+| T6.1 | 修复 release 产物路径 + 安装包存在性断言 | 0.5 人日 | 无 |
+| T6.2 | Release 依赖 CI 成功 + draft/发布流程 | 1 人日 | T6.1 |
+| T6.3 | 代码签名 + updater + 校验和 | 3 人日 | 证书就绪 |
+| T6.4 | sherpa 模型 SHA-256 + 单测 | 1 人日 | 无 |
+| T6.5 | 版本单一源与 tag 校验；build/check 脚本补全 | 1 人日 | 无 |
+| T6.6 | CI 打包冒烟 + 依赖审计 + actions 固定 | 2 人日 | T6.1 |
+
+**验收**
+
+- 推送 `v0.2.0`：CI 全绿 → 签名安装包 + `.sha256` + `latest.json` → 干净 Win11 VM 安装成功。
+- 版本不一致时 CI 失败。
+- `npm run build` 在干净 clone 上通过。
+
+### W7 测试与质量门禁（P1，贯穿）
+
+**问题**
+
+- 覆盖率只含 3 个模块，`main.ts`/`components.ts`/`player.ts` 不在门禁内。
+- `recording.rs` 没有任何测试；`decode.rs` 只断言 `>= frames`。
+- E2E mock 的 `list_recordings` 永远为空，切录音/双录音场景测不到。
+- 没有 ESLint/Prettier，CI 的 lint 只有 Rust。
+- 关键行为（崩溃恢复、时间轴空洞、删除保护）没有回归测试。
+
+**设计方向**
+
+- 合成音频夹具：生成带已知音调/时间戳的双轨 Opus，覆盖空洞、丢块、暂停、重建。
+- 崩溃注入：在分片封口、checkpoint 写入、ndjson 追加、删除音频之间 kill。
+- E2E：两条录音切换、延迟 IPC、实时字幕编辑、长列表滚动、删除保护。
+- 覆盖率：`src/**/*.ts` 全量统计，关键模块 ≥ 85%，整体先定 60% 并逐步提高。
+- 增加 `npm run lint`（ESLint + Prettier check）并进 CI。
+- 单测覆盖纯函数：时间配对、重采样、pre-skip、checkpoint 轮转、覆盖率判定。
+
+**任务**
+
+| ID | 任务 | 预计 | 依赖 |
+|---|---|---|---|
+| T7.1 | 合成双轨音频测试夹具 | 2 人日 | W1 |
+| T7.2 | 崩溃注入测试框架 | 2 人日 | W2 |
+| T7.3 | E2E 场景扩展 + mock 支持两条录音/延迟 | 2 人日 | W5 |
+| T7.4 | 覆盖率全量化 + 阈值 + ESLint | 1 人日 | 无 |
+| T7.5 | 关键模块单测补齐（timeline/player/删除） | 2 人日 | W1/W3 |
+
+**验收**
+
+- 覆盖率报表包含全部 `src`，关键模块 ≥ 85%。
+- 新增“时间轴空洞”“部分失败不删除”“两条录音切换”三个回归用例。
+- CI 在 Windows 上 15 分钟内完成（不含打包）。
+
+### W8 架构与可维护性（P2）
+
+**问题**
+
+- `lib.rs` 3,655 行、50 个 command、6 把独立 Mutex；`main.ts` 2,748 行、约 40 个全局变量、17 个 click 分发器。
+- 前端手写 Rust DTO 镜像，没有代码生成。
+- CSS 三份样式表约 2,300 行，104 个选择器跨文件重复。
+- 文档与实现漂移（“15 秒分片”实际 5 秒；测试数量过时）。
+
+**设计方向**
+
+- 后端拆模块：`state.rs`、`session.rs`、`library.rs`、`live.rs`、`jobs.rs`、`settings.rs`、`commands/`。
+- 前端拆 `store.ts` + `controllers/{recorder,live,review,settings}.ts`，显式 `mount/dispose`，监听器用 `AbortController`。
+- 用 `ts-rs` 或 `specta` 从 Rust 生成 TS 类型，消灭手写镜像。
+- CSS 清理：保留 `styles.css` + `workspace-v2.css` 单一层级，删除死规则和跨文件重复；统一断点。
+- 文档：分片时长等常量从代码生成或引用，定期校对功能规划。
+
+**任务**
+
+| ID | 任务 | 预计 | 依赖 |
+|---|---|---|---|
+| T8.1 | 后端模块拆分（只移动代码，不改行为） | 3 人日 | W4 |
+| T8.2 | 前端 store/controllers 重构 | 4 人日 | W5 |
+| T8.3 | TS 类型代码生成 | 1 人日 | T8.1 |
+| T8.4 | CSS 合并/去重/断点统一 | 2 人日 | W5 |
+| T8.5 | 文档校对与常量统一 | 1 人日 | 无 |
+
+**验收**
+
+- `lib.rs` < 800 行，`main.ts` < 800 行；模块职责清晰。
+- 前端类型由后端生成，删掉手写 `SessionState` 镜像。
+- 重复选择器数量 < 10，无 1100–1140px 断点死区。
+
+### W9 隐私与产品化（P2，持续）
+
+- 录音/转写/笔记目前明文存放在 `%APPDATA%`；评估可选加密存储，至少更新隐私说明。
+- 启用单实例保护，避免两个实例同时录音/写设置。
+- 诊断包增加非敏感运行指标（丢块、空洞、checkpoint 体积、任务耗时），便于支持。
+- 可选：崩溃上报（默认关闭、明确同意、展示发送内容）。
+- i18n 与深色模式仍按功能规划推进，不在本计划承诺。
+
+## 5. 分阶段路线图
+
+> 人日为单人全职估算，不含评审等待；每个阶段结束打 tag，可直接发布或回滚。
+> 全计划合计约 85–120 人日，单人全职约 4–6 个月。只做到 Phase 2 即可形成“可信的日常录音工具”（约 52–70 人日）。
+
+### Phase 0：止血版 `v0.1.1`（4–6 人日）
+
+目标：不改变数据结构，先消除“会卡死/会误删/发不出去”的问题。
+
+| 任务 | 内容 | 验收 |
+|---|---|---|
+| FIX-001 | 修复 release 收集路径 + 断言产物存在 | 本地/CI 能找到安装包 |
+| FIX-002 | `TranscriptionRun` RAII 释放 | 未配 Key 转写失败后可重试 |
+| FIX-003 | `stop_session` 收敛式收尾 | 写标记/删音频失败后仍能继续使用 |
+| FIX-004 | 删除音频前校验 transcript 非空且覆盖 ≥ 90% | 部分失败不删除 |
+| FIX-005 | checkpoint 保留最近 10 个 + 启动清理旧文件 | 现有资料库 checkpoint 体积下降 > 80% |
+| FIX-006 | 导出目录使用完整 session id | 同标题会议不再覆盖 |
+| FIX-007 | 统一“5 秒分片”文档与注释 | 文档一致 |
+
+**退出标准**：上述场景手动验证通过；发 `v0.1.1`；发布说明列出数据安全修复。
+
+### Phase 1：数据正确性 `v0.1.2` / `v0.1.3`（28–38 人日，建议拆两次发布）
+
+目标：时间轴 v2 + 存储 v2 + 旧数据迁移。这一段风险最高，必须拆成两个可独立回滚的版本。
+
+- **1a / `v0.1.2`：时间轴 v2（14–18 人日）**
+  - W1 全部任务（T1.1–T1.6）
+  - W7 的 T7.1
+  - 新字段只做“追加 + 旧数据默认值”，保证旧版本仍能读取；先改播放/导出/ASR 的读路径，写入路径在 1b 再切换
+  - 实现说明（2026-11-08）：读路径用密集的麦克风分片做锚点，把 `start_epoch_ms` 投影为会话时间；播放/导出/ASR/diarization 统一走 1 秒块混音器，不再按帧号精确配对。不新增 sidecar 字段，旧会话打开即按新逻辑投影。
+- **1b / `v0.1.3`：存储 v2 + 删除保护（14–20 人日）**
+  - W2 全部任务（T2.1–T2.6）
+  - W3 覆盖率校验（T3.1–T3.4）
+  - W7 的 T7.2
+
+**退出标准**：
+
+- 合成双轨测试通过，导出对齐误差 ≤ 50 ms。
+- 现有 16 个会话迁移成功，抽查回放/导出正确；备份可回滚。
+- 4 小时合成会话元数据 < 5%。
+- 删除保护测试通过。
+- 发布前用真实设备录 10 分钟双轨会议验证。
+
+### Phase 2：稳定性与体验 `v0.2.0`（20–26 人日）
+
+目标：长会议不卡、回放正确、错误可见。
+
+- W4 全部任务
+- W5 全部任务（播放器、实时增量、虚拟列表、笔记、快捷键、断点）
+- W7 的 T7.3/T7.5
+- W8 的 CSS/文档小项可穿插
+
+**退出标准**：
+
+- 2 小时实时字幕长跑通过；无未处理 rejection；切换录音回放正确。
+- 导出 2 小时会议窗口不假死。
+- E2E 覆盖双录音切换、长列表、删除保护。
+
+### Phase 3：发布与供应链 `v0.2.1`（8–12 人日）
+
+目标：能安全地交付给非开发者。
+
+- W6 全部任务（签名/updater 证书需提前采购）
+- W7 的 T7.4
+- README 安装/更新/校验说明
+
+**退出标准**：
+
+- 签名安装包、`.sha256`、`latest.json` 全链路通过。
+- 干净 Win11 VM 安装/升级/卸载通过。
+- CI 打包冒烟 + 依赖审计生效。
+
+### Phase 4：架构与质量 `v0.3.0`（25–40 人日）
+
+目标：降低后续迭代成本，建立可信质量门禁。
+
+- W8 全部任务
+- W7 覆盖率达到目标
+- 音频回调 Ring Buffer、pre-skip、重采样、更多采样格式（作为独立 PR）
+- 隐私/单实例按优先级插入
+
+**退出标准**：
+
+- `lib.rs`/`main.ts` < 800 行；模块边界清晰。
+- 覆盖率全量化，关键模块 ≥ 85%，整体 ≥ 60%。
+- 4 小时 soak 测试通过（内存、句柄、CPU 稳定）。
+- 无 `#[allow(clippy::...)]` 新增；无 panic 级 `.expect` 在用户路径。
+
+### Phase 5：产品化持续（按季度）
+
+- 加密存储、崩溃上报、i18n、历史库全文索引、默认设备跟随。
+- 按 [功能规划](/design/feature-roadmap/) 推进新功能；每个新功能必须附带数据迁移/回滚方案。
+
+## 6. 首个迭代的 PR 拆分（建议）
+
+按顺序提交，便于 review 和回滚：
+
+1. `fix(release): use workspace target dir and assert installer`
+2. `fix(transcription): release run slot with RAII guard`
+3. `fix(session): always settle state when stop tail fails`
+4. `fix(storage): prune old checkpoints and keep last N`
+5. `fix(data-safety): require transcript coverage before deleting audio`
+6. `fix(export): include full session id in directory name`
+7. `test(audio): add synthetic dual-track fixture and alignment assertion`
+
+前 6 个 PR 都属于 Phase 0，预计 1 周内可完成并发布 `v0.1.1`。
+
+## 7. 测试与验收矩阵
+
+| 层级 | 范围 | 工具/方式 | 门禁 |
+|---|---|---|---|
+| Rust 单测 | 时间轴、manifest、checkpoint、覆盖率判定、pre-skip/重采样 | `cargo test` | 全绿，新增关键逻辑必须有测试 |
+| 前端单测 | settings、timeline、transcription、player、components | Vitest | 关键模块 ≥ 85% |
+| 合成音频集成 | 双轨空洞、丢块、暂停、重建、导出对齐 | 新增测试夹具 | 对齐 ≤ 50 ms，时长 ±1s |
+| 崩溃注入 | checkpoint/ndjson/删除中途 kill | 脚本 + 临时目录 | 恢复成功，最多丢 1 分片 |
+| E2E | 录音→停止→转写→导出；双录音切换；长列表；删除保护 | Playwright + mock | 全部通过 |
+| 长跑 | 2 小时实时字幕、4 小时录音/导出 | 手动/CI nightly | 内存/句柄稳定，无长任务尖峰 |
+| 打包 | NSIS debug/release 冒烟 | CI | 产物存在且可安装 |
+
+**性能预算（建议值，Phase 2 校准）**
+
+- 实时字幕轮询：主线程单次 < 8 ms；UI 长任务 > 200 ms ≤ 1 次/分钟。
+- 导出 2 小时会议：< 90 秒（本机 SSD），窗口可交互。
+- 历史库 100 个会话：首次打开 < 300 ms。
+- 2 小时会议内存增量：< 300 MB。
+- 元数据/音频字节比：< 5%。
+
+## 8. 迁移、发布与回滚
+
+### 8.1 数据迁移
+
+- 首次打开旧会话时执行迁移：
+  1. 备份 `checkpoint-*` 到 `legacy/`（或 `.bak`）；
+  2. 生成 `session.json` + `chunks.ndjson`；
+  3. 迁移后校验：分片数、总时长、可解码性；
+  4. 校验失败则保留旧格式并标记 `legacy`，不覆盖。
+- 迁移是幂等的；重复运行不重复追加。
+- 迁移报告写入日志与会话目录 `migration.json`，便于排查。
+
+### 8.2 发布
+
+- 每个 Phase 结束打 tag，发布说明必须包含：数据格式变化、迁移方式、回滚步骤。
+- 数据格式变更的版本，发布说明加粗提示“升级前会自动备份”。
+- 自动更新只推稳定版；beta 走单独通道。
+
+### 8.3 回滚
+
+- 旧版本仍能读取旧 checkpoint；迁移不删除旧文件，保留至少一个版本周期。
+- 若新版本回滚，恢复 `legacy/` 或 `.bak` 即可。
+- 发布包保留上一版本安装包，支持手动降级。
+
+## 9. 风险与对策
+
+| 风险 | 影响 | 对策 |
+|---|---|---|
+| 时间轴改动引入历史数据错位 | 高 | 合成夹具 + 真实会话抽查 + 迁移前备份 + 可回滚 |
+| WASAPI loopback 行为因驱动而异 | 高 | 测试覆盖“静音不回调”和“静音也回调”两种假设；按时间戳而非帧数 |
+| checkpoint v2 迁移失败 | 高 | 双读、只读旧格式、迁移报告、保留旧文件 |
+| 签名证书采购周期 | 中 | Phase 3 前 2 周启动流程；先做 SHA-256/CI 门禁 |
+| 单人开发范围蔓延 | 高 | Phase 1 期间冻结新功能；每个 PR 只做一件事 |
+| 长会议性能回归 | 中 | 每次发布跑 2 小时合成/真实长跑 |
+| 前端重构引入回归 | 中 | 先补 E2E 再拆模块；按 feature controller 渐进迁移 |
+
+## 10. 指标与观测
+
+在“历史库 → 导出诊断”中增加非敏感运行指标（不上传，仅本地）：
+
+- 每会话：`checkpoint_bytes`、`audio_bytes`、`metadata_ratio`、`dropped_blocks`、`track_gap_ms`、`transcript_coverage`。
+- 每任务：转写/翻译/纪要耗时、失败分片数、导出耗时。
+- UI：长任务次数、实时字幕渲染耗时（开发构建）。
+- 恢复：启动恢复成功/失败、迁移成功/失败。
+
+目标值：
+
+- `metadata_ratio` < 5%（长期 < 1%）。
+- `transcript_coverage` 在删除前 ≥ 98%。
+- 恢复成功率 > 99%（合成崩溃注入）。
+- 发布后 30 天无“录音丢失/错位”类 issue。
+
+## 11. 立刻开始的检查清单
+
+- [ ] 把本计划拆成 GitHub issues，按 Phase 0 建 milestone
+- [ ] 先做 `v0.1.1` 的 6 个热修
+- [ ] 建立 `recordings` 测试夹具目录与合成音频脚本
+- [ ] 在真实设备上复现一次“系统轨空洞”并保存 sidecar 作为回归样本
+- [ ] Phase 1 开始前冻结数据格式变更，先完成设计评审
+- [ ] 启动签名证书/更新密钥的采购与保管流程
+
+## 附录 A：审查发现与工作流映射
+
+| 审查发现 | 优先级 | 工作流 | 阶段 |
+|---|---|---|---|
+| 双轨时间轴按各自帧数定位 | P0 | W1 | Phase 1 |
+| 系统轨 loopback 空洞被压缩 | P0 | W1 | Phase 1 |
+| 部分 ASR 失败仍删除音频 | P0 | W3 | Phase 0/1 |
+| checkpoint 二次方增长、不清理 | P0 | W2 | Phase 0/1 |
+| 转写槽位卡死 | P1 | W4 | Phase 0 |
+| 同步 command 阻塞 UI | P1 | W4 | Phase 2 |
+| 切换录音回放不更新 | P1 | W5 | Phase 2 |
+| 实时字幕 4Hz 全量重建 | P1 | W5 | Phase 2 |
+| >300 段正文截断 | P1 | W5 | Phase 2 |
+| stop_session 尾部失败卡死 | P1 | W4 | Phase 0 |
+| 导出目录名碰撞 | P1 | W2/W5 | Phase 0 |
+| release 路径错误 | P1 | W6 | Phase 0 |
+| sherpa 模型无 SHA | P1 | W6 | Phase 3 |
+| 音频回调分配/锁/大 memmove | P1 | W8 | Phase 4 |
+| writer 死亡不可见 | P1 | W8 | Phase 4 |
+| transcript/notes 非原子写 | P2 | W2 | Phase 1 |
+| mutex poisoning / 巨型文件 | P2 | W8 | Phase 4 |
+| API Key 可发往 http 端点 | P2 | W9 | Phase 4 |
+| 覆盖率门禁只含 3 个模块 | P2 | W7 | Phase 2/3 |
+| CSS 重复/断点不一致 | P2 | W8 | Phase 4 |
+| 文档“15 秒分片”漂移 | P2 | W8 | Phase 0 |
+
+## 附录 B：建议的代码落点
+
+| 工作流 | 主要文件 |
+|---|---|
+| W1 时间轴 | `crates/audio/src/{recording,opus,decode}.rs`、`crates/core/src/{timeline,manifest}.rs`、`apps/desktop/src-tauri/src/{lib,asr,export,sherpa}.rs` |
+| W2 存储 | `crates/core/src/recovery.rs`、`apps/desktop/src-tauri/src/lib.rs` |
+| W3 删除保护 | `apps/desktop/src-tauri/src/{lib,asr}.rs`、`apps/desktop/src/main.ts` |
+| W4 并发/状态 | `apps/desktop/src-tauri/src/{lib,ai,asr}.rs`、`apps/desktop/src/main.ts` |
+| W5 前端 | `apps/desktop/src/{main,components,player,settings,transcription}.ts`、`apps/desktop/src/*.css` |
+| W6 发布 | `.github/workflows/*.yml`、`scripts/*.ps1`、`apps/desktop/src-tauri/tauri.conf.json`、`apps/desktop/package.json` |
+| W7 测试 | `apps/desktop/src/**/*.test.ts`、`apps/desktop/e2e/*`、`crates/*/src/*` |
+| W8 架构 | 全仓库 |
+| W9 隐私 | `tauri.conf.json`、`lib.rs`、`logging.rs` |

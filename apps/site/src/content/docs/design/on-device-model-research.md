@@ -1,0 +1,251 @@
+---
+title: "端侧模型选型调研"
+description: "端侧 ASR / LLM 候选模型的实测与选型结论。"
+sidebar:
+  order: 8
+  label: "端侧模型选型调研"
+editLink: false
+---
+> 本页由仓库 `doc/端侧模型选型调研.md` 自动同步，内容以主仓库为准。
+> [在 GitHub 上查看源文件](https://github.com/fengjutian/MagneticTape/blob/main/doc/%E7%AB%AF%E4%BE%A7%E6%A8%A1%E5%9E%8B%E9%80%89%E5%9E%8B%E8%B0%83%E7%A0%94.md)
+
+> 状态：调研完成，未实现（2026-11-08）
+> 适用范围：`apps/desktop/src-tauri`、本地推理链路、后续离线 AI 能力
+> 说明：本文记录**选型结论与依据**，作为 DIAR-1 / WHISPER-3 / 新增 LLM-1 项的决策参考。
+> 本文所有事实均于 2026-11-08 通过官方仓库 / Hugging Face API 实测核对，引用链接见文末。
+
+## 1. 结论摘要
+
+| 问题 | 结论 |
+|---|---|
+| MNN-Pocket-0.3B 能否替代本地 Whisper 做转写？ | **不能**。它是纯文本 LLM（Qwen3 架构），不是 ASR 模型，无音频输入能力 |
+| MNN-Pocket-0.3B 能否引入本项目？ | **能，但用途是离线 AI（摘要/翻译/结构化抽取），不是转写**。价值在于补齐当前「AI 纪要 100% 依赖云端」这一空档 |
+| 引入路径？ | 推荐 **llama.cpp + 官方 GGUF**；MNN 原生需自编译，Windows 预编译产物不齐 |
+| 0.3B 够不够写会议纪要？ | **不够**。强项是受约束输出与结构化抽取（IFEval 73.20），弱项是长文推理（C-Eval 38.86） |
+| 有没有更值得先做的事？ | **有**。`alibaba/MNN` 官方仓库内的 `apps/frameworks/sherpa-mnn` 直接覆盖 DIAR-1 与 WHISPER-3，且有 Rust 绑定 |
+
+**优先级判断**：LLM-1 是 v0.4/v0.5 的事，不进入 v0.2 发布阻塞路径。DIAR-1 spike 更划算（1 天出结论，且解锁 UX-2）。
+
+## 2. MNN-Pocket-0.3B 模型事实
+
+来源：`taobao-mnn/MNN-Pocket-0.3B`（Hugging Face，Apache-2.0，创建于 2026-09-23，最后更新 2026-11-05）。
+
+### 2.1 架构与规模
+
+| 项 | 值 |
+|---|---|
+| 架构 | `Qwen3ForCausalLM`（`model_type: qwen3`） |
+| 参数 | 约 300M（BF16 safetensors 361,551,232 参数，723,137,248 字节） |
+| 层数 | 28 |
+| hidden size | 896 |
+| 注意力 | 14 heads，GQA 2 KV heads，head_dim 64 |
+| FFN intermediate | 2560（SiLU） |
+| 上下文 | 40,960 positions（部署支持 32K） |
+| 词表 | 65,536（由 Qwen3 分词器 151K 精简约 57%，保留中英 + 字节回退） |
+| Embedding | 输入/输出共享 |
+| 精度 | BF16 原生；INT4 W4A16（block 64，QAT） |
+| 语言 | 中文、英文 |
+
+### 2.2 官方发布的三种形态
+
+| 仓库 | 文件 | 大小 | 用途 |
+|---|---|---|---|
+| `MNN-Pocket-0.3B` | `model.safetensors` | 723,137,248 B | Transformers 加载 / 自行导出 |
+| `MNN-Pocket-0.3B-MNN` | `llm.mnn` + `llm.mnn.weight` + `llm_config.json` + `tokenizer.mtok` | 174,614,466 B | MNN-LLM 端侧部署（INT4） |
+| `MNN-Pocket-0.3B-GGUF` | F16 / Q8_0 / Q4_1 | 总计 1,304,771,915 B（三档） | llama.cpp 生态 |
+
+另有 `MNN-Pocket-0.3B-Base`（预训练）、`-SFT`（后训练中间态）、`-Dec`（非自回归决策模型，一次前向回答，LoRA + pointer head）。
+
+### 2.3 能力边界（关键）
+
+官方基准（11 项平均分）：
+
+| 基准 | MNN-Pocket-0.3B | -INT4 | Qwen3-0.6B | MiniCPM4-0.5B |
+|---|---|---|---|---|
+| **平均** | **50.00** | 49.59 | 44.28 | 46.81 |
+| C-Eval | 38.86 | 40.27 | 44.06 | 67.98 |
+| CMMLU | 40.11 | 39.65 | 44.50 | 66.04 |
+| MMLU-Redux | 44.00 | 43.40 | 51.63 | 51.63 |
+| IFEval | 73.20 | 74.12 | 56.93 | 52.13 |
+| IFEval-zh | 74.59 | 72.49 | 50.35 | 30.30 |
+| GSM8K | 54.36 | 52.84 | 45.49 | 42.46 |
+| HumanEval | 53.66 | 53.66 | 36.59 | 48.17 |
+
+**读法**：INT4 量化仅损失 0.41 分（49.59 vs 50.00），量化基本保真。但——
+- **强**：IFEval / IFEval-zh 显著领先同量级模型，说明**指令遵循与受约束输出**是它的优势区。
+- **弱**：C-Eval / CMMLU / MMLU-Redux 明显低于 MiniCPM4-0.5B，说明**知识与长文推理**不是它的强项。
+
+官方定位原文：「intended for on-device assistants, data extraction, and lightweight agentic pipelines」，并明确**不推荐**用于 reasoning-heavy 工作负载。
+
+**推论到本项目**：
+- ✅ 适合：会议要点 / 待办 / 决策项**结构化抽取**、字幕轻量润色、短文本翻译。
+- ❌ 不适合：替代 MiniMax / DeepSeek 承担长会议 map-reduce 纪要——质量会明显掉档。
+
+### 2.4 官方性能数据（注意：均为移动端，非 Windows 桌面）
+
+| 设备 | 后端 | Prefill (tok/s) | Decode (tok/s) |
+|---|---|---|---|
+| iPad Pro M5 | Metal | 8,721 | 466 |
+| iPad Pro M5 | CPU | 2,228 | 231 |
+| Snapdragon 8 Gen 5 | OpenCL | 3,403 | 138 |
+| Snapdragon 8 Gen 5 | CPU | 930 | 251 |
+
+INT4 部署文件 173MB，峰值内存增量 228MB（iPad Pro M5 / Metal / 512 token），对比 Qwen3-0.6B 的 340MB / 427MB。
+
+**注意**：官方**未公布 Windows 桌面端数据**。MNN 的性能优势主要来自移动端定制内核（Arm 点积指令、Hexagon 专用后端、GPU 缓存分块）。在 Windows x64 桌面上，llama.cpp 的成熟度与预编译产物更占优，性能差异需实测。
+
+## 3. 接入路径对比
+
+| 路径 | 产物 | 优点 | 缺点 | 结论 |
+|---|---|---|---|---|
+| **llama.cpp + GGUF** | 官方已发 F16/Q8_0/Q4_1 | 生态成熟、Windows 预编译齐全、架构与现有 whisper.cpp 同构 | 非官方发布路径需自己验哈希；MNN 的 QAT 优势不保留 | **推荐** |
+| **MNN-LLM 原生** | `llm.mnn` + `llm.mnn.weight`（173MB） | 官方一等公民、体积最小、端侧优化最充分 | 需自编译（`-DMNN_BUILD_LLM=true`）；Windows 预编译产物不齐；无 Rust 绑定 | 备选 |
+| Transformers / safetensors | `model.safetensors`（723MB BF16） | 无需转换 | 桌面端要捆绑 Python 运行时，不符合分发形态 | 不采用 |
+
+### 3.1 推荐路径的具体做法
+
+现有 `local_whisper.rs` 已具备完整的「下载 → SHA-256 校验 → 解压 → 子进程调用 → 解析输出」框架（`local_whisper.rs:464` `download_file`、`:549` `extract_engine`、`:731` `run_segment`）。
+
+引入 llama.cpp 只需**同构复制**这套机制：
+
+```text
+%APPDATA%/com.magnetictape.desktop/local-llm/
+├── engine/                 # llama-cli.exe + ggml*.dll
+└── models/
+    └── MNN-Pocket-0.3B-Instruct-Q4_1.gguf
+```
+
+`ai.rs` 的 `AiProvider` 枚举（`ai.rs:28`）新增 `Local` 一项即可与云端并列，复用现有的分块 / 归并 / 进度 / 取消机制。
+
+### 3.2 鉴权与凭据
+
+本地 provider **不读 Windows 凭据管理器**，不需要 API Key——这正是其相对云端的核心价值。
+
+## 4. sherpa 生态对标（更高优先级）
+
+### 4.1 关键发现
+
+`alibaba/MNN` 官方仓库（16,423 star，Apache-2.0）内含 `apps/frameworks/sherpa-mnn`：把 sherpa-onnx 的 onnxruntime 调用**全部替换为 MNN 引擎**的端侧语音推理框架。
+
+能力矩阵（全部本地离线）：语音识别（流式 + 非流式）、语音合成、说话人识别、**说话人分离**、**VAD**、关键词唤醒、标点添加、语音增强、音频打标、语种识别。
+
+模型覆盖：Transducer、CTC、Paraformer、Whisper、SenseVoice、Moonshine、NeMo、TeleSpeech 等。
+
+### 4.2 两条后端路线的取舍
+
+> ⚠️ **2026-11-08 spike 后修正**：下表原写「sherpa-rs 预编译二进制齐、Windows 可用」，这个判断只对**运行时二进制**成立，**对「Rust 绑定能否编译」不成立**。实测 `sherpa-rs 0.6.8` 的构建需要 bindgen → libclang，本机无 LLVM，**不可行**。
+> 实际落地形态改为 **sherpa-onnx 官方 CLI 子进程**（Windows x64 预编译二进制齐，含 `sherpa-onnx-offline-speaker-diarization.exe`），与项目现有 whisper.cpp 子进程模式同构。
+> 完整实测见 [DIAR-1 spike 报告](/design/diar-1-spike-report/)。
+
+| 路线 | 推理后端 | Windows 预编译 | Rust 绑定 | 结论 |
+|---|---|---|---|---|
+| **sherpa-onnx 官方 CLI** | onnxruntime | ✅ 有（含 diarization / VAD / 标点 CLI） | 不需要 | **采用** |
+| sherpa-onnx C API FFI | onnxruntime | ✅ 有 `sherpa-onnx-c-api.dll` + 完整 `c-api.h` | 需手写 bindings | 备选 |
+| sherpa-rs（社区绑定） | onnxruntime | ✅ 有 | ❌ **构建需 libclang，本机不可行** | 不采用 |
+| sherpa-mnn（MNN 官方移植） | MNN | ⚠️ 需自编译 | ⚠️ 无官方 Rust 绑定 | 效果验证后再评估 |
+
+**理由**：项目现有 Rust 后端 + 「下载校验」框架与 CLI 子进程完全契合；无需 bindgen、libclang 与 C++ 工具链。
+
+### 4.3 sherpa-rs 关键事实（crates.io 实测）
+
+| 项 | 值 |
+|---|---|
+| crate | `sherpa-rs` |
+| 最新版本 | 0.6.8（2025-10-05 发布） |
+| 许可 | MIT |
+| 默认 features | `download-binaries`, `tts` |
+| 可选 features | `cuda`（Linux/Windows x64）、`directml`（Windows 全架构）、`static`、`sys` |
+| Windows 架构 | x86_64 / x86 / ARM64 |
+| Windows 加速 | CPU、NVIDIA CUDA、DirectML |
+
+`download-binaries` 默认开启：从 GitHub Release 拉取预编译库，带 `dist.json` 清单 + `checksum.txt` 校验，缓存于 `~/.cache/sherpa-rs/`。这与项目「白名单 URL + SHA-256 校验」的既有策略同构。
+
+### 4.4 直接解锁的两项规划
+
+#### DIAR-1 说话人分离（当前标注「需先做 spike」）
+
+> ✅ **spike 已完成 2026-11-08，结论：可行。** 采用 sherpa-onnx 官方 CLI 子进程，
+> RTF 0.087，官方中文四人音频正确分出 4 人，项目真实录音正确识别为单说话人。
+> 完整实测数据与实施方案见 [DIAR-1 spike 报告](/design/diar-1-spike-report/)。以下为原始选型依据。
+
+sherpa 组合：pyannote segmentation（切分说话边界）+ 3dspeaker embedding（声纹向量）+ fast clustering（聚类）→ 输出带 speaker id 的时间片。
+
+**模型清单（GitHub Release 实测资产名与字节数）**
+
+分割模型（`releases/tag/speaker-segmentation-models`）：
+
+| 文件 | 大小 | URL |
+|---|---|---|
+| `sherpa-onnx-pyannote-segmentation-3-0.tar.bz2` | 6,958,444 B | `https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-segmentation-models/sherpa-onnx-pyannote-segmentation-3-0.tar.bz2` |
+
+声纹模型（`releases/tag/speaker-recongition-models`，注意官方 tag 拼写如此）：
+
+| 文件 | 大小 | 适用 |
+|---|---|---|
+| `3dspeaker_speech_campplus_sv_zh-cn_16k-common.onnx` | 28,281,138 B | **中文（推荐）** |
+| `3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx` | 28,281,164 B | 中英混合 |
+| `3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx` | 39,593,761 B | 中文，效果更好，体积略大 |
+| `nemo_en_titanet_small.onnx` | 40,257,283 B | 英文 |
+
+该 release 附带 `checksum.txt`（SHA-256 清单，3,477 字节），可直接作为下载校验来源。
+
+**参数建议**（来自官方文档与社区实践，需实测校准）：
+- 采样率 16 kHz、单声道；
+- `min_duration_on = 0.3s`、`min_duration_off = 0.5s`；
+- 说话人数未知时 `num_clusters = -1`（自动），阈值 `threshold = 0.7~0.9`（越大说话人越少）；已知人数时直接指定；
+- 说话人匹配阈值默认 0.5（0.3~0.4 偏松、0.6~0.7 偏严）。
+
+**可用的官方测试素材**：`0-four-speakers-zh.wav`（1,819,586 B，中文四人）、`1/2/3-two-speakers-en.wav`，同在 `speaker-segmentation-models` release。这两个中文四人样例可直接用于 spike 验证，不必自己造音频。
+
+**DIAR-1 仍需在 spike 中确认的项**（不可想当然）：
+- 双轨（麦克风 / 系统声）如何归属说话人；
+- 实时模式 vs 录后模式的能力差异；
+- 是否需要前端 VAD 配合以降低误切。
+
+#### WHISPER-3 本地实时字幕质量
+
+sherpa 提供 Silero VAD 与 Ten VAD 两种前端，可直接过滤静音分片以减少 whisper 的幻觉输出，与规划中「集成 Silero VAD（或能量 VAD）过滤静音」一致。
+
+> 注：规划中提到的「滚动窗口 + 去重」属于 whisper.cpp 自身的推理策略，与 VAD 是两件事，VAD 只解决「不该送进模型的片段别送」。
+
+### 4.5 附带能力（暂不排期，仅记录）
+
+- **SenseVoice**：多语言（含粤语）非流式 ASR，若将来要换 ASR 引擎可评估；
+- **标点添加**（`punctuation-models`）：whisper 输出的中文不带标点，这是现成补齐手段；
+- **语音增强**（GTCRN 降噪）：对应 UX-6 的一部分；
+- **关键词唤醒**（KWS）：对应 UX-4 全局快捷键的另一种形态。
+
+## 5. 建议的行动顺序
+
+1. **DIAR-1 spike（优先，1 天）**
+   - 新建独立 spike 分支或 `examples` 目录，引入 `sherpa-rs = "0.6.8"`；
+   - 用官方 `0-four-speakers-zh.wav` 跑通 diarization，验证 Rust 绑定在 Windows x64 上能否下载并链接预编译库；
+   - 再用一段**真实中文双人会议**音频测准确率（规划中的验收线：≥ 85% 段落说话人正确）；
+   - 产出：可行/不可行结论 + 实测参数 + 候选模型。
+
+2. **LLM-1 骨架（次优，可与 spike 并行）**
+   - `ai.rs` 抽象出统一的「文本生成请求」接口，让云端与本地走同一套分块 / 归并 / 取消；
+   - 先不接模型，只把 provider 抽象与设置项打通。
+
+3. **本地 LLM 接入（第三步）**
+   - llama.cpp + GGUF，遵循 `local_whisper.rs` 的下载校验模式；
+   - 只做「要点抽取 + 短文本翻译」两个轻任务，不接长文纪要。
+
+## 6. 明确不做
+
+- 不用 MNN-Pocket 替代云端模型写长会议纪要（能力不足，见 2.3）。
+- 不在 Windows 桌面端为了 MNN 的移动端性能优势而自建编译链，除非实测证明显著优于 llama.cpp。
+- 不用「麦克风 / 系统声」轨道冒充说话人分离（沿用功能规划第 7 节边界）。
+
+## 7. 引用来源
+
+- MNN-Pocket-0.3B 模型卡：https://huggingface.co/taobao-mnn/MNN-Pocket-0.3B
+- MNN INT4 构建：https://huggingface.co/taobao-mnn/MNN-Pocket-0.3B-MNN
+- MNN GGUF 构建：https://huggingface.co/taobao-mnn/MNN-Pocket-0.3B-GGUF
+- MNN 主仓库：https://github.com/alibaba/MNN
+- sherpa-mnn（MNN 内）：https://github.com/alibaba/MNN/tree/master/apps/frameworks/sherpa-mnn
+- sherpa-rs crate：https://crates.io/crates/sherpa-rs
+- sherpa-onnx 仓库：https://github.com/k2-fsa/sherpa-onnx
+- 说话人分离模型：https://github.com/k2-fsa/sherpa-onnx/releases/tag/speaker-segmentation-models
+- 说话人识别模型：https://github.com/k2-fsa/sherpa-onnx/releases/tag/speaker-recongition-models
+- 说话人分离文档：https://k2-fsa.github.io/sherpa/onnx/speaker-diarization/index.html

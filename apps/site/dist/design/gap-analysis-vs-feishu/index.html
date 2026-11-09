@@ -1,0 +1,731 @@
+<!DOCTYPE html><html lang="zh-CN" dir="ltr" data-theme="dark" data-has-toc data-has-sidebar class="astro-g5ptsecz"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>对标飞书妙记差距分析 | MagneticTape</title><link rel="canonical" href="https://magnetictape.netlify.app/design/gap-analysis-vs-feishu/"/><link rel="sitemap" href="/sitemap-index.xml"/><link rel="shortcut icon" href="/./src/assets/favicon.svg" type="image/svg+xml"/><meta name="generator" content="Astro v7.4.7"/><meta name="generator" content="Starlight v0.42.9"/><meta property="og:title" content="对标飞书妙记差距分析"/><meta property="og:type" content="article"/><meta property="og:url" content="https://magnetictape.netlify.app/design/gap-analysis-vs-feishu/"/><meta property="og:locale" content="zh-CN"/><meta property="og:description" content="与飞书妙记在录音内核、产品层与桌面集成上的逐项差距量化。"/><meta property="og:site_name" content="MagneticTape"/><meta name="twitter:card" content="summary_large_image"/><meta name="description" content="与飞书妙记在录音内核、产品层与桌面集成上的逐项差距量化。"/><script>
+	window.StarlightThemeProvider = (() => {
+		const storedTheme =
+			typeof localStorage !== 'undefined' && localStorage.getItem('starlight-theme');
+		const theme =
+			storedTheme ||
+			(window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+		document.documentElement.dataset.theme = theme === 'light' ? 'light' : 'dark';
+		return {
+			updatePickers(theme = storedTheme || 'auto') {
+				document.querySelectorAll('starlight-theme-select').forEach((picker) => {
+					const select = picker.querySelector('select');
+					if (select) select.value = theme;
+					/** @type {HTMLTemplateElement | null} */
+					const tmpl = document.querySelector(`#theme-icons`);
+					const newIcon = tmpl && tmpl.content.querySelector('.' + theme);
+					if (newIcon) {
+						const oldIcon = picker.querySelector('svg.label-icon');
+						if (oldIcon) {
+							oldIcon.replaceChildren(...newIcon.cloneNode(true).childNodes);
+						}
+					}
+				});
+			},
+		};
+	})();
+</script><template id="theme-icons"><svg aria-hidden="true" class="light astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M5 12a1 1 0 0 0-1-1H3a1 1 0 0 0 0 2h1a1 1 0 0 0 1-1Zm.64 5-.71.71a1 1 0 0 0 0 1.41 1 1 0 0 0 1.41 0l.71-.71A1 1 0 0 0 5.64 17ZM12 5a1 1 0 0 0 1-1V3a1 1 0 0 0-2 0v1a1 1 0 0 0 1 1Zm5.66 2.34a1 1 0 0 0 .7-.29l.71-.71a1 1 0 1 0-1.41-1.41l-.66.71a1 1 0 0 0 0 1.41 1 1 0 0 0 .66.29Zm-12-.29a1 1 0 0 0 1.41 0 1 1 0 0 0 0-1.41l-.71-.71a1.004 1.004 0 1 0-1.43 1.41l.73.71ZM21 11h-1a1 1 0 0 0 0 2h1a1 1 0 0 0 0-2Zm-2.64 6A1 1 0 0 0 17 18.36l.71.71a1 1 0 0 0 1.41 0 1 1 0 0 0 0-1.41l-.76-.66ZM12 6.5a5.5 5.5 0 1 0 5.5 5.5A5.51 5.51 0 0 0 12 6.5Zm0 9a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Zm0 3.5a1 1 0 0 0-1 1v1a1 1 0 0 0 2 0v-1a1 1 0 0 0-1-1Z"/></svg><svg aria-hidden="true" class="dark astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21.64 13a1 1 0 0 0-1.05-.14 8.049 8.049 0 0 1-3.37.73 8.15 8.15 0 0 1-8.14-8.1 8.59 8.59 0 0 1 .25-2A1 1 0 0 0 8 2.36a10.14 10.14 0 1 0 14 11.69 1 1 0 0 0-.36-1.05Zm-9.5 6.69A8.14 8.14 0 0 1 7.08 5.22v.27a10.15 10.15 0 0 0 10.14 10.14 9.784 9.784 0 0 0 2.1-.22 8.11 8.11 0 0 1-7.18 4.32v-.04Z"/></svg><svg aria-hidden="true" class="auto astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21 14h-1V7a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v7H3a1 1 0 0 0-1 1v2a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-2a1 1 0 0 0-1-1ZM6 7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v7H6V7Zm14 10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-1h16v1Z"/></svg></template><link rel="stylesheet" href="/_astro/print.C9eyqPGL.css" media="print"><link rel="stylesheet" href="/_astro/common.BA5iwecf.css"><style>@layer starlight.components{svg:where(.astro-hkc32dio){color:var(--sl-icon-color);font-size:var(--sl-icon-size,1em);width:1em;height:1em;overflow:visible}}
+</style><script type="module" src="/_astro/page.cNngjUgL.js"></script></head><body class="astro-g5ptsecz"><a class="sl-skip-link astro-qb7clj6f" href="#_top">跳转到内容</a><div class="page sl-flex astro-yntsjkba"><header class="header astro-yntsjkba"><div class="header astro-by6fddyj"><div class="title-wrapper sl-flex astro-by6fddyj"><a href="/" class="site-title sl-flex astro-6rvad3va"><img class="astro-6rvad3va" alt src="/_astro/logo.MrVzPhLw.svg" width="32" height="32"><span class="astro-6rvad3va" translate="no">MagneticTape</span></a></div><div class="sl-flex print:hidden astro-by6fddyj"><site-search class="astro-by6fddyj astro-b5kgnn7o" data-translations="{&quot;placeholder&quot;:&quot;搜索&quot;}"><button data-open-modal disabled aria-label="搜索" aria-keyshortcuts="Control+K" class="astro-b5kgnn7o"><svg aria-hidden="true" class="astro-b5kgnn7o astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21.71 20.29 18 16.61A9 9 0 1 0 16.61 18l3.68 3.68a.999.999 0 0 0 1.42 0 1 1 0 0 0 0-1.39ZM11 18a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z"/></svg><span class="sl-hidden md:sl-block astro-b5kgnn7o" aria-hidden="true">搜索</span><kbd class="sl-hidden md:sl-flex astro-b5kgnn7o" style="display: none"><kbd class="astro-b5kgnn7o">Ctrl</kbd><kbd class="astro-b5kgnn7o">K</kbd></kbd></button><dialog style="padding: 0" aria-label="搜索" class="astro-b5kgnn7o"><div class="dialog-frame sl-flex astro-b5kgnn7o"><button data-close-modal class="sl-flex md:sl-hidden astro-b5kgnn7o">取消</button><div class="search-container astro-b5kgnn7o"><div id="starlight__search" class="astro-b5kgnn7o"></div></div></div></dialog></site-search><script>
+	(() => {
+		const openBtn = document.querySelector('button[data-open-modal]');
+		const shortcut = openBtn?.querySelector('kbd');
+		if (!openBtn || !(shortcut instanceof HTMLElement)) return;
+		const platformKey = shortcut.querySelector('kbd');
+		if (platformKey && /(Mac|iPhone|iPod|iPad)/i.test(navigator.platform)) {
+			platformKey.textContent = '⌘';
+			openBtn.setAttribute('aria-keyshortcuts', 'Meta+K');
+		}
+		shortcut.style.display = '';
+	})();
+</script><script type="module" src="/_astro/Search.astro_astro_type_script_index_0_lang.CHGOufdi.js"></script></div><div class="sl-hidden md:sl-flex print:hidden right-group astro-by6fddyj"><div class="sl-flex social-icons astro-by6fddyj"><a href="https://github.com/fengjutian/MagneticTape" rel="me" class="sl-flex astro-n2mnl6yq"><span class="sr-only astro-n2mnl6yq">GitHub 仓库</span><svg aria-hidden="true" class="astro-n2mnl6yq astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.83 1.24 1.83 1.24 1.08 1.83 2.81 1.3 3.5 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3Z"/></svg></a></div><starlight-theme-select><label style="--sl-select-width: 6.25em" class="astro-2z5xp7gb"><span class="sr-only astro-2z5xp7gb">选择主题</span><svg aria-hidden="true" class="icon label-icon astro-2z5xp7gb astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21 14h-1V7a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v7H3a1 1 0 0 0-1 1v2a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-2a1 1 0 0 0-1-1ZM6 7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v7H6V7Zm14 10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-1h16v1Z"/></svg><select autocomplete="off" class="astro-2z5xp7gb"><option value="dark" class="astro-2z5xp7gb">深色</option><option value="light" class="astro-2z5xp7gb">浅色</option><option value="auto" selected class="astro-2z5xp7gb">自动</option></select><svg aria-hidden="true" class="icon caret astro-2z5xp7gb astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M17 9.17a1 1 0 0 0-1.41 0L12 12.71 8.46 9.17a1 1 0 1 0-1.41 1.42l4.24 4.24a1.002 1.002 0 0 0 1.42 0L17 10.59a1.002 1.002 0 0 0 0-1.42Z"/></svg></label></starlight-theme-select><script>
+	StarlightThemeProvider.updatePickers();
+</script><script type="module">var e=`starlight-theme`,t=e=>e===`auto`||e===`dark`||e===`light`?e:`auto`,n=()=>t(typeof localStorage<`u`&&localStorage.getItem(e));function r(t){typeof localStorage<`u`&&localStorage.setItem(e,t===`light`||t===`dark`?t:``)}var i=()=>matchMedia(`(prefers-color-scheme: light)`).matches?`light`:`dark`;function a(e){StarlightThemeProvider.updatePickers(e),document.documentElement.dataset.theme=e===`auto`?i():e,r(e)}matchMedia(`(prefers-color-scheme: light)`).addEventListener(`change`,()=>{n()===`auto`&&a(`auto`)});var o=class extends HTMLElement{constructor(){super(),a(n()),this.querySelector(`select`)?.addEventListener(`change`,e=>{e.currentTarget instanceof HTMLSelectElement&&a(t(e.currentTarget.value))})}};customElements.define(`starlight-theme-select`,o);</script><script type="module">var e=class extends HTMLElement{constructor(){super();let e=this.querySelector(`select`);e&&(e.addEventListener(`change`,e=>{e.currentTarget instanceof HTMLSelectElement&&(window.location.pathname=e.currentTarget.value)}),window.addEventListener(`pageshow`,t=>{if(!t.persisted)return;let n=e.querySelector(`option[selected]`)?.index;n!==e.selectedIndex&&(e.selectedIndex=n??0)}))}};customElements.define(`starlight-lang-select`,e);</script></div></div></header><nav class="sidebar print:hidden astro-yntsjkba" aria-label="主要"><button popovertarget="starlight__sidebar" class="sl-menu-button sl-flex md:sl-hidden print:hidden astro-r2osgdlg"><svg aria-hidden="true" class="open-menu astro-r2osgdlg astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M3 8h18a1 1 0 1 0 0-2H3a1 1 0 0 0 0 2Zm18 8H3a1 1 0 0 0 0 2h18a1 1 0 0 0 0-2Zm0-5H3a1 1 0 0 0 0 2h18a1 1 0 0 0 0-2Z"/></svg><svg aria-hidden="true" class="close-menu astro-r2osgdlg astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="m13.41 12 6.3-6.29a1.004 1.004 0 1 0-1.42-1.42L12 10.59l-6.29-6.3a1.004 1.004 0 0 0-1.42 1.42l6.3 6.29-6.3 6.29a1 1 0 0 0 0 1.42.998.998 0 0 0 1.42 0l6.29-6.3 6.29 6.3a.999.999 0 0 0 1.42 0 1 1 0 0 0 0-1.42L13.41 12Z"/></svg><span class="sr-only astro-r2osgdlg">菜单</span></button><script type="module">var e=class extends HTMLElement{constructor(){super();let e=matchMedia(`(min-width: 50em)`),t=()=>{this.popover=e.matches?null:`auto`};t(),e.addEventListener(`change`,()=>t()),this.addEventListener(`toggle`,({newState:e})=>this.trapFocus(e===`open`))}trapFocus(e){document.querySelectorAll(`.main-frame, .sl-skip-link`).forEach(t=>{t.toggleAttribute(`inert`,e)})}};customElements.define(`sl-sidebar-pane`,e);</script><sl-sidebar-pane popover id="starlight__sidebar" class="sidebar-pane astro-yntsjkba"><div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="04s6pek" class="astro-ipdry5cl"><script aria-hidden="true">
+		(() => {
+			try {
+				if (!matchMedia('(min-width: 50em)').matches) return;
+				/** @type {HTMLElement | null} */
+				const target = document.querySelector('sl-sidebar-state-persist');
+				const state = JSON.parse(sessionStorage.getItem('sl-sidebar-state') || '0');
+				if (!target || !state || target.dataset.hash !== state.hash) return;
+				window._starlightScrollRestore = state.scroll;
+				customElements.define(
+					'sl-sidebar-restore',
+					class SidebarRestore extends HTMLElement {
+						connectedCallback() {
+							try {
+								const idx = parseInt(this.dataset.index || '');
+								const details = this.closest('details');
+								if (details && typeof state.open[idx] === 'boolean') details.open = state.open[idx];
+							} catch {}
+						}
+					}
+				);
+			} catch {}
+		})();
+	</script><ul class="top-level astro-rmhv4bp6"><li class="astro-rmhv4bp6"><details open class="astro-rmhv4bp6"><summary class="astro-rmhv4bp6"><span class="group-label astro-rmhv4bp6"><span class="large astro-rmhv4bp6">开始</span></span><svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="0"></sl-sidebar-restore><ul class="astro-rmhv4bp6"><li class="astro-rmhv4bp6"><a href="/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">项目概览</span></a></li><li class="astro-rmhv4bp6"><a href="/start/install/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">安装</span></a></li><li class="astro-rmhv4bp6"><a href="/start/quick-start/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">快速开始</span></a></li></ul></details></li><li class="astro-rmhv4bp6"><details open class="astro-rmhv4bp6"><summary class="astro-rmhv4bp6"><span class="group-label astro-rmhv4bp6"><span class="large astro-rmhv4bp6">使用指南</span></span><svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="1"></sl-sidebar-restore><ul class="astro-rmhv4bp6"><li class="astro-rmhv4bp6"><a href="/guide/recording/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">录音与回放</span></a></li><li class="astro-rmhv4bp6"><a href="/guide/transcription/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">字幕与转写</span></a></li><li class="astro-rmhv4bp6"><a href="/guide/ai/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">AI 能力</span></a></li><li class="astro-rmhv4bp6"><a href="/guide/export/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">导出与整理</span></a></li><li class="astro-rmhv4bp6"><a href="/guide/settings/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">设置参考</span></a></li><li class="astro-rmhv4bp6"><a href="/guide/privacy/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">数据与隐私</span></a></li><li class="astro-rmhv4bp6"><a href="/guide/faq/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">常见问题</span></a></li></ul></details></li><li class="astro-rmhv4bp6"><details open class="astro-rmhv4bp6"><summary class="astro-rmhv4bp6"><span class="group-label astro-rmhv4bp6"><span class="large astro-rmhv4bp6">设计文档</span></span><svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="2"></sl-sidebar-restore><ul class="astro-rmhv4bp6"><li class="astro-rmhv4bp6"><a href="/design/ui-guidelines/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">UI 设计规范</span></a></li><li class="astro-rmhv4bp6"><a href="/design/visual-style-v7/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">视觉风格 v7：极光玻璃</span></a></li><li class="astro-rmhv4bp6"><a href="/design/recorder-layout/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">录音页面布局需求</span></a></li><li class="astro-rmhv4bp6"><a href="/design/workspace-requirements/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">AI 录音工作台 UI/UX 需求</span></a></li><li class="astro-rmhv4bp6"><a href="/design/workspace-layout-spec/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">AI 录音工作台布局实现规格</span></a></li><li class="astro-rmhv4bp6"><a href="/design/workspace-ui-v1-spec/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">Workspace UI V1.0 详细设计规格</span></a></li><li class="astro-rmhv4bp6"><a href="/design/local-whisper-requirements/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">本地 Whisper 转写需求</span></a></li><li class="astro-rmhv4bp6"><a href="/design/on-device-model-research/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">端侧模型选型调研</span></a></li><li class="astro-rmhv4bp6"><a href="/design/diar-1-spike-report/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">DIAR-1 spike 报告</span></a></li><li class="astro-rmhv4bp6"><a href="/design/realtime-subtitle-and-speakers/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">实时字幕与说话人分离</span></a></li><li class="astro-rmhv4bp6"><a href="/design/feature-roadmap/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">功能规划（未完成项）</span></a></li><li class="astro-rmhv4bp6"><a href="/design/technical-improvement-plan/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">技术改进与修复计划</span></a></li><li class="astro-rmhv4bp6"><a href="/design/gap-analysis-vs-feishu/" aria-current="page" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">对标飞书妙记差距分析</span></a></li><li class="astro-rmhv4bp6"><a href="/design/feishu-memo-reverse-analysis/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">飞书妙记「录音」功能逆向分析</span></a></li></ul></details></li></ul><script aria-hidden="true">
+		(() => {
+			const scroller = document.getElementById('starlight__sidebar');
+			if (!window._starlightScrollRestore || !scroller) return;
+			scroller.scrollTop = window._starlightScrollRestore;
+			delete window._starlightScrollRestore;
+		})();
+	</script></sl-sidebar-state-persist><div class="md:sl-hidden"><div class="mobile-preferences sl-flex astro-p4azlveh"><div class="social-icons astro-p4azlveh"><a href="https://github.com/fengjutian/MagneticTape" rel="me" class="sl-flex astro-n2mnl6yq"><span class="sr-only astro-n2mnl6yq">GitHub 仓库</span><svg aria-hidden="true" class="astro-n2mnl6yq astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.83 1.24 1.83 1.24 1.08 1.83 2.81 1.3 3.5 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3Z"/></svg></a></div><starlight-theme-select><label style="--sl-select-width: 6.25em" class="astro-2z5xp7gb"><span class="sr-only astro-2z5xp7gb">选择主题</span><svg aria-hidden="true" class="icon label-icon astro-2z5xp7gb astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21 14h-1V7a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v7H3a1 1 0 0 0-1 1v2a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-2a1 1 0 0 0-1-1ZM6 7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v7H6V7Zm14 10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-1h16v1Z"/></svg><select autocomplete="off" class="astro-2z5xp7gb"><option value="dark" class="astro-2z5xp7gb">深色</option><option value="light" class="astro-2z5xp7gb">浅色</option><option value="auto" selected class="astro-2z5xp7gb">自动</option></select><svg aria-hidden="true" class="icon caret astro-2z5xp7gb astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M17 9.17a1 1 0 0 0-1.41 0L12 12.71 8.46 9.17a1 1 0 1 0-1.41 1.42l4.24 4.24a1.002 1.002 0 0 0 1.42 0L17 10.59a1.002 1.002 0 0 0 0-1.42Z"/></svg></label></starlight-theme-select><script>
+	StarlightThemeProvider.updatePickers();
+</script></div></div></div></sl-sidebar-pane></nav><div class="main-frame astro-yntsjkba"><script type="module">var e=document.getElementById(`starlight__sidebar`),t=e?.querySelector(`sl-sidebar-state-persist`),n=`sl-sidebar-state`,r=()=>{let r=[],i=t?.dataset.hash||``;try{let e=sessionStorage.getItem(n),t=JSON.parse(e||`{}`);Array.isArray(t.open)&&t.hash===i&&(r=t.open)}catch{}return{hash:i,open:r,scroll:e?.scrollTop||0}},i=e=>{try{sessionStorage.setItem(n,JSON.stringify(e))}catch{}},a=()=>i(r()),o=(e,t)=>{let n=r();n.open[t]=e,i(n)};t?.addEventListener(`click`,e=>{if(!(e.target instanceof Element))return;let t=e.target.closest(`summary`)?.closest(`details`);if(!t)return;let n=t.querySelector(`sl-sidebar-restore`),r=parseInt(n?.dataset.index||``);isNaN(r)||o(!t.open,r)}),addEventListener(`visibilitychange`,()=>{document.visibilityState===`hidden`&&a()});</script><div class="lg:sl-flex astro-lrzkfocr"><aside class="right-sidebar-container print:hidden astro-lrzkfocr"><div class="right-sidebar astro-lrzkfocr"><div class="lg:sl-hidden astro-qok35upx"><mobile-starlight-toc data-min-h="2" data-max-h="3" class="astro-66cqc7ze"><nav aria-labelledby="starlight__on-this-page--mobile" class="astro-66cqc7ze"><details id="starlight__mobile-toc" class="astro-66cqc7ze"><summary id="starlight__on-this-page--mobile" class="sl-flex astro-66cqc7ze"><span class="toggle sl-flex astro-66cqc7ze">本页内容<svg aria-hidden="true" class="caret astro-66cqc7ze astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></span><span class="display-current astro-66cqc7ze"></span></summary><div class="dropdown astro-66cqc7ze"><ul class="isMobile astro-jugkfwgx" style="--depth: 0;"><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#_top" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">概述</span></a></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#1-一句话结论" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">1. 一句话结论</span></a></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#2-能力矩阵总表" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">2. 能力矩阵总表</span></a></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#3-录音内核已追平的部分" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">3. 录音内核：已追平的部分</span></a><ul class="isMobile astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#31-编码一致性" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">3.1 编码一致性</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#32-分片与恢复" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">3.2 分片与恢复</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#4-关键差距按价值排序" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">4. 关键差距（按价值排序）</span></a><ul class="isMobile astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#41-差距一实时链路形态-最大差距" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">4.1 差距一：实时链路形态 ❌（最大差距）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#42-差距二断线补拉-" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">4.2 差距二：断线补拉 ❌</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#43-差距三说话人分离-" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">4.3 差距三：说话人分离 ❌</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#44-差距四桌面集成外壳-13-项里占-6-项" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">4.4 差距四：桌面集成外壳 ❌（13 项里占 6 项）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#45-差距五音频处理质量-" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">4.5 差距五：音频处理质量 ❌</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#46-差距六待办--章节未结构化-" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">4.6 差距六：待办 / 章节未结构化 ◐</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#5-差距量化汇总" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">5. 差距量化汇总</span></a></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#6-建议的行动顺序" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">6. 建议的行动顺序</span></a><ul class="isMobile astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#61-先做验证--补漏12-天" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">6.1 先做「验证 + 补漏」（1–2 天）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#62-再做桌面集成23-天ux-4-提前" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">6.2 再做「桌面集成」（2–3 天，UX-4 提前）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#63-顺带补上并入既有项" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">6.3 顺带补上（并入既有项）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#64-关于实时链路的取舍需要决策" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">6.4 关于实时链路的取舍（需要决策）</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#7-飞书自身未解--不必追平的部分" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">7. 飞书自身未解 / 不必追平的部分</span></a></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#8-引用来源" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">8. 引用来源</span></a></li></ul></div></details></nav></mobile-starlight-toc><script type="module" src="/_astro/MobileTableOfContents.astro_astro_type_script_index_0_lang.C3fM4Kra.js"></script></div><div class="right-sidebar-panel sl-hidden lg:sl-block astro-qok35upx"><div class="sl-container astro-qok35upx"><starlight-toc data-min-h="2" data-max-h="3"><nav aria-labelledby="starlight__on-this-page"><h2 id="starlight__on-this-page">本页内容</h2><ul class="astro-jugkfwgx" style="--depth: 0;"><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#_top" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">概述</span></a></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#1-一句话结论" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">1. 一句话结论</span></a></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#2-能力矩阵总表" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">2. 能力矩阵总表</span></a></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#3-录音内核已追平的部分" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">3. 录音内核：已追平的部分</span></a><ul class="astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#31-编码一致性" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">3.1 编码一致性</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#32-分片与恢复" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">3.2 分片与恢复</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#4-关键差距按价值排序" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">4. 关键差距（按价值排序）</span></a><ul class="astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#41-差距一实时链路形态-最大差距" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">4.1 差距一：实时链路形态 ❌（最大差距）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#42-差距二断线补拉-" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">4.2 差距二：断线补拉 ❌</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#43-差距三说话人分离-" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">4.3 差距三：说话人分离 ❌</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#44-差距四桌面集成外壳-13-项里占-6-项" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">4.4 差距四：桌面集成外壳 ❌（13 项里占 6 项）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#45-差距五音频处理质量-" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">4.5 差距五：音频处理质量 ❌</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#46-差距六待办--章节未结构化-" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">4.6 差距六：待办 / 章节未结构化 ◐</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#5-差距量化汇总" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">5. 差距量化汇总</span></a></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#6-建议的行动顺序" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">6. 建议的行动顺序</span></a><ul class="astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#61-先做验证--补漏12-天" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">6.1 先做「验证 + 补漏」（1–2 天）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#62-再做桌面集成23-天ux-4-提前" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">6.2 再做「桌面集成」（2–3 天，UX-4 提前）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#63-顺带补上并入既有项" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">6.3 顺带补上（并入既有项）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#64-关于实时链路的取舍需要决策" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">6.4 关于实时链路的取舍（需要决策）</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#7-飞书自身未解--不必追平的部分" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">7. 飞书自身未解 / 不必追平的部分</span></a></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#8-引用来源" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">8. 引用来源</span></a></li></ul></nav></starlight-toc><script type="module" src="/_astro/TableOfContents.astro_astro_type_script_index_0_lang.BpJaGz7G.js"></script></div></div></div></aside><div class="main-pane astro-lrzkfocr"><main data-pagefind-body class="astro-g5ptsecz" lang="zh-CN" dir="ltr"><div class="content-panel astro-a7po4psb"><div class="sl-container astro-a7po4psb"><h1 id="_top" class="astro-bebwqqxs">对标飞书妙记差距分析</h1></div></div><div class="content-panel astro-a7po4psb"><div class="sl-container astro-a7po4psb"><div class="sl-markdown-content"><blockquote>
+<p>本页由仓库 <code dir="auto">doc/对标飞书妙记差距分析.md</code> 自动同步，内容以主仓库为准。
+<a href="https://github.com/fengjutian/MagneticTape/blob/main/doc/%E5%AF%B9%E6%A0%87%E9%A3%9E%E4%B9%A6%E5%A6%99%E8%AE%B0%E5%B7%AE%E8%B7%9D%E5%88%86%E6%9E%90.md">在 GitHub 上查看源文件</a></p>
+</blockquote>
+<blockquote>
+<p>状态：差距盘点完成，未实现（2026-11-08）
+适用范围：<code dir="auto">apps/desktop</code>、<code dir="auto">crates/audio</code>、<code dir="auto">crates/core</code>
+基线：<a href="/design/feishu-memo-reverse-analysis/">飞书妙记「录音」功能逆向分析报告</a>（2026-11-06 完成）
+说明：本文把逆向报告的规格逐项映射到当前代码，给出<strong>已达成 / 部分达成 / 未达成</strong>判定与量化差距。
+本文所有代码判定均于 2026-11-08 通过实际源码核对，引用格式为 <code dir="auto">文件:行号</code>。</p>
+</blockquote>
+<div class="sl-heading-wrapper level-h2"><h2 id="1-一句话结论">1. 一句话结论</h2><a class="sl-anchor-link" href="#1-一句话结论"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “1. 一句话结论”</span></a></div>
+<p><strong>录音内核（采集 / 编码 / 留档 / 恢复）已经基本追平飞书，差距约 10–15%；但「妙记」产品层差距约 45–55%。</strong></p>
+<p>差距不在算法——飞书没有算法护城河（逆向报告第 0 节原话），而在于：</p>
+<ol>
+<li><strong>实时链路形态不同</strong>：飞书走 RTC 房间上行（流式、无分片延迟），本项目走 5 秒分片轮询；</li>
+<li><strong>产品化外壳缺失</strong>：托盘 / 全局快捷键 / 浮窗 / 单实例 / 退出确认一项都没有；</li>
+<li><strong>说话人分离缺失</strong>：飞书云端 ASR 自带分离能力，本项目本地引擎完全没有；</li>
+<li><strong>弱网补偿缺失</strong>：飞书的「断线补拉」是逆向报告点名的关键设计，本项目只有崩溃恢复，没有断线补拉。</li>
+</ol>
+<div class="sl-heading-wrapper level-h2"><h2 id="2-能力矩阵总表">2. 能力矩阵总表</h2><a class="sl-anchor-link" href="#2-能力矩阵总表"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “2. 能力矩阵总表”</span></a></div>
+<p>图例：✅ 已达成 · ◐ 部分达成 · ❌ 未达成</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>能力</th>
+<th>飞书实现</th>
+<th>本项目状态</th>
+<th>判定</th>
+<th>证据</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>麦克风采集</td>
+<td>ByteRTC</td>
+<td>WASAPI via cpal</td>
+<td>✅</td>
+<td><code dir="auto">crates/audio/src/recording.rs:206</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>系统音频采集</td>
+<td>ByteRTC <code dir="auto">EnableSysAudioCapture</code></td>
+<td>WASAPI loopback</td>
+<td>✅</td>
+<td><code dir="auto">crates/audio/src/recording.rs:206</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>双轨分离保留</td>
+<td>独立 mic/sys</td>
+<td>mic/sys 独立分片</td>
+<td>✅</td>
+<td><code dir="auto">crates/audio/src/opus.rs:47</code> <code dir="auto">Track</code> 枚举</td>
+</tr>
+<tr>
+<td>4</td>
+<td>混音</td>
+<td>ByteRTC <code dir="auto">kCaptureMixed</code></td>
+<td>自行 PCM 混合</td>
+<td>✅</td>
+<td><code dir="auto">recording.rs:156</code> <code dir="auto">drain_realtime_pcm</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td>采样率 48 kHz</td>
+<td><code dir="auto">opus_custom_mode_create(48000, 960)</code></td>
+<td><code dir="auto">OPUS_SAMPLE_RATE = 48_000</code></td>
+<td>✅</td>
+<td><code dir="auto">opus.rs:22</code></td>
+</tr>
+<tr>
+<td>6</td>
+<td>Opus 编码</td>
+<td>libopus, VOIP 为主</td>
+<td>libopus, <strong>已改为 Application::Voip</strong></td>
+<td>✅</td>
+<td><code dir="auto">opus.rs:136</code>、CAP-1 已完成</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Ogg 封装 / CRC / pre-skip</td>
+<td>自研 OggFileEncoder</td>
+<td>完整实现，含 312 pre-skip</td>
+<td>✅</td>
+<td><code dir="auto">opus.rs:239</code>、逆文 3.5 逐条对齐</td>
+</tr>
+<tr>
+<td>8</td>
+<td>分片独立流</td>
+<td>每片独立 OpusHead + EOS</td>
+<td>同</td>
+<td>✅</td>
+<td><code dir="auto">opus.rs:326</code> <code dir="auto">ensure_chunk</code></td>
+</tr>
+<tr>
+<td>9</td>
+<td>尾包补静音</td>
+<td>每片补一帧</td>
+<td>同</td>
+<td>✅</td>
+<td><code dir="auto">opus.rs:295</code> 注释明确</td>
+</tr>
+<tr>
+<td>10</td>
+<td>设备看门狗 / 死锁恢复</td>
+<td><code dir="auto">CheckAudioProcessTimeout</code></td>
+<td>3 秒健康轮询 + <code dir="auto">rebuild()</code></td>
+<td>✅</td>
+<td><code dir="auto">recording.rs:308</code>、<code dir="auto">main.ts:653</code></td>
+</tr>
+<tr>
+<td>11</td>
+<td>设备热插拔 / 默认设备切换</td>
+<td><code dir="auto">DeviceDispatcher</code> + <code dir="auto">HandleDefaultMicrophoneDeviceChanged</code></td>
+<td>仅设备掉线重建，<strong>无默认设备切换跟随</strong></td>
+<td>◐</td>
+<td><code dir="auto">recording.rs:308</code> <code dir="auto">rebuild</code> 需外部传 id</td>
+</tr>
+<tr>
+<td>12</td>
+<td>崩溃恢复</td>
+<td>manifest + checkpoint</td>
+<td>完整实现</td>
+<td>✅</td>
+<td><code dir="auto">crates/core/src/recovery.rs</code></td>
+</tr>
+<tr>
+<td>13</td>
+<td><strong>断线补拉</strong></td>
+<td><code dir="auto">GetUncompleteRecords</code></td>
+<td><strong>无</strong></td>
+<td>❌</td>
+<td>逆向报告 7.3 点名「最容易被忽略的一环」</td>
+</tr>
+<tr>
+<td>14</td>
+<td><strong>RTC 流式上行</strong></td>
+<td>混合 PCM 直推 RTC 房间</td>
+<td><strong>5 秒分片轮询</strong></td>
+<td>❌</td>
+<td><code dir="auto">main.ts:283</code> 250ms 轮询 + 分片</td>
+</tr>
+<tr>
+<td>15</td>
+<td>实时 ASR</td>
+<td>云端 RTC 流 ASR</td>
+<td>云端分片 ASR + 本地 whisper</td>
+<td>◐</td>
+<td><code dir="auto">components.ts:121</code></td>
+</tr>
+<tr>
+<td>16</td>
+<td>实时字幕</td>
+<td>SUBTITLE_UPDATE 事件</td>
+<td>有，5 秒增量</td>
+<td>✅</td>
+<td><code dir="auto">main.ts:282</code> <code dir="auto">pollLive</code></td>
+</tr>
+<tr>
+<td>17</td>
+<td>实时翻译（同传）</td>
+<td>云端</td>
+<td>有，增量翻译</td>
+<td>✅</td>
+<td><code dir="auto">main.ts:66</code> <code dir="auto">liveTranslationGeneration</code></td>
+</tr>
+<tr>
+<td>18</td>
+<td><strong>说话人分离</strong></td>
+<td>云端 ASR 自带</td>
+<td><strong>无</strong></td>
+<td>❌</td>
+<td>规划 DIAR-1</td>
+</tr>
+<tr>
+<td>19</td>
+<td>AI 摘要 / 纪要</td>
+<td>云端 LLM</td>
+<td>有，map-reduce</td>
+<td>✅</td>
+<td><code dir="auto">ai.rs</code> + <code dir="auto">main.ts:1204</code></td>
+</tr>
+<tr>
+<td>20</td>
+<td>待办 / 章节结构化</td>
+<td>云端</td>
+<td><strong>仅自由文本 Markdown</strong>，无字段化待办/章节</td>
+<td>◐</td>
+<td><code dir="auto">components.ts:296</code> textarea</td>
+</tr>
+<tr>
+<td>21</td>
+<td>妙记存储</td>
+<td>飞书云</td>
+<td>本地文件库</td>
+<td>✅（本地化替代）</td>
+<td>README 历史库</td>
+</tr>
+<tr>
+<td>22</td>
+<td>导出</td>
+<td>妙记分享链接</td>
+<td>TXT/SRT/VTT/MD/混音 WAV</td>
+<td>✅</td>
+<td><code dir="auto">src-tauri/src/export.rs</code></td>
+</tr>
+<tr>
+<td>23</td>
+<td><strong>录音浮窗 / 小窗</strong></td>
+<td><code dir="auto">createWindow</code> / <code dir="auto">setMiniWindowSize</code></td>
+<td><strong>无</strong>（单窗口）</td>
+<td>❌</td>
+<td>逆文 4.2 窗口方法族</td>
+</tr>
+<tr>
+<td>24</td>
+<td><strong>托盘</strong></td>
+<td><code dir="auto">tray_start</code> 入口</td>
+<td><strong>无</strong></td>
+<td>❌</td>
+<td>无 tray 相关依赖</td>
+</tr>
+<tr>
+<td>25</td>
+<td><strong>全局快捷键</strong></td>
+<td><code dir="auto">shortcut_start</code></td>
+<td><strong>无</strong></td>
+<td>❌</td>
+<td><code dir="auto">Cargo.toml</code> 无 <code dir="auto">global-shortcut</code></td>
+</tr>
+<tr>
+<td>26</td>
+<td><strong>单实例</strong></td>
+<td>重复启动聚焦已有窗口</td>
+<td><strong>无</strong></td>
+<td>❌</td>
+<td>无 <code dir="auto">single-instance</code> plugin</td>
+</tr>
+<tr>
+<td>27</td>
+<td><strong>录音中退出确认</strong></td>
+<td>二次确认弹窗</td>
+<td><strong>无</strong></td>
+<td>❌</td>
+<td>逆文 6.1 预检流程</td>
+</tr>
+<tr>
+<td>28</td>
+<td><strong>合规 / 权限预检弹窗</strong></td>
+<td><code dir="auto">getExistingPromptDialog</code> / <code dir="auto">setCompliancePreference</code></td>
+<td><strong>无</strong></td>
+<td>❌</td>
+<td>逆文 4.2 合规方法族</td>
+</tr>
+<tr>
+<td>29</td>
+<td>多录音实例归属校验</td>
+<td><code dir="auto">uniId / audioQueryMessageId / audioRecordIdV2 / attemptId</code> 四元组</td>
+<td><strong>无</strong>（单实例模型）</td>
+<td>❌</td>
+<td>逆文 5.3</td>
+</tr>
+<tr>
+<td>30</td>
+<td>窗口状态集</td>
+<td><code dir="auto">start/resume/pause/finish</code> 四态</td>
+<td>有对应状态机</td>
+<td>✅</td>
+<td><code dir="auto">components.ts</code> 状态渲染</td>
+</tr>
+<tr>
+<td>31</td>
+<td>本地 VAD</td>
+<td>采集侧分段</td>
+<td><strong>无</strong></td>
+<td>❌</td>
+<td>规划 WHISPER-3</td>
+</tr>
+<tr>
+<td>32</td>
+<td>APM（降噪/回声消除）</td>
+<td>ByteRTC 内置</td>
+<td><strong>无</strong>，裸 PCM 混合</td>
+<td>❌</td>
+<td>规划 UX-6</td>
+</tr>
+<tr>
+<td>33</td>
+<td>代码签名</td>
+<td>飞书自有证书</td>
+<td>无</td>
+<td>❌</td>
+<td>规划 REL-1</td>
+</tr>
+<tr>
+<td>34</td>
+<td>自动更新</td>
+<td>飞书自有</td>
+<td>无</td>
+<td>❌</td>
+<td>规划 REL-2</td>
+</tr>
+</tbody>
+</table>
+<p><strong>统计</strong>：✅ 17 项 · ◐ 4 项 · ❌ 13 项。</p>
+<div class="sl-heading-wrapper level-h2"><h2 id="3-录音内核已追平的部分">3. 录音内核：已追平的部分</h2><a class="sl-anchor-link" href="#3-录音内核已追平的部分"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “3. 录音内核：已追平的部分”</span></a></div>
+<p>这一层是逆向报告第 9 节判定「完全可以纯 Rust 离线复刻」的部分，<strong>当前实现覆盖度最高</strong>。</p>
+<div class="sl-heading-wrapper level-h3"><h3 id="31-编码一致性">3.1 编码一致性</h3><a class="sl-anchor-link" href="#31-编码一致性"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “3.1 编码一致性”</span></a></div>
+<p>逆文 3.5 列了 7 条 Ogg 封装规则，每一条踩错都有明确症状。当前实现逐条对齐：</p>
+<table>
+<thead>
+<tr>
+<th>规则</th>
+<th>逆文症状</th>
+<th>本项目</th>
+<th>判定</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CRC-32 <code dir="auto">0x04c11db7</code> 不反射不异或</td>
+<td><code dir="auto">CRC mismatch!</code></td>
+<td>已实现</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>CRC 覆盖整页（页头+页体）</td>
+<td><code dir="auto">CRC mismatch!</code></td>
+<td>已实现</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>CRC 小端</td>
+<td><code dir="auto">CRC mismatch!</code></td>
+<td>已实现</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>lacing 按 Opus 包边界</td>
+<td><code dir="auto">Error parsing the packet header</code></td>
+<td>已实现</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>页边界落在包之间</td>
+<td><code dir="auto">Error parsing the packet header</code></td>
+<td>已实现</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><code dir="auto">pre-skip</code> = 编码器 lookahead</td>
+<td>解码时长对不上</td>
+<td><strong>312</strong>（VOIP@48k 实测值）</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>末页 granule = 内容点 + pre_skip</td>
+<td>尾部少 pre_skip 点</td>
+<td><code dir="auto">opus.rs:315</code></td>
+<td>✅</td>
+</tr>
+<tr>
+<td>每片补尾帧</td>
+<td>每片少 312 点</td>
+<td><code dir="auto">opus.rs:295</code></td>
+<td>✅</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>注：<code dir="auto">pre_skip</code> 取 312（<code dir="auto">opus.rs:239</code> 构造期占位，真实值来自 <code dir="auto">Encoder::lookahead()</code>）。
+<strong>实测结论（2026-11-08）</strong>：<code dir="auto">Application::Audio</code> 与 <code dir="auto">Application::Voip</code> 在 48 kHz mono 下的 lookahead <strong>都是 312</strong>，
+码流大小与实际码率也几乎一致（3 秒音：12,193 B vs 12,171 B，均约 32.5 kbps）。
+因此切换 VOIP 模式<strong>不会改变 Ogg 封装行为</strong>，收益来自 VOIP 对语音频段的带宽分配与噪声底优化，而非修正 pre-skip。</p>
+</blockquote>
+<div class="sl-heading-wrapper level-h3"><h3 id="32-分片与恢复">3.2 分片与恢复</h3><a class="sl-anchor-link" href="#32-分片与恢复"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “3.2 分片与恢复”</span></a></div>
+<ul>
+<li>分片是独立流（各有 <code dir="auto">OpusHead</code>、末页 EOS、尾包）——<code dir="auto">opus.rs:326</code></li>
+<li>侧车元数据原子提交（临时文件 + rename）——<code dir="auto">opus.rs:189</code> <code dir="auto">write_new_atomic</code></li>
+<li>崩溃恢复用 manifest + checkpoint，只增不改——<code dir="auto">crates/core/src/recovery.rs</code></li>
+<li><code dir="auto">decode_ogg_opus</code> 解码后按 committed frame count 截断，避免尾包泄漏进时间轴——<code dir="auto">crates/audio/src/decode.rs:29</code></li>
+</ul>
+<p>这套「只增不改 + 原子发布」的设计与 MeetingTape 的 RecoveryStore（逆文 13.1）理念一致，说明前期架构选型做对了。</p>
+<div class="sl-heading-wrapper level-h2"><h2 id="4-关键差距按价值排序">4. 关键差距（按价值排序）</h2><a class="sl-anchor-link" href="#4-关键差距按价值排序"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “4. 关键差距（按价值排序）”</span></a></div>
+<div class="sl-heading-wrapper level-h3"><h3 id="41-差距一实时链路形态-最大差距">4.1 差距一：实时链路形态 ❌（最大差距）</h3><a class="sl-anchor-link" href="#41-差距一实时链路形态-最大差距"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “4.1 差距一：实时链路形态 ❌（最大差距）”</span></a></div>
+<p><strong>飞书</strong>：混合 PCM16 帧<strong>直接</strong>交给 ByteRTC 房间发布，不经过本地文件。云端从 RTC 流做 ASR。所以飞书的实时字幕延迟由网络 RTT 决定，与录音分片无关。</p>
+<p><strong>本项目</strong>：录音分 5 秒一片落盘 → 前端 250ms 轮询已提交分片 → 送 ASR（<code dir="auto">main.ts:283</code>、<code dir="auto">:297</code>）。</p>
+<p><strong>后果</strong>：</p>
+<ul>
+<li>实时字幕固有延迟 ≥ 5 秒（分片周期）而非飞书的亚秒级；</li>
+<li>分片边界断词/重复——这正是规划里 WHISPER-3 要解决的问题；</li>
+<li>弱网下轮询会积压。</li>
+</ul>
+<p><strong>能不能追平？</strong> 不能完全追平，但可以压缩：</p>
+<ul>
+<li><strong>滚动窗口推理</strong>（上一片+当前片）把有效延迟压到单片级别；</li>
+<li><strong>VAD 前端</strong>跳过静音片，直接减少幻觉与无效推理；</li>
+<li><strong>减少分片周期</strong>（5 秒 → 2 秒）代价是分片数×2.5、请求数×2.5。</li>
+</ul>
+<p><strong>代价对比</strong>：飞书为了流式放弃了本地离线（必须连飞书云），本项目用「延迟换离线」。这是<strong>有意的产品取舍</strong>，不是单纯落后。若目标是「离线可用」，当前形态是对的；若目标是「实时同传的体验」，则需要引入真正的流式 ASR（OpenAI Realtime 已经是这个形态，<code dir="auto">components.ts:121</code> 里有 <code dir="auto">openai_realtime</code> provider，但那是云端流式，不是本地）。</p>
+<div class="sl-heading-wrapper level-h3"><h3 id="42-差距二断线补拉-">4.2 差距二：断线补拉 ❌</h3><a class="sl-anchor-link" href="#42-差距二断线补拉-"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “4.2 差距二：断线补拉 ❌”</span></a></div>
+<p>逆文 7.3 明确点名这是「飞书在真实弱网环境下的关键设计，也是 Rust 复刻时最容易被忽略的一环」。</p>
+<p><strong>飞书</strong>：<code dir="auto">voixcapGetUncompleteRecords()</code> 返回断线期间未上传完成的片段，重连后补拉。</p>
+<p><strong>本项目现状</strong>：</p>
+<ul>
+<li>有<strong>崩溃恢复</strong>（进程重启后从 checkpoint 恢复）——<code dir="auto">crates/core/src/recovery.rs</code>；</li>
+<li>但没有<strong>断线补拉</strong>（进程活着、网络断了、期间产生的音频没送出去）。</li>
+</ul>
+<p><strong>差距性质</strong>：这不是崩溃恢复能覆盖的场景。录音继续进行但转写链路断了，本地有音频、有分片，但没有「重试队列」把这批漏掉的补送。</p>
+<p><strong>实现难度</strong>：低。项目已有 <code dir="auto">RecoveryManifest</code> + 分片元数据，缺的只是一个「哪些分片尚未被云端确认」的账本 + 重试循环。<strong>建议归入 WHISPER-2（下载/重试机制）或独立成项</strong>，估 1–2 天。</p>
+<div class="sl-heading-wrapper level-h3"><h3 id="43-差距三说话人分离-">4.3 差距三：说话人分离 ❌</h3><a class="sl-anchor-link" href="#43-差距三说话人分离-"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “4.3 差距三：说话人分离 ❌”</span></a></div>
+<p>飞书妙记的转写里带说话人（云端 ASR 提供），本项目完全没有。</p>
+<p>这条差距<strong>横跨两个维度</strong>：</p>
+<ul>
+<li>技术：规划 DIAR-1 未开工，路线已收敛为 sherpa-rs（见 <a href="/design/on-device-model-research/">端侧模型选型调研</a>）；</li>
+<li>产品：UI 没有说话人标签、没有重命名、没有按说话人筛选。</li>
+</ul>
+<p>注意逆文第 7 节和规划第 7 节的共同边界：<strong>不要用「麦克风/系统」轨道冒充说话人分离</strong>。本项目双轨是「我方麦克风」vs「对方系统声」，不是说话人。</p>
+<div class="sl-heading-wrapper level-h3"><h3 id="44-差距四桌面集成外壳-13-项里占-6-项">4.4 差距四：桌面集成外壳 ❌（13 项里占 6 项）</h3><a class="sl-anchor-link" href="#44-差距四桌面集成外壳-13-项里占-6-项"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “4.4 差距四：桌面集成外壳 ❌（13 项里占 6 项）”</span></a></div>
+<p>飞书有 41 个 IPC 方法，其中一大类是窗口与桌面集成：<code dir="auto">createWindow</code> / <code dir="auto">closeWindow</code> / <code dir="auto">minimizeWindow</code> / <code dir="auto">restoreWindow</code> / <code dir="auto">toggleFullscreen</code> / <code dir="auto">hideWindow</code> / <code dir="auto">showWindow</code> / <code dir="auto">setWindowSize</code> / <code dir="auto">setMiniWindowSize</code> / <code dir="auto">setWindowConstraint</code> / <code dir="auto">showTooltip</code> / <code dir="auto">hideTooltip</code>。</p>
+<p>对应到本项目（<code dir="auto">Cargo.toml</code> 只有 <code dir="auto">tauri</code> + <code dir="auto">protocol-asset</code>）：</p>
+<table>
+<thead>
+<tr>
+<th>能力</th>
+<th>缺失后果</th>
+<th>对应飞书方法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>托盘</td>
+<td>录音中最小化到托盘、后台常驻</td>
+<td><code dir="auto">tray_start</code></td>
+</tr>
+<tr>
+<td>全局快捷键</td>
+<td>不切窗口就能开始/停止录音</td>
+<td><code dir="auto">shortcut_start</code></td>
+</tr>
+<tr>
+<td>单实例</td>
+<td>重复启动产生两个实例，双份录音</td>
+<td>—</td>
+</tr>
+<tr>
+<td>录音浮窗 / 小窗</td>
+<td>全屏会议时需要一个小的悬浮录音窗</td>
+<td><code dir="auto">setMiniWindowSize</code></td>
+</tr>
+<tr>
+<td>录音中退出确认</td>
+<td>误关窗口丢掉整场会议</td>
+<td><code dir="auto">showPromptDialog</code></td>
+</tr>
+<tr>
+<td>合规 / 权限预检</td>
+<td>开录前告知录音用途</td>
+<td><code dir="auto">setCompliancePreference</code></td>
+</tr>
+</tbody>
+</table>
+<p>这一组<strong>都是低风险、无外部依赖</strong>的 Tauri 插件工作（<code dir="auto">tauri-plugin-global-shortcut</code>、<code dir="auto">tauri-plugin-single-instance</code>、<code dir="auto">tauri-plugin-autostart</code>、托盘 API 均为官方插件），且直接决定「能不能在真实会议场景里顺手用」。规划里归在 UX-4（估 2–3 天），但<strong>价值密度高于其优先级</strong>，因为它是「录音中不丢数据」的兜底。</p>
+<div class="sl-heading-wrapper level-h3"><h3 id="45-差距五音频处理质量-">4.5 差距五：音频处理质量 ❌</h3><a class="sl-anchor-link" href="#45-差距五音频处理质量-"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “4.5 差距五：音频处理质量 ❌”</span></a></div>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>飞书</th>
+<th>本项目</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>AEC / 降噪 / AGC</td>
+<td>ByteRTC 内置 APM</td>
+<td>无，裸 PCM 混合</td>
+</tr>
+<tr>
+<td>采集侧 VAD</td>
+<td>有</td>
+<td>无</td>
+</tr>
+</tbody>
+</table>
+<p>混音是简单 PCM 相加，两路信号时延不一致时会相位抵消；飞书走 WebRTC APM 链路。规划里对应 UX-6（增益/降噪/AEC，估 5–10 天）。</p>
+<p><strong>影响面</strong>：AEC 缺失在「笔记本麦克风 + 扬声器外放」场景下会明显影响 ASR 准确率——这是最常见的会议场景。<strong>这条对转写质量的影响可能大于说话人分离</strong>。</p>
+<div class="sl-heading-wrapper level-h3"><h3 id="46-差距六待办--章节未结构化-">4.6 差距六：待办 / 章节未结构化 ◐</h3><a class="sl-anchor-link" href="#46-差距六待办--章节未结构化-"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “4.6 差距六：待办 / 章节未结构化 ◐”</span></a></div>
+<p>飞书妙记的产物是结构化的（章节、待办、摘要）。本项目只有自由文本 Markdown 笔记 + AI 生成的纪要文本。</p>
+<p>当前 <code dir="auto">components.ts:296</code> 是一个 <code dir="auto">&lt;textarea class="meeting-notes"&gt;</code>，用户手打或让 AI 生成 Markdown，没有「待办项列表」「章节树」这类字段化对象。</p>
+<p><strong>影响</strong>：UX-2（转写编辑、说话人重命名、分段合并）依赖说话人字段，也在此列。</p>
+<div class="sl-heading-wrapper level-h2"><h2 id="5-差距量化汇总">5. 差距量化汇总</h2><a class="sl-anchor-link" href="#5-差距量化汇总"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “5. 差距量化汇总”</span></a></div>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>达成度</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>录音内核（采集/编码/留档/恢复）</td>
+<td><strong>85–90%</strong></td>
+<td>Opus 参数有一处待实测（见 6.1），断线补拉缺失</td>
+</tr>
+<tr>
+<td>实时转写链路</td>
+<td><strong>50–60%</strong></td>
+<td>形态不同（分片轮询 vs RTC 流式），功能齐但延迟高</td>
+</tr>
+<tr>
+<td>妙记产品层（摘要/待办/结构化产物）</td>
+<td><strong>40–50%</strong></td>
+<td>摘要有、待办与章节未结构化</td>
+</tr>
+<tr>
+<td>桌面集成与用户体验</td>
+<td><strong>10–20%</strong></td>
+<td>13 项缺失占 6 项</td>
+</tr>
+<tr>
+<td>音频处理质量</td>
+<td><strong>20–30%</strong></td>
+<td>无 APM、无 VAD</td>
+</tr>
+<tr>
+<td>语音增强（说话人分离）</td>
+<td><strong>0%</strong></td>
+<td>未开工</td>
+</tr>
+<tr>
+<td>发布工程（签名/更新）</td>
+<td><strong>0%</strong></td>
+<td>依赖外部证书</td>
+</tr>
+<tr>
+<td><strong>整体</strong></td>
+<td><strong>45–55%</strong></td>
+<td>录音能用，妙记不够用</td>
+</tr>
+</tbody>
+</table>
+<div class="sl-heading-wrapper level-h2"><h2 id="6-建议的行动顺序">6. 建议的行动顺序</h2><a class="sl-anchor-link" href="#6-建议的行动顺序"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “6. 建议的行动顺序”</span></a></div>
+<div class="sl-heading-wrapper level-h3"><h3 id="61-先做验证--补漏12-天">6.1 先做「验证 + 补漏」（1–2 天）</h3><a class="sl-anchor-link" href="#61-先做验证--补漏12-天"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “6.1 先做「验证 + 补漏」（1–2 天）”</span></a></div>
+<ol>
+<li>
+<p><strong>Opus Application 参数对齐</strong>（<code dir="auto">opus.rs:136</code>）✅ <strong>已完成 2026-11-08</strong></p>
+<ul>
+<li>改为 <code dir="auto">Application::Voip</code>，与飞书的 <code dir="auto">OPUS_APPLICATION_VOIP</code> 一致（逆文 3.3，立即数计数 6:2）。</li>
+<li><strong>实测修正</strong>：原判断「<code dir="auto">pre_skip = 312</code> 是 VOIP 的 lookahead、与 AUDIO 编码器不匹配」<strong>不成立</strong>——两种模式 lookahead 都是 312，码流与码率也几乎一致。收益来源修正为 <strong>VOIP 对语音频段的带宽分配与噪声底优化</strong>，切换不影响 Ogg 封装。</li>
+<li>已加回归测试 <code dir="auto">encoder_uses_voip_mode_with_the_expected_lookahead</code> 锁定 VOIP + pre_skip == 312。</li>
+<li>验收：<code dir="auto">cargo fmt --check</code> ✅ / <code dir="auto">cargo clippy --workspace --all-targets -D warnings</code> ✅ / <code dir="auto">cargo test --workspace --all-targets</code> ✅（桌面端 34 passed + 2 ignored，crate 12 passed）。</li>
+<li><strong>仍缺</strong>：黄金向量比对（逆文 11 节：用 <code dir="auto">VOIXCAP_ENABLE_WAV_DUMP=1</code> 抓飞书自己的 PCM 做逐字节码流比对）需要飞书客户端环境，本机未做。</li>
+</ul>
+</li>
+<li>
+<p><strong>断线补拉</strong>（1–2 天）</p>
+<ul>
+<li>在 <code dir="auto">RecoveryManifest</code> 之上加「云端已确认分片」账本 + 重试队列；</li>
+<li>验收：拔网线录音 10 分钟，恢复后分片全部补送，最终转写无缺口。</li>
+</ul>
+</li>
+</ol>
+<div class="sl-heading-wrapper level-h3"><h3 id="62-再做桌面集成23-天ux-4-提前">6.2 再做「桌面集成」（2–3 天，UX-4 提前）</h3><a class="sl-anchor-link" href="#62-再做桌面集成23-天ux-4-提前"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “6.2 再做「桌面集成」（2–3 天，UX-4 提前）”</span></a></div>
+<p>托盘 + 全局快捷键 + 单实例 + 录音中退出确认。这四项都是官方 Tauri 插件，无外部依赖，直接对应飞书的 <code dir="auto">tray_start</code> / <code dir="auto">shortcut_start</code> / <code dir="auto">createWindow</code> 方法族。</p>
+<p><strong>理由</strong>：不是「飞书有我们没有」，而是「录音场景的实际需求」——会议中不方便切窗口，误关窗口等于整场丢失。</p>
+<div class="sl-heading-wrapper level-h3"><h3 id="63-顺带补上并入既有项">6.3 顺带补上（并入既有项）</h3><a class="sl-anchor-link" href="#63-顺带补上并入既有项"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “6.3 顺带补上（并入既有项）”</span></a></div>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>并入</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>本地 VAD</td>
+<td>WHISPER-3</td>
+<td>与 DIAR-1 共用 sherpa-rs 依赖</td>
+</tr>
+<tr>
+<td>说话人分离</td>
+<td>DIAR-1</td>
+<td>路线已收敛，见选型调研</td>
+</tr>
+<tr>
+<td>采集侧 APM</td>
+<td>UX-6</td>
+<td>对转写质量影响可能大于说话人分离</td>
+</tr>
+<tr>
+<td>待办/章节结构化</td>
+<td>UX-3 / 新增</td>
+<td>等说话人字段就绪后一起做</td>
+</tr>
+</tbody>
+</table>
+<div class="sl-heading-wrapper level-h3"><h3 id="64-关于实时链路的取舍需要决策">6.4 关于实时链路的取舍（需要决策）</h3><a class="sl-anchor-link" href="#64-关于实时链路的取舍需要决策"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “6.4 关于实时链路的取舍（需要决策）”</span></a></div>
+<p><strong>这是个产品决策，不是技术债</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>延迟</th>
+<th>离线</th>
+<th>成本</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>维持分片轮询（当前）</td>
+<td>5 秒级</td>
+<td>✅</td>
+<td>低</td>
+</tr>
+<tr>
+<td>滚动窗口 + VAD</td>
+<td>~2–3 秒</td>
+<td>✅</td>
+<td>中</td>
+</tr>
+<tr>
+<td>分片周期降到 2 秒</td>
+<td>~2 秒</td>
+<td>✅</td>
+<td>请求数 ×2.5</td>
+</tr>
+<tr>
+<td>引入流式 ASR</td>
+<td>亚秒</td>
+<td>❌</td>
+<td>需云端或自建流式引擎</td>
+</tr>
+</tbody>
+</table>
+<p><strong>建议</strong>：先做滚动窗口 + VAD（WHISPER-3），把延迟压到 2–3 秒且保持离线。若实测仍不满意，再评估 2 秒分片。<strong>不建议</strong>为此引入 RTC——那是飞书为了用自家云 ASR 而付出的架构代价，本项目走的是相反路线（本地优先），不该抄它的传输层。</p>
+<div class="sl-heading-wrapper level-h2"><h2 id="7-飞书自身未解--不必追平的部分">7. 飞书自身未解 / 不必追平的部分</h2><a class="sl-anchor-link" href="#7-飞书自身未解--不必追平的部分"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “7. 飞书自身未解 / 不必追平的部分”</span></a></div>
+<p>以下不是差距，是不同取舍：</p>
+<ul>
+<li><strong>RTC 上行协议</strong>（逆文 9 节标 ⚠️）：私有协议，除非也用 ByteRTC，否则换 WebSocket/自建。本项目用「本地落盘 + 拉取」，等价且更简单。</li>
+<li><strong>ByteRTC 引擎</strong>：飞书用它做设备枚举与混音。本项目用 cpal + WASAPI 直接做，功能等价。</li>
+<li><strong><code dir="auto">rtm_param</code> / <code dir="auto">update-auth-info</code> 载荷</strong>（逆文 12 节未解）：与云 RTC 强绑定，本项目不需要。</li>
+<li><strong>妙记云存储与分享链接</strong>：本项目走本地文件库 + 本地导出，符合「本地优先」定位。</li>
+</ul>
+<div class="sl-heading-wrapper level-h2"><h2 id="8-引用来源">8. 引用来源</h2><a class="sl-anchor-link" href="#8-引用来源"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “8. 引用来源”</span></a></div>
+<ul>
+<li>规格基线：<a href="/design/feishu-memo-reverse-analysis/">doc/飞书妙记录音-逆向分析.md</a></li>
+<li>端侧模型选型：<a href="/design/on-device-model-research/">doc/端侧模型选型调研.md</a></li>
+<li>路线图：<a href="/design/feature-roadmap/">doc/功能规划.md</a></li>
+<li>飞书妙记录音运行时契约（逆文引用的 <code dir="auto">audio_recorder_contract.json</code>，41 个方法）——逆向阶段提取，未纳入本仓库</li>
+</ul>
+</div><footer class="sl-flex astro-ddtxxk7k"><div class="meta sl-flex astro-ddtxxk7k"><a href="https://github.com/fengjutian/MagneticTape/edit/main/apps/site/src/content/docs/src/content/docs/design/gap-analysis-vs-feishu.md" class="sl-flex print:hidden astro-qlekgd3o"><svg aria-hidden="true" class="astro-qlekgd3o astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.2em;"><path d="M22 7.24a1 1 0 0 0-.29-.71l-4.24-4.24a1 1 0 0 0-1.1-.22 1 1 0 0 0-.32.22l-2.83 2.83L2.29 16.05a1 1 0 0 0-.29.71V21a1 1 0 0 0 1 1h4.24a1 1 0 0 0 .76-.29l10.87-10.93L21.71 8c.1-.1.17-.2.22-.33a1 1 0 0 0 0-.24v-.14l.07-.05ZM6.83 20H4v-2.83l9.93-9.93 2.83 2.83L6.83 20ZM18.17 8.66l-2.83-2.83 1.42-1.41 2.82 2.82-1.41 1.42Z"/></svg>编辑此页</a></div><div class="pagination-links print:hidden astro-b5raizh3" dir="ltr"><a href="/design/technical-improvement-plan/" rel="prev" class="astro-b5raizh3"><svg aria-hidden="true" class="astro-b5raizh3 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.5rem;"><path d="M17 11H9.41l3.3-3.29a1.004 1.004 0 1 0-1.42-1.42l-5 5a1 1 0 0 0-.21.33 1 1 0 0 0 0 .76 1 1 0 0 0 .21.33l5 5a1.002 1.002 0 0 0 1.639-.325 1 1 0 0 0-.219-1.095L9.41 13H17a1 1 0 0 0 0-2Z"/></svg><span class="astro-b5raizh3">上一页<br class="astro-b5raizh3"><span class="link-title astro-b5raizh3">技术改进与修复计划</span></span></a><a href="/design/feishu-memo-reverse-analysis/" rel="next" class="astro-b5raizh3"><svg aria-hidden="true" class="astro-b5raizh3 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.5rem;"><path d="M17.92 11.62a1.001 1.001 0 0 0-.21-.33l-5-5a1.003 1.003 0 1 0-1.42 1.42l3.3 3.29H7a1 1 0 0 0 0 2h7.59l-3.3 3.29a1.002 1.002 0 0 0 .325 1.639 1 1 0 0 0 1.095-.219l5-5a1 1 0 0 0 .21-.33 1 1 0 0 0 0-.76Z"/></svg><span class="astro-b5raizh3">下一页<br class="astro-b5raizh3"><span class="link-title astro-b5raizh3">飞书妙记「录音」功能逆向分析</span></span></a></div></footer></div></div></main></div></div></div></div></body></html>

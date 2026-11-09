@@ -1,0 +1,693 @@
+<!DOCTYPE html><html lang="zh-CN" dir="ltr" data-theme="dark" data-has-toc data-has-sidebar class="astro-g5ptsecz"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>功能规划（未完成项） | MagneticTape</title><link rel="canonical" href="https://magnetictape.netlify.app/design/feature-roadmap/"/><link rel="sitemap" href="/sitemap-index.xml"/><link rel="shortcut icon" href="/./src/assets/favicon.svg" type="image/svg+xml"/><meta name="generator" content="Astro v7.4.7"/><meta name="generator" content="Starlight v0.42.9"/><meta property="og:title" content="功能规划（未完成项）"/><meta property="og:type" content="article"/><meta property="og:url" content="https://magnetictape.netlify.app/design/feature-roadmap/"/><meta property="og:locale" content="zh-CN"/><meta property="og:description" content="尚未实现或尚未验证的功能清单、优先级与里程碑。"/><meta property="og:site_name" content="MagneticTape"/><meta name="twitter:card" content="summary_large_image"/><meta name="description" content="尚未实现或尚未验证的功能清单、优先级与里程碑。"/><script>
+	window.StarlightThemeProvider = (() => {
+		const storedTheme =
+			typeof localStorage !== 'undefined' && localStorage.getItem('starlight-theme');
+		const theme =
+			storedTheme ||
+			(window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+		document.documentElement.dataset.theme = theme === 'light' ? 'light' : 'dark';
+		return {
+			updatePickers(theme = storedTheme || 'auto') {
+				document.querySelectorAll('starlight-theme-select').forEach((picker) => {
+					const select = picker.querySelector('select');
+					if (select) select.value = theme;
+					/** @type {HTMLTemplateElement | null} */
+					const tmpl = document.querySelector(`#theme-icons`);
+					const newIcon = tmpl && tmpl.content.querySelector('.' + theme);
+					if (newIcon) {
+						const oldIcon = picker.querySelector('svg.label-icon');
+						if (oldIcon) {
+							oldIcon.replaceChildren(...newIcon.cloneNode(true).childNodes);
+						}
+					}
+				});
+			},
+		};
+	})();
+</script><template id="theme-icons"><svg aria-hidden="true" class="light astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M5 12a1 1 0 0 0-1-1H3a1 1 0 0 0 0 2h1a1 1 0 0 0 1-1Zm.64 5-.71.71a1 1 0 0 0 0 1.41 1 1 0 0 0 1.41 0l.71-.71A1 1 0 0 0 5.64 17ZM12 5a1 1 0 0 0 1-1V3a1 1 0 0 0-2 0v1a1 1 0 0 0 1 1Zm5.66 2.34a1 1 0 0 0 .7-.29l.71-.71a1 1 0 1 0-1.41-1.41l-.66.71a1 1 0 0 0 0 1.41 1 1 0 0 0 .66.29Zm-12-.29a1 1 0 0 0 1.41 0 1 1 0 0 0 0-1.41l-.71-.71a1.004 1.004 0 1 0-1.43 1.41l.73.71ZM21 11h-1a1 1 0 0 0 0 2h1a1 1 0 0 0 0-2Zm-2.64 6A1 1 0 0 0 17 18.36l.71.71a1 1 0 0 0 1.41 0 1 1 0 0 0 0-1.41l-.76-.66ZM12 6.5a5.5 5.5 0 1 0 5.5 5.5A5.51 5.51 0 0 0 12 6.5Zm0 9a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Zm0 3.5a1 1 0 0 0-1 1v1a1 1 0 0 0 2 0v-1a1 1 0 0 0-1-1Z"/></svg><svg aria-hidden="true" class="dark astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21.64 13a1 1 0 0 0-1.05-.14 8.049 8.049 0 0 1-3.37.73 8.15 8.15 0 0 1-8.14-8.1 8.59 8.59 0 0 1 .25-2A1 1 0 0 0 8 2.36a10.14 10.14 0 1 0 14 11.69 1 1 0 0 0-.36-1.05Zm-9.5 6.69A8.14 8.14 0 0 1 7.08 5.22v.27a10.15 10.15 0 0 0 10.14 10.14 9.784 9.784 0 0 0 2.1-.22 8.11 8.11 0 0 1-7.18 4.32v-.04Z"/></svg><svg aria-hidden="true" class="auto astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21 14h-1V7a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v7H3a1 1 0 0 0-1 1v2a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-2a1 1 0 0 0-1-1ZM6 7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v7H6V7Zm14 10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-1h16v1Z"/></svg></template><link rel="stylesheet" href="/_astro/print.C9eyqPGL.css" media="print"><link rel="stylesheet" href="/_astro/common.BA5iwecf.css"><style>@layer starlight.components{svg:where(.astro-hkc32dio){color:var(--sl-icon-color);font-size:var(--sl-icon-size,1em);width:1em;height:1em;overflow:visible}}
+</style><script type="module" src="/_astro/page.cNngjUgL.js"></script></head><body class="astro-g5ptsecz"><a class="sl-skip-link astro-qb7clj6f" href="#_top">跳转到内容</a><div class="page sl-flex astro-yntsjkba"><header class="header astro-yntsjkba"><div class="header astro-by6fddyj"><div class="title-wrapper sl-flex astro-by6fddyj"><a href="/" class="site-title sl-flex astro-6rvad3va"><img class="astro-6rvad3va" alt src="/_astro/logo.MrVzPhLw.svg" width="32" height="32"><span class="astro-6rvad3va" translate="no">MagneticTape</span></a></div><div class="sl-flex print:hidden astro-by6fddyj"><site-search class="astro-by6fddyj astro-b5kgnn7o" data-translations="{&quot;placeholder&quot;:&quot;搜索&quot;}"><button data-open-modal disabled aria-label="搜索" aria-keyshortcuts="Control+K" class="astro-b5kgnn7o"><svg aria-hidden="true" class="astro-b5kgnn7o astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21.71 20.29 18 16.61A9 9 0 1 0 16.61 18l3.68 3.68a.999.999 0 0 0 1.42 0 1 1 0 0 0 0-1.39ZM11 18a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z"/></svg><span class="sl-hidden md:sl-block astro-b5kgnn7o" aria-hidden="true">搜索</span><kbd class="sl-hidden md:sl-flex astro-b5kgnn7o" style="display: none"><kbd class="astro-b5kgnn7o">Ctrl</kbd><kbd class="astro-b5kgnn7o">K</kbd></kbd></button><dialog style="padding: 0" aria-label="搜索" class="astro-b5kgnn7o"><div class="dialog-frame sl-flex astro-b5kgnn7o"><button data-close-modal class="sl-flex md:sl-hidden astro-b5kgnn7o">取消</button><div class="search-container astro-b5kgnn7o"><div id="starlight__search" class="astro-b5kgnn7o"></div></div></div></dialog></site-search><script>
+	(() => {
+		const openBtn = document.querySelector('button[data-open-modal]');
+		const shortcut = openBtn?.querySelector('kbd');
+		if (!openBtn || !(shortcut instanceof HTMLElement)) return;
+		const platformKey = shortcut.querySelector('kbd');
+		if (platformKey && /(Mac|iPhone|iPod|iPad)/i.test(navigator.platform)) {
+			platformKey.textContent = '⌘';
+			openBtn.setAttribute('aria-keyshortcuts', 'Meta+K');
+		}
+		shortcut.style.display = '';
+	})();
+</script><script type="module" src="/_astro/Search.astro_astro_type_script_index_0_lang.CHGOufdi.js"></script></div><div class="sl-hidden md:sl-flex print:hidden right-group astro-by6fddyj"><div class="sl-flex social-icons astro-by6fddyj"><a href="https://github.com/fengjutian/MagneticTape" rel="me" class="sl-flex astro-n2mnl6yq"><span class="sr-only astro-n2mnl6yq">GitHub 仓库</span><svg aria-hidden="true" class="astro-n2mnl6yq astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.83 1.24 1.83 1.24 1.08 1.83 2.81 1.3 3.5 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3Z"/></svg></a></div><starlight-theme-select><label style="--sl-select-width: 6.25em" class="astro-2z5xp7gb"><span class="sr-only astro-2z5xp7gb">选择主题</span><svg aria-hidden="true" class="icon label-icon astro-2z5xp7gb astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21 14h-1V7a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v7H3a1 1 0 0 0-1 1v2a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-2a1 1 0 0 0-1-1ZM6 7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v7H6V7Zm14 10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-1h16v1Z"/></svg><select autocomplete="off" class="astro-2z5xp7gb"><option value="dark" class="astro-2z5xp7gb">深色</option><option value="light" class="astro-2z5xp7gb">浅色</option><option value="auto" selected class="astro-2z5xp7gb">自动</option></select><svg aria-hidden="true" class="icon caret astro-2z5xp7gb astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M17 9.17a1 1 0 0 0-1.41 0L12 12.71 8.46 9.17a1 1 0 1 0-1.41 1.42l4.24 4.24a1.002 1.002 0 0 0 1.42 0L17 10.59a1.002 1.002 0 0 0 0-1.42Z"/></svg></label></starlight-theme-select><script>
+	StarlightThemeProvider.updatePickers();
+</script><script type="module">var e=`starlight-theme`,t=e=>e===`auto`||e===`dark`||e===`light`?e:`auto`,n=()=>t(typeof localStorage<`u`&&localStorage.getItem(e));function r(t){typeof localStorage<`u`&&localStorage.setItem(e,t===`light`||t===`dark`?t:``)}var i=()=>matchMedia(`(prefers-color-scheme: light)`).matches?`light`:`dark`;function a(e){StarlightThemeProvider.updatePickers(e),document.documentElement.dataset.theme=e===`auto`?i():e,r(e)}matchMedia(`(prefers-color-scheme: light)`).addEventListener(`change`,()=>{n()===`auto`&&a(`auto`)});var o=class extends HTMLElement{constructor(){super(),a(n()),this.querySelector(`select`)?.addEventListener(`change`,e=>{e.currentTarget instanceof HTMLSelectElement&&a(t(e.currentTarget.value))})}};customElements.define(`starlight-theme-select`,o);</script><script type="module">var e=class extends HTMLElement{constructor(){super();let e=this.querySelector(`select`);e&&(e.addEventListener(`change`,e=>{e.currentTarget instanceof HTMLSelectElement&&(window.location.pathname=e.currentTarget.value)}),window.addEventListener(`pageshow`,t=>{if(!t.persisted)return;let n=e.querySelector(`option[selected]`)?.index;n!==e.selectedIndex&&(e.selectedIndex=n??0)}))}};customElements.define(`starlight-lang-select`,e);</script></div></div></header><nav class="sidebar print:hidden astro-yntsjkba" aria-label="主要"><button popovertarget="starlight__sidebar" class="sl-menu-button sl-flex md:sl-hidden print:hidden astro-r2osgdlg"><svg aria-hidden="true" class="open-menu astro-r2osgdlg astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M3 8h18a1 1 0 1 0 0-2H3a1 1 0 0 0 0 2Zm18 8H3a1 1 0 0 0 0 2h18a1 1 0 0 0 0-2Zm0-5H3a1 1 0 0 0 0 2h18a1 1 0 0 0 0-2Z"/></svg><svg aria-hidden="true" class="close-menu astro-r2osgdlg astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="m13.41 12 6.3-6.29a1.004 1.004 0 1 0-1.42-1.42L12 10.59l-6.29-6.3a1.004 1.004 0 0 0-1.42 1.42l6.3 6.29-6.3 6.29a1 1 0 0 0 0 1.42.998.998 0 0 0 1.42 0l6.29-6.3 6.29 6.3a.999.999 0 0 0 1.42 0 1 1 0 0 0 0-1.42L13.41 12Z"/></svg><span class="sr-only astro-r2osgdlg">菜单</span></button><script type="module">var e=class extends HTMLElement{constructor(){super();let e=matchMedia(`(min-width: 50em)`),t=()=>{this.popover=e.matches?null:`auto`};t(),e.addEventListener(`change`,()=>t()),this.addEventListener(`toggle`,({newState:e})=>this.trapFocus(e===`open`))}trapFocus(e){document.querySelectorAll(`.main-frame, .sl-skip-link`).forEach(t=>{t.toggleAttribute(`inert`,e)})}};customElements.define(`sl-sidebar-pane`,e);</script><sl-sidebar-pane popover id="starlight__sidebar" class="sidebar-pane astro-yntsjkba"><div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="04s6pek" class="astro-ipdry5cl"><script aria-hidden="true">
+		(() => {
+			try {
+				if (!matchMedia('(min-width: 50em)').matches) return;
+				/** @type {HTMLElement | null} */
+				const target = document.querySelector('sl-sidebar-state-persist');
+				const state = JSON.parse(sessionStorage.getItem('sl-sidebar-state') || '0');
+				if (!target || !state || target.dataset.hash !== state.hash) return;
+				window._starlightScrollRestore = state.scroll;
+				customElements.define(
+					'sl-sidebar-restore',
+					class SidebarRestore extends HTMLElement {
+						connectedCallback() {
+							try {
+								const idx = parseInt(this.dataset.index || '');
+								const details = this.closest('details');
+								if (details && typeof state.open[idx] === 'boolean') details.open = state.open[idx];
+							} catch {}
+						}
+					}
+				);
+			} catch {}
+		})();
+	</script><ul class="top-level astro-rmhv4bp6"><li class="astro-rmhv4bp6"><details open class="astro-rmhv4bp6"><summary class="astro-rmhv4bp6"><span class="group-label astro-rmhv4bp6"><span class="large astro-rmhv4bp6">开始</span></span><svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="0"></sl-sidebar-restore><ul class="astro-rmhv4bp6"><li class="astro-rmhv4bp6"><a href="/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">项目概览</span></a></li><li class="astro-rmhv4bp6"><a href="/start/install/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">安装</span></a></li><li class="astro-rmhv4bp6"><a href="/start/quick-start/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">快速开始</span></a></li></ul></details></li><li class="astro-rmhv4bp6"><details open class="astro-rmhv4bp6"><summary class="astro-rmhv4bp6"><span class="group-label astro-rmhv4bp6"><span class="large astro-rmhv4bp6">使用指南</span></span><svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="1"></sl-sidebar-restore><ul class="astro-rmhv4bp6"><li class="astro-rmhv4bp6"><a href="/guide/recording/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">录音与回放</span></a></li><li class="astro-rmhv4bp6"><a href="/guide/transcription/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">字幕与转写</span></a></li><li class="astro-rmhv4bp6"><a href="/guide/ai/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">AI 能力</span></a></li><li class="astro-rmhv4bp6"><a href="/guide/export/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">导出与整理</span></a></li><li class="astro-rmhv4bp6"><a href="/guide/settings/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">设置参考</span></a></li><li class="astro-rmhv4bp6"><a href="/guide/privacy/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">数据与隐私</span></a></li><li class="astro-rmhv4bp6"><a href="/guide/faq/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">常见问题</span></a></li></ul></details></li><li class="astro-rmhv4bp6"><details open class="astro-rmhv4bp6"><summary class="astro-rmhv4bp6"><span class="group-label astro-rmhv4bp6"><span class="large astro-rmhv4bp6">设计文档</span></span><svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="2"></sl-sidebar-restore><ul class="astro-rmhv4bp6"><li class="astro-rmhv4bp6"><a href="/design/ui-guidelines/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">UI 设计规范</span></a></li><li class="astro-rmhv4bp6"><a href="/design/visual-style-v7/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">视觉风格 v7：极光玻璃</span></a></li><li class="astro-rmhv4bp6"><a href="/design/recorder-layout/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">录音页面布局需求</span></a></li><li class="astro-rmhv4bp6"><a href="/design/workspace-requirements/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">AI 录音工作台 UI/UX 需求</span></a></li><li class="astro-rmhv4bp6"><a href="/design/workspace-layout-spec/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">AI 录音工作台布局实现规格</span></a></li><li class="astro-rmhv4bp6"><a href="/design/workspace-ui-v1-spec/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">Workspace UI V1.0 详细设计规格</span></a></li><li class="astro-rmhv4bp6"><a href="/design/local-whisper-requirements/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">本地 Whisper 转写需求</span></a></li><li class="astro-rmhv4bp6"><a href="/design/on-device-model-research/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">端侧模型选型调研</span></a></li><li class="astro-rmhv4bp6"><a href="/design/diar-1-spike-report/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">DIAR-1 spike 报告</span></a></li><li class="astro-rmhv4bp6"><a href="/design/realtime-subtitle-and-speakers/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">实时字幕与说话人分离</span></a></li><li class="astro-rmhv4bp6"><a href="/design/feature-roadmap/" aria-current="page" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">功能规划（未完成项）</span></a></li><li class="astro-rmhv4bp6"><a href="/design/technical-improvement-plan/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">技术改进与修复计划</span></a></li><li class="astro-rmhv4bp6"><a href="/design/gap-analysis-vs-feishu/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">对标飞书妙记差距分析</span></a></li><li class="astro-rmhv4bp6"><a href="/design/feishu-memo-reverse-analysis/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">飞书妙记「录音」功能逆向分析</span></a></li></ul></details></li></ul><script aria-hidden="true">
+		(() => {
+			const scroller = document.getElementById('starlight__sidebar');
+			if (!window._starlightScrollRestore || !scroller) return;
+			scroller.scrollTop = window._starlightScrollRestore;
+			delete window._starlightScrollRestore;
+		})();
+	</script></sl-sidebar-state-persist><div class="md:sl-hidden"><div class="mobile-preferences sl-flex astro-p4azlveh"><div class="social-icons astro-p4azlveh"><a href="https://github.com/fengjutian/MagneticTape" rel="me" class="sl-flex astro-n2mnl6yq"><span class="sr-only astro-n2mnl6yq">GitHub 仓库</span><svg aria-hidden="true" class="astro-n2mnl6yq astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.83 1.24 1.83 1.24 1.08 1.83 2.81 1.3 3.5 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3Z"/></svg></a></div><starlight-theme-select><label style="--sl-select-width: 6.25em" class="astro-2z5xp7gb"><span class="sr-only astro-2z5xp7gb">选择主题</span><svg aria-hidden="true" class="icon label-icon astro-2z5xp7gb astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21 14h-1V7a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v7H3a1 1 0 0 0-1 1v2a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-2a1 1 0 0 0-1-1ZM6 7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v7H6V7Zm14 10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-1h16v1Z"/></svg><select autocomplete="off" class="astro-2z5xp7gb"><option value="dark" class="astro-2z5xp7gb">深色</option><option value="light" class="astro-2z5xp7gb">浅色</option><option value="auto" selected class="astro-2z5xp7gb">自动</option></select><svg aria-hidden="true" class="icon caret astro-2z5xp7gb astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M17 9.17a1 1 0 0 0-1.41 0L12 12.71 8.46 9.17a1 1 0 1 0-1.41 1.42l4.24 4.24a1.002 1.002 0 0 0 1.42 0L17 10.59a1.002 1.002 0 0 0 0-1.42Z"/></svg></label></starlight-theme-select><script>
+	StarlightThemeProvider.updatePickers();
+</script></div></div></div></sl-sidebar-pane></nav><div class="main-frame astro-yntsjkba"><script type="module">var e=document.getElementById(`starlight__sidebar`),t=e?.querySelector(`sl-sidebar-state-persist`),n=`sl-sidebar-state`,r=()=>{let r=[],i=t?.dataset.hash||``;try{let e=sessionStorage.getItem(n),t=JSON.parse(e||`{}`);Array.isArray(t.open)&&t.hash===i&&(r=t.open)}catch{}return{hash:i,open:r,scroll:e?.scrollTop||0}},i=e=>{try{sessionStorage.setItem(n,JSON.stringify(e))}catch{}},a=()=>i(r()),o=(e,t)=>{let n=r();n.open[t]=e,i(n)};t?.addEventListener(`click`,e=>{if(!(e.target instanceof Element))return;let t=e.target.closest(`summary`)?.closest(`details`);if(!t)return;let n=t.querySelector(`sl-sidebar-restore`),r=parseInt(n?.dataset.index||``);isNaN(r)||o(!t.open,r)}),addEventListener(`visibilitychange`,()=>{document.visibilityState===`hidden`&&a()});</script><div class="lg:sl-flex astro-lrzkfocr"><aside class="right-sidebar-container print:hidden astro-lrzkfocr"><div class="right-sidebar astro-lrzkfocr"><div class="lg:sl-hidden astro-qok35upx"><mobile-starlight-toc data-min-h="2" data-max-h="3" class="astro-66cqc7ze"><nav aria-labelledby="starlight__on-this-page--mobile" class="astro-66cqc7ze"><details id="starlight__mobile-toc" class="astro-66cqc7ze"><summary id="starlight__on-this-page--mobile" class="sl-flex astro-66cqc7ze"><span class="toggle sl-flex astro-66cqc7ze">本页内容<svg aria-hidden="true" class="caret astro-66cqc7ze astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></span><span class="display-current astro-66cqc7ze"></span></summary><div class="dropdown astro-66cqc7ze"><ul class="isMobile astro-jugkfwgx" style="--depth: 0;"><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#_top" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">概述</span></a></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#1-总览" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">1. 总览</span></a><ul class="isMobile astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#11-已完成基线" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">1.1 已完成（基线）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#12-未完成项索引" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">1.2 未完成项索引</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#13-录音内核补漏2026-11-08-新增" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">1.3 录音内核补漏（2026-11-08 新增）</span></a><ul class="isMobile astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#cap-1-opus-编码参数对齐-已完成-2026-11-08" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">CAP-1 Opus 编码参数对齐 ✅（已完成 2026-11-08）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#cap-2-断线补拉p1" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">CAP-2 断线补拉（P1）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#cap-3-默认设备切换跟随p2" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">CAP-3 默认设备切换跟随（P2）</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#2-本地-whisper-收尾" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">2. 本地 Whisper 收尾</span></a><ul class="isMobile astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#whisper-1-cuda-引擎运行验证p0" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">WHISPER-1 CUDA 引擎运行验证（P0）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#whisper-2-引擎下载优化p1" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">WHISPER-2 引擎下载优化（P1）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#whisper-3-本地实时字幕质量p1" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">WHISPER-3 本地实时字幕质量（P1）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#whisper-4-vulkan-引擎变体p2" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">WHISPER-4 Vulkan 引擎变体（P2）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#whisper-5-内嵌-whispercpp-绑定p2" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">WHISPER-5 内嵌 whisper.cpp 绑定（P2）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#diar-1-说话人分离p1" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">DIAR-1 说话人分离（P1）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#llm-1-本地小模型离线-aip2" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">LLM-1 本地小模型离线 AI（P2）</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#3-发布工程" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">3. 发布工程</span></a><ul class="isMobile astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#rel-1-代码签名p0" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">REL-1 代码签名（P0）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#rel-2-自动更新p0" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">REL-2 自动更新（P0）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#rel-3-崩溃上报与本地日志-已完成-2026-11-06" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">REL-3 崩溃上报与本地日志 ✅（已完成 2026-11-06）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#rel-4-远程崩溃上报p2" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">REL-4 远程崩溃上报（P2）</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#4-质量与测试" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">4. 质量与测试</span></a><ul class="isMobile astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#qa-1-前端单元测试-已完成-2026-11-06" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">QA-1 前端单元测试 ✅（已完成 2026-11-06）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#qa-2a-浏览器模式端到端p1已完成-2026-11-06" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">QA-2a 浏览器模式端到端（P1，已完成 2026-11-06）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#qa-2b-真实-tauri-进程端到端p1" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">QA-2b 真实 Tauri 进程端到端（P1）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#qa-3-ci-强化p1" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">QA-3 CI 强化（P1）</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#5-产品体验" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">5. 产品体验</span></a><ul class="isMobile astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#ux-1-历史库全文搜索与筛选p2" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">UX-1 历史库全文搜索与筛选（P2）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#ux-2-转写编辑与说话人重命名p2" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">UX-2 转写编辑与说话人重命名（P2）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#ux-3-导出增强p2" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">UX-3 导出增强（P2）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#ux-4-桌面集成p2" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">UX-4 桌面集成（P2）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#ux-5-数据备份导入与迁移p2" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">UX-5 数据备份/导入与迁移（P2）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#ux-6-采集增强p2" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">UX-6 采集增强（P2）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#ux-7-国际化与深色模式p3" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">UX-7 国际化与深色模式（P3）</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#6-平台" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">6. 平台</span></a><ul class="isMobile astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#plat-1-macos--linuxp3" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">PLAT-1 macOS / Linux（P3）</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#7-明确不做保持边界" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">7. 明确不做（保持边界）</span></a></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#8-里程碑建议" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">8. 里程碑建议</span></a></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#9-近期行动建议2026-11-08" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">9. 近期行动建议（2026-11-08）</span></a></li></ul></div></details></nav></mobile-starlight-toc><script type="module" src="/_astro/MobileTableOfContents.astro_astro_type_script_index_0_lang.C3fM4Kra.js"></script></div><div class="right-sidebar-panel sl-hidden lg:sl-block astro-qok35upx"><div class="sl-container astro-qok35upx"><starlight-toc data-min-h="2" data-max-h="3"><nav aria-labelledby="starlight__on-this-page"><h2 id="starlight__on-this-page">本页内容</h2><ul class="astro-jugkfwgx" style="--depth: 0;"><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#_top" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">概述</span></a></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#1-总览" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">1. 总览</span></a><ul class="astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#11-已完成基线" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">1.1 已完成（基线）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#12-未完成项索引" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">1.2 未完成项索引</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#13-录音内核补漏2026-11-08-新增" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">1.3 录音内核补漏（2026-11-08 新增）</span></a><ul class="astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#cap-1-opus-编码参数对齐-已完成-2026-11-08" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">CAP-1 Opus 编码参数对齐 ✅（已完成 2026-11-08）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#cap-2-断线补拉p1" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">CAP-2 断线补拉（P1）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#cap-3-默认设备切换跟随p2" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">CAP-3 默认设备切换跟随（P2）</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#2-本地-whisper-收尾" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">2. 本地 Whisper 收尾</span></a><ul class="astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#whisper-1-cuda-引擎运行验证p0" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">WHISPER-1 CUDA 引擎运行验证（P0）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#whisper-2-引擎下载优化p1" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">WHISPER-2 引擎下载优化（P1）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#whisper-3-本地实时字幕质量p1" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">WHISPER-3 本地实时字幕质量（P1）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#whisper-4-vulkan-引擎变体p2" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">WHISPER-4 Vulkan 引擎变体（P2）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#whisper-5-内嵌-whispercpp-绑定p2" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">WHISPER-5 内嵌 whisper.cpp 绑定（P2）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#diar-1-说话人分离p1" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">DIAR-1 说话人分离（P1）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#llm-1-本地小模型离线-aip2" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">LLM-1 本地小模型离线 AI（P2）</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#3-发布工程" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">3. 发布工程</span></a><ul class="astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#rel-1-代码签名p0" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">REL-1 代码签名（P0）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#rel-2-自动更新p0" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">REL-2 自动更新（P0）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#rel-3-崩溃上报与本地日志-已完成-2026-11-06" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">REL-3 崩溃上报与本地日志 ✅（已完成 2026-11-06）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#rel-4-远程崩溃上报p2" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">REL-4 远程崩溃上报（P2）</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#4-质量与测试" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">4. 质量与测试</span></a><ul class="astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#qa-1-前端单元测试-已完成-2026-11-06" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">QA-1 前端单元测试 ✅（已完成 2026-11-06）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#qa-2a-浏览器模式端到端p1已完成-2026-11-06" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">QA-2a 浏览器模式端到端（P1，已完成 2026-11-06）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#qa-2b-真实-tauri-进程端到端p1" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">QA-2b 真实 Tauri 进程端到端（P1）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#qa-3-ci-强化p1" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">QA-3 CI 强化（P1）</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#5-产品体验" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">5. 产品体验</span></a><ul class="astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#ux-1-历史库全文搜索与筛选p2" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">UX-1 历史库全文搜索与筛选（P2）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#ux-2-转写编辑与说话人重命名p2" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">UX-2 转写编辑与说话人重命名（P2）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#ux-3-导出增强p2" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">UX-3 导出增强（P2）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#ux-4-桌面集成p2" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">UX-4 桌面集成（P2）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#ux-5-数据备份导入与迁移p2" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">UX-5 数据备份/导入与迁移（P2）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#ux-6-采集增强p2" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">UX-6 采集增强（P2）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#ux-7-国际化与深色模式p3" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">UX-7 国际化与深色模式（P3）</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#6-平台" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">6. 平台</span></a><ul class="astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#plat-1-macos--linuxp3" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">PLAT-1 macOS / Linux（P3）</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#7-明确不做保持边界" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">7. 明确不做（保持边界）</span></a></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#8-里程碑建议" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">8. 里程碑建议</span></a></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#9-近期行动建议2026-11-08" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">9. 近期行动建议（2026-11-08）</span></a></li></ul></nav></starlight-toc><script type="module" src="/_astro/TableOfContents.astro_astro_type_script_index_0_lang.BpJaGz7G.js"></script></div></div></div></aside><div class="main-pane astro-lrzkfocr"><main data-pagefind-body class="astro-g5ptsecz" lang="zh-CN" dir="ltr"><div class="content-panel astro-a7po4psb"><div class="sl-container astro-a7po4psb"><h1 id="_top" class="astro-bebwqqxs">功能规划（未完成项）</h1></div></div><div class="content-panel astro-a7po4psb"><div class="sl-container astro-a7po4psb"><div class="sl-markdown-content"><blockquote>
+<p>本页由仓库 <code dir="auto">doc/功能规划.md</code> 自动同步，内容以主仓库为准。
+<a href="https://github.com/fengjutian/MagneticTape/blob/main/doc/%E5%8A%9F%E8%83%BD%E8%A7%84%E5%88%92.md">在 GitHub 上查看源文件</a></p>
+</blockquote>
+<blockquote>
+<p>状态：进行中
+更新日期：2026-11-08
+适用范围：<code dir="auto">apps/desktop</code>、<code dir="auto">crates/*</code>、发布流程
+说明：本文档记录<strong>尚未实现或尚未验证</strong>的功能与工程项，作为本地路线图与验收依据。已完成项见 README「当前进度」。
+端侧模型选型（MNN-Pocket-0.3B、sherpa 生态）见 <a href="/design/on-device-model-research/">端侧模型选型调研</a>。</p>
+</blockquote>
+<div class="sl-heading-wrapper level-h2"><h2 id="1-总览">1. 总览</h2><a class="sl-anchor-link" href="#1-总览"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “1. 总览”</span></a></div>
+<div class="sl-heading-wrapper level-h3"><h3 id="11-已完成基线">1.1 已完成（基线）</h3><a class="sl-anchor-link" href="#11-已完成基线"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “1.1 已完成（基线）”</span></a></div>
+<ul>
+<li>双路录音、Ogg Opus 分片、崩溃恢复、设备 watchdog。</li>
+<li>云端转写（MiniMax / SiliconFlow / OpenAI Realtime 实时）、实时字幕、AI 同传。</li>
+<li>本地 Whisper：引擎/模型下载与校验、录后转写、<strong>本地实时字幕</strong>、热词提示、CPU 引擎。</li>
+<li>统一播放时间轴、字幕点击跳转与高亮、倍速与进度拖动。</li>
+<li>翻译、会议纪要（长文本分块 / map-reduce）、导出、历史库、存储清理。</li>
+<li>本地日志与诊断：滚动日志（10 MB × 5、保留 7 天）、崩溃报告文件、打开日志目录、导出诊断包（不含音频/密钥/转写正文）。</li>
+<li>前端单元测试与覆盖率门禁（vitest + jsdom，28 个用例，时间轴/设置合并/转写状态机/组件渲染）。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="12-未完成项索引">1.2 未完成项索引</h3><a class="sl-anchor-link" href="#12-未完成项索引"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “1.2 未完成项索引”</span></a></div>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>功能</th>
+<th>优先级</th>
+<th>依赖</th>
+<th>估算</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>WHISPER-1</td>
+<td>CUDA 引擎运行验证</td>
+<td>P0</td>
+<td>网络 / NVIDIA GPU</td>
+<td>0.5 天</td>
+</tr>
+<tr>
+<td>WHISPER-2</td>
+<td>引擎下载优化（断点续传、镜像、限速提示）</td>
+<td>P1</td>
+<td>—</td>
+<td>1–2 天</td>
+</tr>
+<tr>
+<td>WHISPER-3</td>
+<td>本地实时字幕质量（滚动窗口 + VAD + 去重）</td>
+<td>P1</td>
+<td>WHISPER-1</td>
+<td>3–5 天</td>
+</tr>
+<tr>
+<td>WHISPER-4</td>
+<td>Vulkan 引擎变体</td>
+<td>P2</td>
+<td>硬件 / 驱动测试</td>
+<td>2–3 天</td>
+</tr>
+<tr>
+<td>WHISPER-5</td>
+<td>内嵌 whisper.cpp 绑定（去子进程）</td>
+<td>P2</td>
+<td>libclang + C++ 工具链</td>
+<td>5–8 天</td>
+</tr>
+<tr>
+<td>DIAR-1</td>
+<td>说话人分离</td>
+<td>P1</td>
+<td>额外 diarization 模型</td>
+<td>2.5–3.5 天（spike 已完成）</td>
+</tr>
+<tr>
+<td>LLM-1</td>
+<td>本地小模型离线 AI（摘要/翻译）</td>
+<td>P2</td>
+<td>端侧 LLM 运行时</td>
+<td>3–5 天</td>
+</tr>
+<tr>
+<td>CAP-1</td>
+<td>Opus 编码 VOIP 模式对齐</td>
+<td>P1</td>
+<td><del>黄金向量比对</del></td>
+<td>✅ 已完成</td>
+</tr>
+<tr>
+<td>CAP-2</td>
+<td>断线补拉</td>
+<td>P1</td>
+<td>现有 manifest</td>
+<td>1–2 天</td>
+</tr>
+<tr>
+<td>CAP-3</td>
+<td>默认设备切换自动跟随</td>
+<td>P2</td>
+<td>IMMNotificationClient</td>
+<td>1 天</td>
+</tr>
+<tr>
+<td>REL-1</td>
+<td>代码签名</td>
+<td>P0</td>
+<td>证书 / 签名服务</td>
+<td>1–2 天</td>
+</tr>
+<tr>
+<td>REL-2</td>
+<td>自动更新</td>
+<td>P0</td>
+<td>REL-1</td>
+<td>2–3 天</td>
+</tr>
+<tr>
+<td>REL-3</td>
+<td><del>崩溃上报与本地日志</del> ✅ 已完成（本地日志/崩溃报告/诊断包）</td>
+<td>P0</td>
+<td>—</td>
+<td>已完成</td>
+</tr>
+<tr>
+<td>REL-4</td>
+<td>远程崩溃上报（可选、匿名、需用户同意）</td>
+<td>P2</td>
+<td>REL-3</td>
+<td>1–2 天</td>
+</tr>
+<tr>
+<td>QA-1</td>
+<td>前端单元测试（vitest）✅ 已完成</td>
+<td>P1</td>
+<td>—</td>
+<td>已完成</td>
+</tr>
+<tr>
+<td>QA-2a</td>
+<td>浏览器模式端到端（Playwright + Edge + IPC mock）✅ 已完成</td>
+<td>P1</td>
+<td>QA-1</td>
+<td>已完成</td>
+</tr>
+<tr>
+<td>QA-2b</td>
+<td>真实 Tauri 进程端到端（tauri-driver + WebdriverIO）</td>
+<td>P1</td>
+<td>QA-2a</td>
+<td>3–5 天</td>
+</tr>
+<tr>
+<td>QA-3</td>
+<td>CI 打包冒烟 / 依赖审计 / 覆盖率</td>
+<td>P1</td>
+<td>—</td>
+<td>2 天</td>
+</tr>
+<tr>
+<td>UX-1</td>
+<td>历史库全文搜索与筛选</td>
+<td>P2</td>
+<td>—</td>
+<td>2–3 天</td>
+</tr>
+<tr>
+<td>UX-2</td>
+<td>转写编辑、说话人重命名、分段合并</td>
+<td>P2</td>
+<td>DIAR-1</td>
+<td>3–5 天</td>
+</tr>
+<tr>
+<td>UX-3</td>
+<td>导出 PDF/DOCX、复制纪要</td>
+<td>P2</td>
+<td>—</td>
+<td>2–3 天</td>
+</tr>
+<tr>
+<td>UX-4</td>
+<td>托盘 / 单实例 / 全局快捷键 / 录音中退出确认</td>
+<td>P2</td>
+<td>—</td>
+<td>2–3 天</td>
+</tr>
+<tr>
+<td>UX-5</td>
+<td>数据备份/导入与 schema 迁移</td>
+<td>P2</td>
+<td>—</td>
+<td>3–4 天</td>
+</tr>
+<tr>
+<td>UX-6</td>
+<td>采集增强：增益/降噪/AEC、进程级回环</td>
+<td>P2</td>
+<td>WASAPI 研究</td>
+<td>5–10 天</td>
+</tr>
+<tr>
+<td>UX-7</td>
+<td>i18n 与深色模式</td>
+<td>P3</td>
+<td>—</td>
+<td>3–5 天</td>
+</tr>
+<tr>
+<td>PLAT-1</td>
+<td>macOS / Linux 支持</td>
+<td>P3</td>
+<td>采集层重写</td>
+<td>15+ 天</td>
+</tr>
+</tbody>
+</table>
+<p>估算为开发工作量，不含测试环境等待与审核；仅为排序参考。</p>
+<blockquote>
+<p>对标飞书妙记的逐项差距与量化见 <a href="/design/gap-analysis-vs-feishu/">对标飞书妙记差距分析</a>。
+结论：录音内核已达 85–90%，妙记产品层约 45–55%，桌面集成约 10–20%。</p>
+</blockquote>
+<div class="sl-heading-wrapper level-h2"><h2 id="13-录音内核补漏2026-11-08-新增">1.3 录音内核补漏（2026-11-08 新增）</h2><a class="sl-anchor-link" href="#13-录音内核补漏2026-11-08-新增"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “1.3 录音内核补漏（2026-11-08 新增）”</span></a></div>
+<p>以下三项由对标飞书逆向规格时发现，属独立可验收项：</p>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>功能</th>
+<th>优先级</th>
+<th>依赖</th>
+<th>估算</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CAP-1</td>
+<td>Opus 编码改为 VOIP 应用模式</td>
+<td>P1</td>
+<td>黄金向量比对</td>
+<td>0.5 天</td>
+</tr>
+<tr>
+<td>CAP-2</td>
+<td>断线补拉（未确认分片重送）</td>
+<td>P1</td>
+<td>现有 manifest</td>
+<td>1–2 天</td>
+</tr>
+<tr>
+<td>CAP-3</td>
+<td>默认设备切换自动跟随</td>
+<td>P2</td>
+<td>IMMNotificationClient</td>
+<td>1 天</td>
+</tr>
+</tbody>
+</table>
+<div class="sl-heading-wrapper level-h3"><h3 id="cap-1-opus-编码参数对齐-已完成-2026-11-08">CAP-1 Opus 编码参数对齐 ✅（已完成 2026-11-08）</h3><a class="sl-anchor-link" href="#cap-1-opus-编码参数对齐-已完成-2026-11-08"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “CAP-1 Opus 编码参数对齐 ✅（已完成 2026-11-08）”</span></a></div>
+<ul>
+<li>
+<p>原状：<code dir="auto">crates/audio/src/opus.rs:136</code> 使用 <code dir="auto">Application::Audio</code>；飞书主用 <code dir="auto">OPUS_APPLICATION_VOIP</code>（逆向报告 3.3，立即数计数 6:2）。</p>
+</li>
+<li>
+<p><strong>实测修正</strong>：原判断「<code dir="auto">pre-skip = 312</code> 是 VOIP 的 lookahead、与 AUDIO 编码器不匹配」<strong>不成立</strong>。探针实测（48 kHz mono，同参数）：</p>
+<table>
+<thead>
+<tr>
+<th>模式</th>
+<th>lookahead</th>
+<th>3 秒音码流</th>
+<th>实际码率</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code dir="auto">Application::Audio</code></td>
+<td>312</td>
+<td>12,193 B</td>
+<td>32.5 kbps</td>
+</tr>
+<tr>
+<td><code dir="auto">Application::Voip</code></td>
+<td>312</td>
+<td>12,171 B</td>
+<td>32.5 kbps</td>
+</tr>
+</tbody>
+</table>
+<p>两种模式 lookahead <strong>都是 312</strong>，码流与码率几乎一致 → 切换模式<strong>不改变 Ogg 封装行为</strong>；收益来自 VOIP 对语音频段的带宽分配与噪声底优化。</p>
+</li>
+<li>
+<p>已完成：</p>
+<ul>
+<li><code dir="auto">opus.rs:136</code> 改为 <code dir="auto">Application::Voip</code>；</li>
+<li>新增回归测试 <code dir="auto">encoder_uses_voip_mode_with_the_expected_lookahead</code>，锁定 VOIP + <code dir="auto">pre_skip == 312</code>；</li>
+<li>构造期 <code dir="auto">pre_skip: 312</code> 占位值补注释，说明真实来源是 <code dir="auto">Encoder::lookahead()</code>。</li>
+</ul>
+</li>
+<li>
+<p>验收结果：<code dir="auto">cargo fmt --check</code> ✅ / <code dir="auto">cargo clippy --workspace --all-targets -D warnings</code> ✅ / <code dir="auto">cargo test --workspace --all-targets</code> ✅（桌面端 34 passed + 2 ignored，crate 12 passed）。</p>
+</li>
+<li>
+<p><strong>仍缺</strong>：黄金向量比对（逆向报告 11 节：用 <code dir="auto">VOIXCAP_ENABLE_WAV_DUMP=1</code> 抓飞书 PCM 做逐字节码流比对）需飞书客户端环境，本机未做。</p>
+</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="cap-2-断线补拉p1">CAP-2 断线补拉（P1）</h3><a class="sl-anchor-link" href="#cap-2-断线补拉p1"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “CAP-2 断线补拉（P1）”</span></a></div>
+<ul>
+<li>背景：逆向报告 7.3 明确点名这是「飞书在真实弱网环境下的关键设计，也是 Rust 复刻时最容易被忽略的一环」。当前只有崩溃恢复（进程重启），<strong>没有断线补拉</strong>（进程存活、网络中断、期间分片未送出的场景）。</li>
+<li>工作：在 <code dir="auto">RecoveryManifest</code> 之上增加「云端已确认分片」账本 + 重试队列；单分片失败独立记录与重试，不重跑已成功的分片。</li>
+<li>验收：录音中断网 10 分钟后恢复，期间分片全部补送，最终转写无缺口。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="cap-3-默认设备切换跟随p2">CAP-3 默认设备切换跟随（P2）</h3><a class="sl-anchor-link" href="#cap-3-默认设备切换跟随p2"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “CAP-3 默认设备切换跟随（P2）”</span></a></div>
+<ul>
+<li>现状：<code dir="auto">crates/audio/src/recording.rs:308</code> 的 <code dir="auto">rebuild()</code> 需要外部传入新设备 id，只覆盖「设备掉线」；<strong>默认麦克风/输出设备被用户切换时不跟随</strong>。</li>
+<li>对应飞书 <code dir="auto">HandleDefaultMicrophoneDeviceChanged</code> / <code dir="auto">SetAutoSwitchDevice</code> / <code dir="auto">SetSupportedVirtualAudioDevice</code>。</li>
+<li>工作：接入 <code dir="auto">IMMNotificationClient</code>，默认设备变化时自动重建对应采集流；不支持的虚拟音频设备需显式排除。</li>
+<li>验收：录音中在系统设置里切换默认麦克风，采集自动切到新设备且时间轴连续。</li>
+</ul>
+<div class="sl-heading-wrapper level-h2"><h2 id="2-本地-whisper-收尾">2. 本地 Whisper 收尾</h2><a class="sl-anchor-link" href="#2-本地-whisper-收尾"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “2. 本地 Whisper 收尾”</span></a></div>
+<div class="sl-heading-wrapper level-h3"><h3 id="whisper-1-cuda-引擎运行验证p0">WHISPER-1 CUDA 引擎运行验证（P0）</h3><a class="sl-anchor-link" href="#whisper-1-cuda-引擎运行验证p0"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “WHISPER-1 CUDA 引擎运行验证（P0）”</span></a></div>
+<ul>
+<li>背景：CUDA 引擎的下载、解压、优先级与探测代码已完成，但本轮 GitHub CDN 限速（约 0.2 MB/s）导致 285 MB 的 CUDA 包未下载完，未做真实推理验证。</li>
+<li>工作：
+<ul>
+<li>在网络正常环境下载 <code dir="auto">whisper-bin-win-cuda-11.8.0-x64.zip</code>，校验 SHA-256；</li>
+<li>确认解压后目录结构（<code dir="auto">Release/</code> 下 exe + DLL + cuBLAS/cuDART），必要时更新 <code dir="auto">extract_engine</code>；</li>
+<li>用 RTX 显卡跑 3 秒样例与 5 秒实时分片，确认 GPU 被使用（whisper 日志含 CUDA）且结果正确；</li>
+<li>验证无 NVIDIA GPU 的机器上自动回退 CPU 且不报错。</li>
+</ul>
+</li>
+<li>验收：设置页显示 GPU 名称与 CUDA 引擎已安装；转写与实时字幕均走 CUDA；卸载/删除 CUDA 目录后自动回退 CPU。</li>
+<li>风险：CUDA 11.8 包在较新驱动上缺少运行库；需要显式声明依赖或改用 12.4 包。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="whisper-2-引擎下载优化p1">WHISPER-2 引擎下载优化（P1）</h3><a class="sl-anchor-link" href="#whisper-2-引擎下载优化p1"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “WHISPER-2 引擎下载优化（P1）”</span></a></div>
+<ul>
+<li>断点续传：当前 <code dir="auto">.part</code> 失败后从 0 开始；改为 Range 续传并保留进度。</li>
+<li>镜像/代理：支持可配置下载源（企业内网），仍强制 SHA-256 校验。</li>
+<li>限速提示：下载速度过低时提示切换 CPU 或稍后重试。</li>
+<li>验收：中断后重试只补剩余字节；校验失败自动清理；镜像可通过设置覆盖。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="whisper-3-本地实时字幕质量p1">WHISPER-3 本地实时字幕质量（P1）</h3><a class="sl-anchor-link" href="#whisper-3-本地实时字幕质量p1"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “WHISPER-3 本地实时字幕质量（P1）”</span></a></div>
+<ul>
+<li>现状：每 5 秒分片独立推理，边界处可能断词、重复；无 VAD。</li>
+<li>工作：
+<ul>
+<li>滚动窗口（上一分片 + 当前分片）推理，按时间轴去重；</li>
+<li>集成 Silero VAD（或能量 VAD）过滤静音，减少幻觉；
+<ul>
+<li>VAD 用 sherpa-onnx 官方预编译包自带的 Silero VAD / Ten VAD（与 DIAR-1 同一引擎，见 <a href="/design/diar-1-spike-report/">DIAR-1 spike 报告</a>）；注意官方 VAD 模型包下载曾失败（网络问题），需备好镜像。</li>
+<li>注意：VAD 解决「不该送进模型的片段别送」，与「滚动窗口 + 去重」是两件事，两者都要做。</li>
+</ul>
+</li>
+<li>字幕合并策略：重叠区间取尾部、相同文本去重；</li>
+<li>延迟目标：95% 分片在 3 秒内出字幕（tiny，CPU 8 核）。</li>
+</ul>
+</li>
+<li>验收：10 分钟连续中文录音无重复句子；边界断词显著减少；CPU 占用可接受。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="whisper-4-vulkan-引擎变体p2">WHISPER-4 Vulkan 引擎变体（P2）</h3><a class="sl-anchor-link" href="#whisper-4-vulkan-引擎变体p2"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “WHISPER-4 Vulkan 引擎变体（P2）”</span></a></div>
+<ul>
+<li>whisper.cpp 官方未提供 Windows Vulkan 预编译包，需要自行构建或使用第三方构建。</li>
+<li>需评估：构建流水线（GitHub Actions）、驱动兼容、包体与签名。</li>
+<li>验收：无 NVIDIA GPU 但有 Vulkan 设备时可选 Vulkan 引擎并跑通转写。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="whisper-5-内嵌-whispercpp-绑定p2">WHISPER-5 内嵌 whisper.cpp 绑定（P2）</h3><a class="sl-anchor-link" href="#whisper-5-内嵌-whispercpp-绑定p2"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “WHISPER-5 内嵌 whisper.cpp 绑定（P2）”</span></a></div>
+<ul>
+<li>现状：子进程调用 <code dir="auto">whisper-cli.exe</code>，每次启动有模型加载开销，且依赖外部二进制。</li>
+<li>工作：
+<ul>
+<li>引入 <code dir="auto">whisper-rs</code>；解决 Windows 下 bindgen/libclang 与 MSVC C++ 构建；</li>
+<li>去掉子进程与临时 JSON，直接拿 segment；保留 <code dir="auto">-p</code> 热词与取消；</li>
+<li>打包与签名：静态/动态库随安装包分发；</li>
+<li>与子进程方案做 A/B，确认启动/内存/稳定性收益后再切换。</li>
+</ul>
+</li>
+<li>风险：构建链复杂、CI 时间增加、崩溃会带崩主进程（需隔离或 panic 处理）。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="diar-1-说话人分离p1">DIAR-1 说话人分离（P1）</h3><a class="sl-anchor-link" href="#diar-1-说话人分离p1"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “DIAR-1 说话人分离（P1）”</span></a></div>
+<ul>
+<li>背景：Whisper 不提供说话人分离；tinydiarize 仅有英文 small 模型，不适合中文会议。</li>
+<li><strong>路线已定型（2026-11-08 spike 实测，完整数据见 <a href="/design/diar-1-spike-report/">DIAR-1 spike 报告</a>）</strong>：采用 <strong>sherpa-onnx 官方 Windows x64 预编译包的 CLI 子进程</strong>。
+<ul>
+<li><code dir="auto">sherpa-rs</code>（Rust 绑定）<strong>已排除</strong>：0.6.8 的 bindgen 需要 libclang，本机无 LLVM，且 <code dir="auto">sherpa-rs-sys</code> 未随包发布 <code dir="auto">bindings.rs</code>，跳过生成的开关无效。</li>
+<li>CLI 模式与项目现有 <code dir="auto">local_whisper.rs</code> 的「下载 → SHA-256 校验 → 解压 → spawn → 解析」框架完全同构，无新增构建依赖。</li>
+<li>C API FFI 作为备选（预编译包自带 <code dir="auto">sherpa-onnx-c-api.dll</code> + 完整 <code dir="auto">c-api.h</code>），若后续要消除进程启动开销再评估。</li>
+<li><code dir="auto">alibaba/MNN</code> 的 <code dir="auto">apps/frameworks/sherpa-mnn</code> 是同一能力的 MNN 后端移植，效果验证后再评估迁移。</li>
+</ul>
+</li>
+<li>模型组合（全部实测下载成功）：
+<ul>
+<li>引擎：<code dir="auto">sherpa-onnx-v1.12.9-win-x64-shared.tar.bz2</code>（24,139,676 B）；</li>
+<li>分割：<code dir="auto">sherpa-onnx-pyannote-segmentation-3-0.tar.bz2</code>（6,958,444 B，含 <code dir="auto">model.onnx</code> 与 <code dir="auto">model.int8.onnx</code>）；</li>
+<li>声纹：<code dir="auto">3dspeaker_speech_campplus_sv_zh-cn_16k-common.onnx</code>（28,281,138 B，中文）。</li>
+<li>校验来源：<code dir="auto">v1.12.9</code> release 的 <code dir="auto">checksum.txt</code>（SHA-256 待回填到实现里）。</li>
+</ul>
+</li>
+<li><strong>实测性能与准确率</strong>（官方中文四人音频 57 s）：
+<ul>
+<li>FP32 / 1 线程 → RTF 0.255；INT8 / 1 线程 → 0.111；<strong>INT8 / 4 线程 → RTF 0.087</strong>（4.97 s 跑完），4 组说话人识别正确；</li>
+<li>DirectML 可用但更慢（RTF 0.134）→ <strong>默认走 CPU</strong>；</li>
+<li>项目真实录音 <code dir="auto">doc/chunk_00000.ogg</code> → 单说话人 <code dir="auto">0.031 -- 0.993 speaker_01</code>，RTF 0.009，无误判。</li>
+</ul>
+</li>
+<li><strong>参数定型</strong>（实测校准，勿再用默认值）：
+<ul>
+<li>INT8 分割模型 + 4 线程；</li>
+<li>自动聚类阈值 <strong>必须显式传 <code dir="auto">--clustering.cluster-threshold=0.7</code></strong>：0.5（CLI 默认）→ 8 个说话人（过度分割），0.7 → 4 个（与指定簇数一致），0.8/0.9 → 3 个（合并过度）；</li>
+<li>16 kHz 单声道输入。</li>
+</ul>
+</li>
+<li>输出格式稳定：<code dir="auto">{start} -- {end} speaker_{NN}</code>，可用 <code dir="auto">^([\d.]+) -- ([\d.]+) speaker_(\d+)$</code> 解析；<code dir="auto">progress xx%</code> 走 stderr 需过滤。</li>
+<li>工作：
+<ul>
+<li>模型管理复用现有下载/校验框架（白名单 URL + SHA-256 + 解压）；</li>
+<li>需求文档先行：说话人数量未知、双轨（麦克风/系统）归属、实时/录后两种模式；</li>
+<li>输出 <code dir="auto">speaker</code> 字段，UI 支持重命名与按说话人筛选；</li>
+<li>与转写合并：按时间重叠分配说话人。</li>
+</ul>
+</li>
+<li>工作量重估：<strong>2.5–3.5 天</strong>（原估 5–8 天；spike 已把引擎接入、参数校准、输出格式三块不确定性全部消掉）。</li>
+<li>验收：两人中文会议 ≥ 85% 段落说话人正确；可重命名并导出。</li>
+<li><strong>遗留</strong>：缺少双人真实中文会议音频（官方样例是四人、真实场景是双人 + 混响 + 远场），85% 验收线尚未验证。</li>
+<li>备注：不要用「麦克风/系统」冒充说话人，会产生误导。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="llm-1-本地小模型离线-aip2">LLM-1 本地小模型离线 AI（P2）</h3><a class="sl-anchor-link" href="#llm-1-本地小模型离线-aip2"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “LLM-1 本地小模型离线 AI（P2）”</span></a></div>
+<ul>
+<li>背景：当前 AI 纪要、同传翻译、翻译稿 <strong>100% 依赖云端</strong>（MiniMax / DeepSeek，见 <code dir="auto">ai.rs</code> 的 <code dir="auto">AiProvider</code>），必须有网络与 API Key。补一条完全离线的 AI 链路是隐私与内网场景的硬需求。</li>
+<li>候选模型：<strong>MNN-Pocket-0.3B</strong>（Qwen3 架构，300M，Apache-2.0）。选型依据与能力边界见 <a href="/design/on-device-model-research/">端侧模型选型调研</a>。</li>
+<li>关键约束（不可想当然）：
+<ul>
+<li>它是<strong>纯文本 LLM，不是 ASR</strong>，不能替代 whisper.cpp 做转写；</li>
+<li>强项是受约束输出与结构化抽取（IFEval 73.20、IFEval-zh 74.59），弱项是知识与长文推理（C-Eval 38.86、CMMLU 40.11）——<strong>不要用它承担长会议 map-reduce 纪要</strong>；</li>
+<li>官方未公布 Windows 桌面端性能数据，移动端优势（Metal/Hexagon 定制内核）在 Windows 上不一定成立。</li>
+</ul>
+</li>
+<li>接入路径：推荐 <strong>llama.cpp + 官方 GGUF</strong>（<code dir="auto">MNN-Pocket-0.3B-Instruct-Q4_1.gguf</code>）。MNN 原生 INT4 构建（<code dir="auto">llm.mnn</code>，173MB）需自编译且 Windows 预编译不齐，作为备选。</li>
+<li>工作：
+<ul>
+<li><code dir="auto">ai.rs</code> 抽出统一的文本生成接口，云端与本地共用分块 / 归并 / 进度 / 取消机制，<code dir="auto">AiProvider</code> 新增 <code dir="auto">Local</code>；</li>
+<li>下载校验完全复用 <code dir="auto">local_whisper.rs</code> 的「白名单 URL + SHA-256 + 子进程调用」模式；</li>
+<li>本地 provider 不读写 Windows 凭据管理器，不需要 API Key；</li>
+<li>只做「要点 / 待办 / 决策项抽取」与「短文本翻译」两个轻任务；长文纪要仍走云端。</li>
+</ul>
+</li>
+<li>验收：断网状态下可生成要点与短译文；网络抓包无外部请求；纪要质量明显低于云端时在 UI 上如实说明。</li>
+<li>优先级：v0.4/v0.5，<strong>不进入 v0.2 发布阻塞路径</strong>。</li>
+</ul>
+<div class="sl-heading-wrapper level-h2"><h2 id="3-发布工程">3. 发布工程</h2><a class="sl-anchor-link" href="#3-发布工程"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “3. 发布工程”</span></a></div>
+<div class="sl-heading-wrapper level-h3"><h3 id="rel-1-代码签名p0">REL-1 代码签名（P0）</h3><a class="sl-anchor-link" href="#rel-1-代码签名p0"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “REL-1 代码签名（P0）”</span></a></div>
+<ul>
+<li>Windows Authenticode 证书（OV/EV）或云签名服务；NSIS 安装包与 exe 均签名。</li>
+<li>CI 中通过密钥库/签名服务注入，不落盘明文证书。</li>
+<li>验收：SmartScreen 显示已知发布者；安装包与 exe 签名验证通过。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="rel-2-自动更新p0">REL-2 自动更新（P0）</h3><a class="sl-anchor-link" href="#rel-2-自动更新p0"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “REL-2 自动更新（P0）”</span></a></div>
+<ul>
+<li>引入 <code dir="auto">tauri-plugin-updater</code>，生成签名更新清单；应用内检查、下载、重启安装。</li>
+<li>与 REL-1 共用密钥管理；支持灰度/回滚（至少保留上一版本安装包）。</li>
+<li>验收：旧版本可检测到新版本并完成静默/提示更新。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="rel-3-崩溃上报与本地日志-已完成-2026-11-06">REL-3 崩溃上报与本地日志 ✅（已完成 2026-11-06）</h3><a class="sl-anchor-link" href="#rel-3-崩溃上报与本地日志-已完成-2026-11-06"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “REL-3 崩溃上报与本地日志 ✅（已完成 2026-11-06）”</span></a></div>
+<ul>
+<li>已把 <code dir="auto">eprintln!</code> 替换为结构化日志：<code dir="auto">&lt;app data&gt;/logs/app.log</code>，10 MB 滚动、最多 5 份、保留 7 天。</li>
+<li>panic hook 写入 <code dir="auto">crash-&lt;epoch&gt;.log</code>，包含 panic 信息与 backtrace。</li>
+<li>历史库底部提供「打开日志目录」「导出诊断包」；诊断包包含 <code dir="auto">system.txt</code> 与全部日志/崩溃文件，不含音频、密钥与转写正文。</li>
+<li>验收：已通过单元测试（轮转、保留、诊断包内容）与全量构建。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="rel-4-远程崩溃上报p2">REL-4 远程崩溃上报（P2）</h3><a class="sl-anchor-link" href="#rel-4-远程崩溃上报p2"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “REL-4 远程崩溃上报（P2）”</span></a></div>
+<ul>
+<li>在 REL-3 基础上增加可选的匿名上报（默认关闭、首次询问、可查看将发送的内容）。</li>
+<li>需确定接收端（自建或 Sentry 类服务）、限流与隐私字段白名单。</li>
+<li>验收：用户同意后崩溃报告可送达；拒绝时完全本地，不发起网络请求。</li>
+</ul>
+<div class="sl-heading-wrapper level-h2"><h2 id="4-质量与测试">4. 质量与测试</h2><a class="sl-anchor-link" href="#4-质量与测试"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “4. 质量与测试”</span></a></div>
+<div class="sl-heading-wrapper level-h3"><h3 id="qa-1-前端单元测试-已完成-2026-11-06">QA-1 前端单元测试 ✅（已完成 2026-11-06）</h3><a class="sl-anchor-link" href="#qa-1-前端单元测试-已完成-2026-11-06"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “QA-1 前端单元测试 ✅（已完成 2026-11-06）”</span></a></div>
+<ul>
+<li>已引入 vitest + jsdom，<code dir="auto">npm test</code> / <code dir="auto">npm run test:coverage</code> 与 CI 已接入（<a href="../apps/desktop/vitest.config.ts">vitest.config.ts</a>）。</li>
+<li>已覆盖 28 个用例：
+<ul>
+<li><code dir="auto">timeline.ts</code>：分片二分查找、时间轴空档、时间格式化；</li>
+<li><code dir="auto">settings.ts</code>：后端设置合并与非法值回退、UI 快照、云端/本地 provider 切换、实时 provider 选择；</li>
+<li><code dir="auto">transcription.ts</code>：状态机（start/progress/cancel/done/cancelled/error）、进度钳制、错误文案；</li>
+<li><code dir="auto">components.ts</code>：idle/recording/finished 状态渲染、字幕段落与译文、时间格式化。</li>
+</ul>
+</li>
+<li>覆盖率门禁：<code dir="auto">timeline.ts</code> / <code dir="auto">settings.ts</code> / <code dir="auto">transcription.ts</code> 行/函数/语句 ≥ 85%、分支 ≥ 80%（当前行 98.36%、分支 91.66%、函数 100%）。</li>
+<li>CI 使用 <code dir="auto">npm run test:coverage</code>，未达标会失败。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="qa-2a-浏览器模式端到端p1已完成-2026-11-06">QA-2a 浏览器模式端到端（P1，已完成 2026-11-06）</h3><a class="sl-anchor-link" href="#qa-2a-浏览器模式端到端p1已完成-2026-11-06"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “QA-2a 浏览器模式端到端（P1，已完成 2026-11-06）”</span></a></div>
+<ul>
+<li>方案：Playwright + 本机 Edge（<code dir="auto">channel: msedge</code>）+ Vite dev server；通过 <code dir="auto">VITE_E2E=1</code> 注入内存版 Tauri IPC（<a href="../apps/desktop/src/e2e/mock-tauri.ts">mock-tauri.ts</a>），让真实 UI 在 Chromium 中运行。</li>
+<li>已覆盖 3 条核心用例：
+<ol>
+<li>录音 → 暂停 → 继续 → 停止，进入完成页；</li>
+<li>停止 → 转写（校验字幕段落）→ 导出会议资料；</li>
+<li>完成页 → 转写设置 → 切换到本地 Whisper，校验 GPU/引擎状态。</li>
+</ol>
+</li>
+<li>CI 在 windows-latest 上执行 <code dir="auto">npm run test:e2e</code>（Edge 已预装，无需下载浏览器）。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="qa-2b-真实-tauri-进程端到端p1">QA-2b 真实 Tauri 进程端到端（P1）</h3><a class="sl-anchor-link" href="#qa-2b-真实-tauri-进程端到端p1"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “QA-2b 真实 Tauri 进程端到端（P1）”</span></a></div>
+<ul>
+<li>说明：Playwright <strong>不是 WebDriver 客户端</strong>，不能直接驱动 <code dir="auto">tauri-driver</code>；如需真实 WebView2 + Rust 后端，应使用 WebdriverIO/Selenium 连接 <code dir="auto">tauri-driver</code>，并准备与 WebView2 版本匹配的 <code dir="auto">msedgedriver</code>。</li>
+<li>工作：
+<ul>
+<li>安装并固定 <code dir="auto">tauri-driver</code> 与 <code dir="auto">msedgedriver</code> 版本；</li>
+<li>覆盖「启动应用 → 录音（虚拟音频设备）→ 转写（本地 mock ASR 或真实模型）→ 退出」；</li>
+<li>处理无音频设备的 CI 环境（测试用虚拟设备或跳过录音断言）。</li>
+</ul>
+</li>
+<li>验收：真实应用窗口可被驱动，3 条核心链路通过。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="qa-3-ci-强化p1">QA-3 CI 强化（P1）</h3><a class="sl-anchor-link" href="#qa-3-ci-强化p1"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “QA-3 CI 强化（P1）”</span></a></div>
+<ul>
+<li>增加 <code dir="auto">cargo audit</code>（依赖漏洞）、前端依赖审计、覆盖率统计；</li>
+<li>增加 Tauri 打包冒烟（debug 安装包构建）；</li>
+<li>失败时保留日志与产物。</li>
+<li>验收：PR 中可见审计与打包结果。</li>
+</ul>
+<div class="sl-heading-wrapper level-h2"><h2 id="5-产品体验">5. 产品体验</h2><a class="sl-anchor-link" href="#5-产品体验"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “5. 产品体验”</span></a></div>
+<div class="sl-heading-wrapper level-h3"><h3 id="ux-1-历史库全文搜索与筛选p2">UX-1 历史库全文搜索与筛选（P2）</h3><a class="sl-anchor-link" href="#ux-1-历史库全文搜索与筛选p2"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “UX-1 历史库全文搜索与筛选（P2）”</span></a></div>
+<ul>
+<li>支持转写正文搜索、按「有/无转写」「仅转写」「日期/时长」筛选与排序。</li>
+<li>索引方案：SQLite FTS5 或启动时内存索引（数据量小）。</li>
+<li>验收：1 万段转写内搜索 &lt; 200ms。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="ux-2-转写编辑与说话人重命名p2">UX-2 转写编辑与说话人重命名（P2）</h3><a class="sl-anchor-link" href="#ux-2-转写编辑与说话人重命名p2"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “UX-2 转写编辑与说话人重命名（P2）”</span></a></div>
+<ul>
+<li>支持编辑单段文本、合并/拆分段落、重命名说话人；保存回 <code dir="auto">transcript.json</code> 并同步导出。</li>
+<li>依赖 DIAR-1 的说话人字段；无分离时也允许手动标注。</li>
+<li>验收：编辑后重开/导出保持一致；可撤销。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="ux-3-导出增强p2">UX-3 导出增强（P2）</h3><a class="sl-anchor-link" href="#ux-3-导出增强p2"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “UX-3 导出增强（P2）”</span></a></div>
+<ul>
+<li>增加 PDF/DOCX 纪要、复制纪要到剪贴板、可选导出含时间戳的双语字幕。</li>
+<li>验收：导出文件在 Word/PDF 阅读器中排版正常。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="ux-4-桌面集成p2">UX-4 桌面集成（P2）</h3><a class="sl-anchor-link" href="#ux-4-桌面集成p2"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “UX-4 桌面集成（P2）”</span></a></div>
+<ul>
+<li>单实例（重复启动聚焦已有窗口）、系统托盘（录音中最小化提示）、全局快捷键（开始/停止）、录音中关闭窗口二次确认。</li>
+<li>验收：录音中关窗有确认；重复启动不产生第二实例。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="ux-5-数据备份导入与迁移p2">UX-5 数据备份/导入与迁移（P2）</h3><a class="sl-anchor-link" href="#ux-5-数据备份导入与迁移p2"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “UX-5 数据备份/导入与迁移（P2）”</span></a></div>
+<ul>
+<li>整库导出/导入（zip）、会话 schema 版本与迁移框架、损坏会话隔离。</li>
+<li>验收：导入后历史库、转写、笔记完整；旧版本数据可升级。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="ux-6-采集增强p2">UX-6 采集增强（P2）</h3><a class="sl-anchor-link" href="#ux-6-采集增强p2"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “UX-6 采集增强（P2）”</span></a></div>
+<ul>
+<li>麦克风增益、降噪、回声消除、静音检测；进程级回环（仅录指定应用）。</li>
+<li>需先做 WASAPI 能力调研与设备兼容性测试。</li>
+<li>验收：增益可调且不削波；可选进程回环在 Teams/浏览器中可用。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="ux-7-国际化与深色模式p3">UX-7 国际化与深色模式（P3）</h3><a class="sl-anchor-link" href="#ux-7-国际化与深色模式p3"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “UX-7 国际化与深色模式（P3）”</span></a></div>
+<ul>
+<li>抽取文案到 i18n 资源（中/英），支持系统深色主题。</li>
+<li>验收：切换语言/主题后无硬编码中文残留；布局不破。</li>
+</ul>
+<div class="sl-heading-wrapper level-h2"><h2 id="6-平台">6. 平台</h2><a class="sl-anchor-link" href="#6-平台"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “6. 平台”</span></a></div>
+<div class="sl-heading-wrapper level-h3"><h3 id="plat-1-macos--linuxp3">PLAT-1 macOS / Linux（P3）</h3><a class="sl-anchor-link" href="#plat-1-macos--linuxp3"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “PLAT-1 macOS / Linux（P3）”</span></a></div>
+<ul>
+<li>采集层需从 WASAPI 迁移到 CoreAudio/PulseAudio；热键、托盘、打包（dmg/AppImage）均需适配。</li>
+<li>明确不在当前 Windows 优先阶段投入，除非有明确需求。</li>
+</ul>
+<div class="sl-heading-wrapper level-h2"><h2 id="7-明确不做保持边界">7. 明确不做（保持边界）</h2><a class="sl-anchor-link" href="#7-明确不做保持边界"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “7. 明确不做（保持边界）”</span></a></div>
+<ul>
+<li>账号体系、团队协作、分享链接、计费与云端存储。</li>
+<li>未经用户同意的遥测/音频上传。</li>
+<li>用「麦克风/系统」轨道冒充说话人分离。</li>
+</ul>
+<div class="sl-heading-wrapper level-h2"><h2 id="8-里程碑建议">8. 里程碑建议</h2><a class="sl-anchor-link" href="#8-里程碑建议"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “8. 里程碑建议”</span></a></div>
+<table>
+<thead>
+<tr>
+<th>里程碑</th>
+<th>目标</th>
+<th>包含</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>v0.2 发布可用</td>
+<td>可安全分发给外部用户</td>
+<td>REL-1、REL-2、WHISPER-1、QA-3、CAP-1、CAP-2</td>
+</tr>
+<tr>
+<td>v0.3 会议可用</td>
+<td>本地转写质量与整理能力</td>
+<td>WHISPER-3、DIAR-1、UX-1、UX-2、UX-3</td>
+</tr>
+<tr>
+<td>v0.4 桌面完善</td>
+<td>长驻使用体验</td>
+<td>UX-4、UX-5、QA-2、WHISPER-2、CAP-3</td>
+</tr>
+<tr>
+<td>v0.5 深度能力</td>
+<td>采集与跨平台</td>
+<td>UX-6、WHISPER-4/5、PLAT-1、LLM-1</td>
+</tr>
+</tbody>
+</table>
+<div class="sl-heading-wrapper level-h2"><h2 id="9-近期行动建议2026-11-08">9. 近期行动建议（2026-11-08）</h2><a class="sl-anchor-link" href="#9-近期行动建议2026-11-08"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “9. 近期行动建议（2026-11-08）”</span></a></div>
+<p>按「解锁下游项数 / 外部依赖数」排序：</p>
+<ol>
+<li><strong>CAP-1 Opus VOIP 对齐</strong> ✅ <strong>已完成 2026-11-08</strong> —— <code dir="auto">opus.rs:136</code> 改为 <code dir="auto">Application::Voip</code> + 回归测试锁定 + 全量 fmt/clippy/test 通过。仍缺飞书黄金向量比对。</li>
+<li><strong>DIAR-1 spike</strong> ✅ <strong>已完成 2026-11-08</strong> —— 路线定型为 <strong>sherpa-onnx 官方 CLI 子进程</strong>（sherpa-rs 因需 libclang 已排除）；官方四人中文音频 INT8/4 线程 RTF 0.087、说话人全对，阈值定标 0.7；真实录音链路跑通。详见 <a href="/design/diar-1-spike-report/">DIAR-1 spike 报告</a>。<strong>剩余</strong>：实现下载校验 + 子进程封装 + 转写合并，2.5–3.5 天；卡点是缺双人真实会议音频，85% 验收线待验。</li>
+<li><strong>CAP-2 断线补拉（1–2 天）</strong> —— 逆向报告点名的关键缺口，当前只有崩溃恢复没有断线补拉。</li>
+<li><strong>QA-3 CI 强化（2 天，v0.2 唯一无外部依赖的 P0）</strong> —— <code dir="auto">cargo audit</code> + 前端依赖审计 + 打包冒烟。</li>
+<li><strong>UX-4 桌面集成提前（2–3 天）</strong> —— 托盘 / 全局快捷键 / 单实例 / 录音中退出确认，全是官方 Tauri 插件无外部依赖，且是「录音中不丢数据」的兜底。原排在 v0.4，但价值密度高于其优先级。</li>
+<li><strong>WHISPER-1 CUDA 验证（0.5 天）</strong> —— 卡点是网络限速而非代码。换镜像源把 285 MB 包拉下来即可验证，或明确接受「CUDA 路径代码就绪但未验证」的风险。</li>
+<li><strong>LLM-1 骨架</strong> —— 先把 <code dir="auto">ai.rs</code> 的 provider 抽象与设置项打通，模型接入可延后。</li>
+</ol>
+<p>REL-1（代码签名）与 REL-2（自动更新）依赖证书采购，属于外部依赖阻塞，在拿到证书前无法真正完成。</p>
+<blockquote>
+<p>关于实时链路：当前 5 秒分片轮询 vs 飞书的 RTC 流式是<strong>有意的产品取舍</strong>（用延迟换离线），不建议为此引入 RTC。压缩延迟走「滚动窗口 + VAD」路线即可（WHISPER-3），详见 <a href="/design/gap-analysis-vs-feishu/">对标飞书妙记差距分析</a> 第 6.4 节。</p>
+</blockquote>
+</div><footer class="sl-flex astro-ddtxxk7k"><div class="meta sl-flex astro-ddtxxk7k"><a href="https://github.com/fengjutian/MagneticTape/edit/main/apps/site/src/content/docs/src/content/docs/design/feature-roadmap.md" class="sl-flex print:hidden astro-qlekgd3o"><svg aria-hidden="true" class="astro-qlekgd3o astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.2em;"><path d="M22 7.24a1 1 0 0 0-.29-.71l-4.24-4.24a1 1 0 0 0-1.1-.22 1 1 0 0 0-.32.22l-2.83 2.83L2.29 16.05a1 1 0 0 0-.29.71V21a1 1 0 0 0 1 1h4.24a1 1 0 0 0 .76-.29l10.87-10.93L21.71 8c.1-.1.17-.2.22-.33a1 1 0 0 0 0-.24v-.14l.07-.05ZM6.83 20H4v-2.83l9.93-9.93 2.83 2.83L6.83 20ZM18.17 8.66l-2.83-2.83 1.42-1.41 2.82 2.82-1.41 1.42Z"/></svg>编辑此页</a></div><div class="pagination-links print:hidden astro-b5raizh3" dir="ltr"><a href="/design/realtime-subtitle-and-speakers/" rel="prev" class="astro-b5raizh3"><svg aria-hidden="true" class="astro-b5raizh3 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.5rem;"><path d="M17 11H9.41l3.3-3.29a1.004 1.004 0 1 0-1.42-1.42l-5 5a1 1 0 0 0-.21.33 1 1 0 0 0 0 .76 1 1 0 0 0 .21.33l5 5a1.002 1.002 0 0 0 1.639-.325 1 1 0 0 0-.219-1.095L9.41 13H17a1 1 0 0 0 0-2Z"/></svg><span class="astro-b5raizh3">上一页<br class="astro-b5raizh3"><span class="link-title astro-b5raizh3">实时字幕与说话人分离</span></span></a><a href="/design/technical-improvement-plan/" rel="next" class="astro-b5raizh3"><svg aria-hidden="true" class="astro-b5raizh3 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.5rem;"><path d="M17.92 11.62a1.001 1.001 0 0 0-.21-.33l-5-5a1.003 1.003 0 1 0-1.42 1.42l3.3 3.29H7a1 1 0 0 0 0 2h7.59l-3.3 3.29a1.002 1.002 0 0 0 .325 1.639 1 1 0 0 0 1.095-.219l5-5a1 1 0 0 0 .21-.33 1 1 0 0 0 0-.76Z"/></svg><span class="astro-b5raizh3">下一页<br class="astro-b5raizh3"><span class="link-title astro-b5raizh3">技术改进与修复计划</span></span></a></div></footer></div></div></main></div></div></div></div></body></html>

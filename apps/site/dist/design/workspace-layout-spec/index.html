@@ -1,0 +1,466 @@
+<!DOCTYPE html><html lang="zh-CN" dir="ltr" data-theme="dark" data-has-toc data-has-sidebar class="astro-g5ptsecz"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>AI 录音工作台布局实现规格 | MagneticTape</title><link rel="canonical" href="https://magnetictape.netlify.app/design/workspace-layout-spec/"/><link rel="sitemap" href="/sitemap-index.xml"/><link rel="shortcut icon" href="/./src/assets/favicon.svg" type="image/svg+xml"/><meta name="generator" content="Astro v7.4.7"/><meta name="generator" content="Starlight v0.42.9"/><meta property="og:title" content="AI 录音工作台布局实现规格"/><meta property="og:type" content="article"/><meta property="og:url" content="https://magnetictape.netlify.app/design/workspace-layout-spec/"/><meta property="og:locale" content="zh-CN"/><meta property="og:description" content="工作台布局从需求到代码的逐项实现规格。"/><meta property="og:site_name" content="MagneticTape"/><meta name="twitter:card" content="summary_large_image"/><meta name="description" content="工作台布局从需求到代码的逐项实现规格。"/><script>
+	window.StarlightThemeProvider = (() => {
+		const storedTheme =
+			typeof localStorage !== 'undefined' && localStorage.getItem('starlight-theme');
+		const theme =
+			storedTheme ||
+			(window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+		document.documentElement.dataset.theme = theme === 'light' ? 'light' : 'dark';
+		return {
+			updatePickers(theme = storedTheme || 'auto') {
+				document.querySelectorAll('starlight-theme-select').forEach((picker) => {
+					const select = picker.querySelector('select');
+					if (select) select.value = theme;
+					/** @type {HTMLTemplateElement | null} */
+					const tmpl = document.querySelector(`#theme-icons`);
+					const newIcon = tmpl && tmpl.content.querySelector('.' + theme);
+					if (newIcon) {
+						const oldIcon = picker.querySelector('svg.label-icon');
+						if (oldIcon) {
+							oldIcon.replaceChildren(...newIcon.cloneNode(true).childNodes);
+						}
+					}
+				});
+			},
+		};
+	})();
+</script><template id="theme-icons"><svg aria-hidden="true" class="light astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M5 12a1 1 0 0 0-1-1H3a1 1 0 0 0 0 2h1a1 1 0 0 0 1-1Zm.64 5-.71.71a1 1 0 0 0 0 1.41 1 1 0 0 0 1.41 0l.71-.71A1 1 0 0 0 5.64 17ZM12 5a1 1 0 0 0 1-1V3a1 1 0 0 0-2 0v1a1 1 0 0 0 1 1Zm5.66 2.34a1 1 0 0 0 .7-.29l.71-.71a1 1 0 1 0-1.41-1.41l-.66.71a1 1 0 0 0 0 1.41 1 1 0 0 0 .66.29Zm-12-.29a1 1 0 0 0 1.41 0 1 1 0 0 0 0-1.41l-.71-.71a1.004 1.004 0 1 0-1.43 1.41l.73.71ZM21 11h-1a1 1 0 0 0 0 2h1a1 1 0 0 0 0-2Zm-2.64 6A1 1 0 0 0 17 18.36l.71.71a1 1 0 0 0 1.41 0 1 1 0 0 0 0-1.41l-.76-.66ZM12 6.5a5.5 5.5 0 1 0 5.5 5.5A5.51 5.51 0 0 0 12 6.5Zm0 9a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Zm0 3.5a1 1 0 0 0-1 1v1a1 1 0 0 0 2 0v-1a1 1 0 0 0-1-1Z"/></svg><svg aria-hidden="true" class="dark astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21.64 13a1 1 0 0 0-1.05-.14 8.049 8.049 0 0 1-3.37.73 8.15 8.15 0 0 1-8.14-8.1 8.59 8.59 0 0 1 .25-2A1 1 0 0 0 8 2.36a10.14 10.14 0 1 0 14 11.69 1 1 0 0 0-.36-1.05Zm-9.5 6.69A8.14 8.14 0 0 1 7.08 5.22v.27a10.15 10.15 0 0 0 10.14 10.14 9.784 9.784 0 0 0 2.1-.22 8.11 8.11 0 0 1-7.18 4.32v-.04Z"/></svg><svg aria-hidden="true" class="auto astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21 14h-1V7a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v7H3a1 1 0 0 0-1 1v2a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-2a1 1 0 0 0-1-1ZM6 7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v7H6V7Zm14 10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-1h16v1Z"/></svg></template><link rel="stylesheet" href="/_astro/print.C9eyqPGL.css" media="print"><link rel="stylesheet" href="/_astro/common.BA5iwecf.css"><style>@layer starlight.components{svg:where(.astro-hkc32dio){color:var(--sl-icon-color);font-size:var(--sl-icon-size,1em);width:1em;height:1em;overflow:visible}}
+</style><script type="module" src="/_astro/page.cNngjUgL.js"></script></head><body class="astro-g5ptsecz"><a class="sl-skip-link astro-qb7clj6f" href="#_top">跳转到内容</a><div class="page sl-flex astro-yntsjkba"><header class="header astro-yntsjkba"><div class="header astro-by6fddyj"><div class="title-wrapper sl-flex astro-by6fddyj"><a href="/" class="site-title sl-flex astro-6rvad3va"><img class="astro-6rvad3va" alt src="/_astro/logo.MrVzPhLw.svg" width="32" height="32"><span class="astro-6rvad3va" translate="no">MagneticTape</span></a></div><div class="sl-flex print:hidden astro-by6fddyj"><site-search class="astro-by6fddyj astro-b5kgnn7o" data-translations="{&quot;placeholder&quot;:&quot;搜索&quot;}"><button data-open-modal disabled aria-label="搜索" aria-keyshortcuts="Control+K" class="astro-b5kgnn7o"><svg aria-hidden="true" class="astro-b5kgnn7o astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21.71 20.29 18 16.61A9 9 0 1 0 16.61 18l3.68 3.68a.999.999 0 0 0 1.42 0 1 1 0 0 0 0-1.39ZM11 18a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z"/></svg><span class="sl-hidden md:sl-block astro-b5kgnn7o" aria-hidden="true">搜索</span><kbd class="sl-hidden md:sl-flex astro-b5kgnn7o" style="display: none"><kbd class="astro-b5kgnn7o">Ctrl</kbd><kbd class="astro-b5kgnn7o">K</kbd></kbd></button><dialog style="padding: 0" aria-label="搜索" class="astro-b5kgnn7o"><div class="dialog-frame sl-flex astro-b5kgnn7o"><button data-close-modal class="sl-flex md:sl-hidden astro-b5kgnn7o">取消</button><div class="search-container astro-b5kgnn7o"><div id="starlight__search" class="astro-b5kgnn7o"></div></div></div></dialog></site-search><script>
+	(() => {
+		const openBtn = document.querySelector('button[data-open-modal]');
+		const shortcut = openBtn?.querySelector('kbd');
+		if (!openBtn || !(shortcut instanceof HTMLElement)) return;
+		const platformKey = shortcut.querySelector('kbd');
+		if (platformKey && /(Mac|iPhone|iPod|iPad)/i.test(navigator.platform)) {
+			platformKey.textContent = '⌘';
+			openBtn.setAttribute('aria-keyshortcuts', 'Meta+K');
+		}
+		shortcut.style.display = '';
+	})();
+</script><script type="module" src="/_astro/Search.astro_astro_type_script_index_0_lang.CHGOufdi.js"></script></div><div class="sl-hidden md:sl-flex print:hidden right-group astro-by6fddyj"><div class="sl-flex social-icons astro-by6fddyj"><a href="https://github.com/fengjutian/MagneticTape" rel="me" class="sl-flex astro-n2mnl6yq"><span class="sr-only astro-n2mnl6yq">GitHub 仓库</span><svg aria-hidden="true" class="astro-n2mnl6yq astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.83 1.24 1.83 1.24 1.08 1.83 2.81 1.3 3.5 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3Z"/></svg></a></div><starlight-theme-select><label style="--sl-select-width: 6.25em" class="astro-2z5xp7gb"><span class="sr-only astro-2z5xp7gb">选择主题</span><svg aria-hidden="true" class="icon label-icon astro-2z5xp7gb astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21 14h-1V7a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v7H3a1 1 0 0 0-1 1v2a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-2a1 1 0 0 0-1-1ZM6 7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v7H6V7Zm14 10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-1h16v1Z"/></svg><select autocomplete="off" class="astro-2z5xp7gb"><option value="dark" class="astro-2z5xp7gb">深色</option><option value="light" class="astro-2z5xp7gb">浅色</option><option value="auto" selected class="astro-2z5xp7gb">自动</option></select><svg aria-hidden="true" class="icon caret astro-2z5xp7gb astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M17 9.17a1 1 0 0 0-1.41 0L12 12.71 8.46 9.17a1 1 0 1 0-1.41 1.42l4.24 4.24a1.002 1.002 0 0 0 1.42 0L17 10.59a1.002 1.002 0 0 0 0-1.42Z"/></svg></label></starlight-theme-select><script>
+	StarlightThemeProvider.updatePickers();
+</script><script type="module">var e=`starlight-theme`,t=e=>e===`auto`||e===`dark`||e===`light`?e:`auto`,n=()=>t(typeof localStorage<`u`&&localStorage.getItem(e));function r(t){typeof localStorage<`u`&&localStorage.setItem(e,t===`light`||t===`dark`?t:``)}var i=()=>matchMedia(`(prefers-color-scheme: light)`).matches?`light`:`dark`;function a(e){StarlightThemeProvider.updatePickers(e),document.documentElement.dataset.theme=e===`auto`?i():e,r(e)}matchMedia(`(prefers-color-scheme: light)`).addEventListener(`change`,()=>{n()===`auto`&&a(`auto`)});var o=class extends HTMLElement{constructor(){super(),a(n()),this.querySelector(`select`)?.addEventListener(`change`,e=>{e.currentTarget instanceof HTMLSelectElement&&a(t(e.currentTarget.value))})}};customElements.define(`starlight-theme-select`,o);</script><script type="module">var e=class extends HTMLElement{constructor(){super();let e=this.querySelector(`select`);e&&(e.addEventListener(`change`,e=>{e.currentTarget instanceof HTMLSelectElement&&(window.location.pathname=e.currentTarget.value)}),window.addEventListener(`pageshow`,t=>{if(!t.persisted)return;let n=e.querySelector(`option[selected]`)?.index;n!==e.selectedIndex&&(e.selectedIndex=n??0)}))}};customElements.define(`starlight-lang-select`,e);</script></div></div></header><nav class="sidebar print:hidden astro-yntsjkba" aria-label="主要"><button popovertarget="starlight__sidebar" class="sl-menu-button sl-flex md:sl-hidden print:hidden astro-r2osgdlg"><svg aria-hidden="true" class="open-menu astro-r2osgdlg astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M3 8h18a1 1 0 1 0 0-2H3a1 1 0 0 0 0 2Zm18 8H3a1 1 0 0 0 0 2h18a1 1 0 0 0 0-2Zm0-5H3a1 1 0 0 0 0 2h18a1 1 0 0 0 0-2Z"/></svg><svg aria-hidden="true" class="close-menu astro-r2osgdlg astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="m13.41 12 6.3-6.29a1.004 1.004 0 1 0-1.42-1.42L12 10.59l-6.29-6.3a1.004 1.004 0 0 0-1.42 1.42l6.3 6.29-6.3 6.29a1 1 0 0 0 0 1.42.998.998 0 0 0 1.42 0l6.29-6.3 6.29 6.3a.999.999 0 0 0 1.42 0 1 1 0 0 0 0-1.42L13.41 12Z"/></svg><span class="sr-only astro-r2osgdlg">菜单</span></button><script type="module">var e=class extends HTMLElement{constructor(){super();let e=matchMedia(`(min-width: 50em)`),t=()=>{this.popover=e.matches?null:`auto`};t(),e.addEventListener(`change`,()=>t()),this.addEventListener(`toggle`,({newState:e})=>this.trapFocus(e===`open`))}trapFocus(e){document.querySelectorAll(`.main-frame, .sl-skip-link`).forEach(t=>{t.toggleAttribute(`inert`,e)})}};customElements.define(`sl-sidebar-pane`,e);</script><sl-sidebar-pane popover id="starlight__sidebar" class="sidebar-pane astro-yntsjkba"><div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="04s6pek" class="astro-ipdry5cl"><script aria-hidden="true">
+		(() => {
+			try {
+				if (!matchMedia('(min-width: 50em)').matches) return;
+				/** @type {HTMLElement | null} */
+				const target = document.querySelector('sl-sidebar-state-persist');
+				const state = JSON.parse(sessionStorage.getItem('sl-sidebar-state') || '0');
+				if (!target || !state || target.dataset.hash !== state.hash) return;
+				window._starlightScrollRestore = state.scroll;
+				customElements.define(
+					'sl-sidebar-restore',
+					class SidebarRestore extends HTMLElement {
+						connectedCallback() {
+							try {
+								const idx = parseInt(this.dataset.index || '');
+								const details = this.closest('details');
+								if (details && typeof state.open[idx] === 'boolean') details.open = state.open[idx];
+							} catch {}
+						}
+					}
+				);
+			} catch {}
+		})();
+	</script><ul class="top-level astro-rmhv4bp6"><li class="astro-rmhv4bp6"><details open class="astro-rmhv4bp6"><summary class="astro-rmhv4bp6"><span class="group-label astro-rmhv4bp6"><span class="large astro-rmhv4bp6">开始</span></span><svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="0"></sl-sidebar-restore><ul class="astro-rmhv4bp6"><li class="astro-rmhv4bp6"><a href="/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">项目概览</span></a></li><li class="astro-rmhv4bp6"><a href="/start/install/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">安装</span></a></li><li class="astro-rmhv4bp6"><a href="/start/quick-start/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">快速开始</span></a></li></ul></details></li><li class="astro-rmhv4bp6"><details open class="astro-rmhv4bp6"><summary class="astro-rmhv4bp6"><span class="group-label astro-rmhv4bp6"><span class="large astro-rmhv4bp6">使用指南</span></span><svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="1"></sl-sidebar-restore><ul class="astro-rmhv4bp6"><li class="astro-rmhv4bp6"><a href="/guide/recording/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">录音与回放</span></a></li><li class="astro-rmhv4bp6"><a href="/guide/transcription/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">字幕与转写</span></a></li><li class="astro-rmhv4bp6"><a href="/guide/ai/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">AI 能力</span></a></li><li class="astro-rmhv4bp6"><a href="/guide/export/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">导出与整理</span></a></li><li class="astro-rmhv4bp6"><a href="/guide/settings/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">设置参考</span></a></li><li class="astro-rmhv4bp6"><a href="/guide/privacy/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">数据与隐私</span></a></li><li class="astro-rmhv4bp6"><a href="/guide/faq/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">常见问题</span></a></li></ul></details></li><li class="astro-rmhv4bp6"><details open class="astro-rmhv4bp6"><summary class="astro-rmhv4bp6"><span class="group-label astro-rmhv4bp6"><span class="large astro-rmhv4bp6">设计文档</span></span><svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="2"></sl-sidebar-restore><ul class="astro-rmhv4bp6"><li class="astro-rmhv4bp6"><a href="/design/ui-guidelines/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">UI 设计规范</span></a></li><li class="astro-rmhv4bp6"><a href="/design/visual-style-v7/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">视觉风格 v7：极光玻璃</span></a></li><li class="astro-rmhv4bp6"><a href="/design/recorder-layout/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">录音页面布局需求</span></a></li><li class="astro-rmhv4bp6"><a href="/design/workspace-requirements/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">AI 录音工作台 UI/UX 需求</span></a></li><li class="astro-rmhv4bp6"><a href="/design/workspace-layout-spec/" aria-current="page" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">AI 录音工作台布局实现规格</span></a></li><li class="astro-rmhv4bp6"><a href="/design/workspace-ui-v1-spec/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">Workspace UI V1.0 详细设计规格</span></a></li><li class="astro-rmhv4bp6"><a href="/design/local-whisper-requirements/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">本地 Whisper 转写需求</span></a></li><li class="astro-rmhv4bp6"><a href="/design/on-device-model-research/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">端侧模型选型调研</span></a></li><li class="astro-rmhv4bp6"><a href="/design/diar-1-spike-report/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">DIAR-1 spike 报告</span></a></li><li class="astro-rmhv4bp6"><a href="/design/realtime-subtitle-and-speakers/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">实时字幕与说话人分离</span></a></li><li class="astro-rmhv4bp6"><a href="/design/feature-roadmap/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">功能规划（未完成项）</span></a></li><li class="astro-rmhv4bp6"><a href="/design/technical-improvement-plan/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">技术改进与修复计划</span></a></li><li class="astro-rmhv4bp6"><a href="/design/gap-analysis-vs-feishu/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">对标飞书妙记差距分析</span></a></li><li class="astro-rmhv4bp6"><a href="/design/feishu-memo-reverse-analysis/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">飞书妙记「录音」功能逆向分析</span></a></li></ul></details></li></ul><script aria-hidden="true">
+		(() => {
+			const scroller = document.getElementById('starlight__sidebar');
+			if (!window._starlightScrollRestore || !scroller) return;
+			scroller.scrollTop = window._starlightScrollRestore;
+			delete window._starlightScrollRestore;
+		})();
+	</script></sl-sidebar-state-persist><div class="md:sl-hidden"><div class="mobile-preferences sl-flex astro-p4azlveh"><div class="social-icons astro-p4azlveh"><a href="https://github.com/fengjutian/MagneticTape" rel="me" class="sl-flex astro-n2mnl6yq"><span class="sr-only astro-n2mnl6yq">GitHub 仓库</span><svg aria-hidden="true" class="astro-n2mnl6yq astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.83 1.24 1.83 1.24 1.08 1.83 2.81 1.3 3.5 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3Z"/></svg></a></div><starlight-theme-select><label style="--sl-select-width: 6.25em" class="astro-2z5xp7gb"><span class="sr-only astro-2z5xp7gb">选择主题</span><svg aria-hidden="true" class="icon label-icon astro-2z5xp7gb astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21 14h-1V7a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v7H3a1 1 0 0 0-1 1v2a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-2a1 1 0 0 0-1-1ZM6 7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v7H6V7Zm14 10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-1h16v1Z"/></svg><select autocomplete="off" class="astro-2z5xp7gb"><option value="dark" class="astro-2z5xp7gb">深色</option><option value="light" class="astro-2z5xp7gb">浅色</option><option value="auto" selected class="astro-2z5xp7gb">自动</option></select><svg aria-hidden="true" class="icon caret astro-2z5xp7gb astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M17 9.17a1 1 0 0 0-1.41 0L12 12.71 8.46 9.17a1 1 0 1 0-1.41 1.42l4.24 4.24a1.002 1.002 0 0 0 1.42 0L17 10.59a1.002 1.002 0 0 0 0-1.42Z"/></svg></label></starlight-theme-select><script>
+	StarlightThemeProvider.updatePickers();
+</script></div></div></div></sl-sidebar-pane></nav><div class="main-frame astro-yntsjkba"><script type="module">var e=document.getElementById(`starlight__sidebar`),t=e?.querySelector(`sl-sidebar-state-persist`),n=`sl-sidebar-state`,r=()=>{let r=[],i=t?.dataset.hash||``;try{let e=sessionStorage.getItem(n),t=JSON.parse(e||`{}`);Array.isArray(t.open)&&t.hash===i&&(r=t.open)}catch{}return{hash:i,open:r,scroll:e?.scrollTop||0}},i=e=>{try{sessionStorage.setItem(n,JSON.stringify(e))}catch{}},a=()=>i(r()),o=(e,t)=>{let n=r();n.open[t]=e,i(n)};t?.addEventListener(`click`,e=>{if(!(e.target instanceof Element))return;let t=e.target.closest(`summary`)?.closest(`details`);if(!t)return;let n=t.querySelector(`sl-sidebar-restore`),r=parseInt(n?.dataset.index||``);isNaN(r)||o(!t.open,r)}),addEventListener(`visibilitychange`,()=>{document.visibilityState===`hidden`&&a()});</script><div class="lg:sl-flex astro-lrzkfocr"><aside class="right-sidebar-container print:hidden astro-lrzkfocr"><div class="right-sidebar astro-lrzkfocr"><div class="lg:sl-hidden astro-qok35upx"><mobile-starlight-toc data-min-h="2" data-max-h="3" class="astro-66cqc7ze"><nav aria-labelledby="starlight__on-this-page--mobile" class="astro-66cqc7ze"><details id="starlight__mobile-toc" class="astro-66cqc7ze"><summary id="starlight__on-this-page--mobile" class="sl-flex astro-66cqc7ze"><span class="toggle sl-flex astro-66cqc7ze">本页内容<svg aria-hidden="true" class="caret astro-66cqc7ze astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></span><span class="display-current astro-66cqc7ze"></span></summary><div class="dropdown astro-66cqc7ze"><ul class="isMobile astro-jugkfwgx" style="--depth: 0;"><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#_top" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">概述</span></a></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#1-目标与边界" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">1. 目标与边界</span></a><ul class="isMobile astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#11-设计原则" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">1.1 设计原则</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#12-不在本版范围" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">1.2 不在本版范围</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#2-整体布局" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">2. 整体布局</span></a><ul class="isMobile astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#21-参考尺寸" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">2.1 参考尺寸</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#22-栅格" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">2.2 栅格</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#23-响应式规则" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">2.3 响应式规则</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#3-顶部栏" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">3. 顶部栏</span></a></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#4-左栏录音控制中心" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">4. 左栏：录音控制中心</span></a><ul class="isMobile astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#41-面板标题" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">4.1 面板标题</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#42-录音场景" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">4.2 录音场景</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#43-配置分组" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">4.3 配置分组</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#44-录音状态卡" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">4.4 录音状态卡</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#5-中栏实时内容" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">5. 中栏：实时内容</span></a><ul class="isMobile astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#51-面板标题" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">5.1 面板标题</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#52-视图-tab" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">5.2 视图 Tab</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#53-转录视图" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">5.3 转录视图</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#54-翻译视图" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">5.4 翻译视图</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#55-ai-分析视图" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">5.5 AI 分析视图</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#56-任务视图" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">5.6 任务视图</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#57-ai-对话视图" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">5.7 AI 对话视图</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#6-右栏ai-洞察与-ai-对话" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">6. 右栏：AI 洞察与 AI 对话</span></a><ul class="isMobile astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#61-ai-洞察面板" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">6.1 AI 洞察面板</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#62-ai-对话面板" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">6.2 AI 对话面板</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#7-底部播放器" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">7. 底部播放器</span></a></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#8-状态映射" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">8. 状态映射</span></a></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#9-数据与组件边界" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">9. 数据与组件边界</span></a></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#10-可访问性" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">10. 可访问性</span></a></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#11-验收标准" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">11. 验收标准</span></a></li></ul></div></details></nav></mobile-starlight-toc><script type="module" src="/_astro/MobileTableOfContents.astro_astro_type_script_index_0_lang.C3fM4Kra.js"></script></div><div class="right-sidebar-panel sl-hidden lg:sl-block astro-qok35upx"><div class="sl-container astro-qok35upx"><starlight-toc data-min-h="2" data-max-h="3"><nav aria-labelledby="starlight__on-this-page"><h2 id="starlight__on-this-page">本页内容</h2><ul class="astro-jugkfwgx" style="--depth: 0;"><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#_top" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">概述</span></a></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#1-目标与边界" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">1. 目标与边界</span></a><ul class="astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#11-设计原则" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">1.1 设计原则</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#12-不在本版范围" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">1.2 不在本版范围</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#2-整体布局" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">2. 整体布局</span></a><ul class="astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#21-参考尺寸" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">2.1 参考尺寸</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#22-栅格" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">2.2 栅格</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#23-响应式规则" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">2.3 响应式规则</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#3-顶部栏" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">3. 顶部栏</span></a></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#4-左栏录音控制中心" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">4. 左栏：录音控制中心</span></a><ul class="astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#41-面板标题" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">4.1 面板标题</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#42-录音场景" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">4.2 录音场景</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#43-配置分组" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">4.3 配置分组</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#44-录音状态卡" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">4.4 录音状态卡</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#5-中栏实时内容" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">5. 中栏：实时内容</span></a><ul class="astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#51-面板标题" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">5.1 面板标题</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#52-视图-tab" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">5.2 视图 Tab</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#53-转录视图" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">5.3 转录视图</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#54-翻译视图" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">5.4 翻译视图</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#55-ai-分析视图" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">5.5 AI 分析视图</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#56-任务视图" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">5.6 任务视图</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#57-ai-对话视图" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">5.7 AI 对话视图</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#6-右栏ai-洞察与-ai-对话" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">6. 右栏：AI 洞察与 AI 对话</span></a><ul class="astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#61-ai-洞察面板" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">6.1 AI 洞察面板</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#62-ai-对话面板" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">6.2 AI 对话面板</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#7-底部播放器" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">7. 底部播放器</span></a></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#8-状态映射" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">8. 状态映射</span></a></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#9-数据与组件边界" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">9. 数据与组件边界</span></a></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#10-可访问性" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">10. 可访问性</span></a></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#11-验收标准" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">11. 验收标准</span></a></li></ul></nav></starlight-toc><script type="module" src="/_astro/TableOfContents.astro_astro_type_script_index_0_lang.BpJaGz7G.js"></script></div></div></div></aside><div class="main-pane astro-lrzkfocr"><main data-pagefind-body class="astro-g5ptsecz" lang="zh-CN" dir="ltr"><div class="content-panel astro-a7po4psb"><div class="sl-container astro-a7po4psb"><h1 id="_top" class="astro-bebwqqxs">AI 录音工作台布局实现规格</h1></div></div><div class="content-panel astro-a7po4psb"><div class="sl-container astro-a7po4psb"><div class="sl-markdown-content"><blockquote>
+<p>本页由仓库 <code dir="auto">doc/AI录音工作台-布局实现规格.md</code> 自动同步，内容以主仓库为准。
+<a href="https://github.com/fengjutian/MagneticTape/blob/main/doc/AI%E5%BD%95%E9%9F%B3%E5%B7%A5%E4%BD%9C%E5%8F%B0-%E5%B8%83%E5%B1%80%E5%AE%9E%E7%8E%B0%E8%A7%84%E6%A0%BC.md">在 GitHub 上查看源文件</a></p>
+</blockquote>
+<blockquote>
+<p>状态：已实现（V1.0 布局，录音、实时字幕、AI 洞察占位、AI 对话与全局回放已接入）
+参考：用户提供的 1536 × 1024 工作台截图
+适用范围：<code dir="auto">apps/desktop</code> Tauri 桌面端
+更新日期：2026-11-08
+上游文档：<a href="/design/workspace-requirements/">AI 录音工作台 UI/UX 需求</a>、<a href="/design/ui-guidelines/">UI 设计规范</a>、<a href="/design/visual-style-v7/">视觉风格 v7：极光玻璃</a></p>
+</blockquote>
+<div class="sl-heading-wrapper level-h2"><h2 id="1-目标与边界">1. 目标与边界</h2><a class="sl-anchor-link" href="#1-目标与边界"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “1. 目标与边界”</span></a></div>
+<p>本规格把现有“录音区 + 内容区”的双栏页面升级成截图中的三栏 AI 工作台：</p>
+<ol>
+<li>顶部品牌与全局导航。</li>
+<li>左侧录音控制中心（场景、配置、录音状态）。</li>
+<li>中间实时内容工作区（五种视图）。</li>
+<li>右侧 AI 洞察与 AI 对话。</li>
+<li>底部全局播放器。</li>
+</ol>
+<p>本版优先完成<strong>布局、信息层级与可交互骨架</strong>。真实录音、实时字幕、转写、翻译、纪要、导出继续复用现有 Tauri 命令；AI 洞察在没有独立分析接口时使用本地可解释的占位/摘要，不伪造会议结论。</p>
+<div class="sl-heading-wrapper level-h3"><h3 id="11-设计原则">1.1 设计原则</h3><a class="sl-anchor-link" href="#11-设计原则"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “1.1 设计原则”</span></a></div>
+<ul>
+<li><strong>录音是入口</strong>：左栏的计时、波形、暂停/结束始终是视觉重心。</li>
+<li><strong>内容优先</strong>：中间栏占据最大宽度，AI 洞察不得挤压实时转录阅读区。</li>
+<li><strong>能力分色</strong>：绿色只表达本地、录制、成功；Iris 只表达 AI 能力；红色只表达错误；琥珀只表达暂停。</li>
+<li><strong>不逐像素复制参考图</strong>：采用参考图的空间关系、卡片节奏与深浅层级，文案、图标与功能必须服务 MagneticTape。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="12-不在本版范围">1.2 不在本版范围</h3><a class="sl-anchor-link" href="#12-不在本版范围"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “1.2 不在本版范围”</span></a></div>
+<ul>
+<li>说话人身份编辑、说话人分离、跨录音知识图谱。</li>
+<li>AI 洞察的专用流式分析模型与结构化协议。</li>
+<li>任务负责人/截止时间的自动抽取与确认流。</li>
+<li>拖拽调整栏宽、栏折叠动画、完整移动端布局。</li>
+</ul>
+<p>以上能力保留入口或占位，在后续迭代补全。</p>
+<div class="sl-heading-wrapper level-h2"><h2 id="2-整体布局">2. 整体布局</h2><a class="sl-anchor-link" href="#2-整体布局"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “2. 整体布局”</span></a></div>
+<div class="sl-heading-wrapper level-h3"><h3 id="21-参考尺寸">2.1 参考尺寸</h3><a class="sl-anchor-link" href="#21-参考尺寸"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “2.1 参考尺寸”</span></a></div>
+<p>以 1536 × 1024 视口为基准（平台窗口建议默认 1440 × 960，最小 960 × 640）：</p>
+<table>
+<thead>
+<tr>
+<th>区域</th>
+<th>尺寸/规则</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>页面外边距</td>
+<td>16 px</td>
+</tr>
+<tr>
+<td>顶部栏</td>
+<td>高 72 px，左右 24 px 内边距</td>
+</tr>
+<tr>
+<td>主工作区</td>
+<td>顶部栏下方，底部播放器上方</td>
+</tr>
+<tr>
+<td>列间距</td>
+<td>16 px</td>
+</tr>
+<tr>
+<td>左栏</td>
+<td>396 px（<code dir="auto">clamp(340px, 27vw, 412px)</code>）</td>
+</tr>
+<tr>
+<td>中栏</td>
+<td>自适应，最小 480 px</td>
+</tr>
+<tr>
+<td>右栏</td>
+<td>388 px（<code dir="auto">clamp(320px, 25vw, 400px)</code>）</td>
+</tr>
+<tr>
+<td>底部播放器</td>
+<td>高 56 px，与主工作区间距 12 px</td>
+</tr>
+<tr>
+<td>主面板圆角</td>
+<td>16 px</td>
+</tr>
+<tr>
+<td>内层卡片圆角</td>
+<td>12 px</td>
+</tr>
+<tr>
+<td>主面板边框</td>
+<td>1 px <code dir="auto">rgba(31, 41, 55, .07)</code></td>
+</tr>
+<tr>
+<td>主面板阴影</td>
+<td><code dir="auto">0 12px 32px rgba(31, 41, 55, .05)</code></td>
+</tr>
+</tbody>
+</table>
+<p>页面使用 <code dir="auto">100dvh</code> 锁定高度，主工作区内部面板各自滚动，不出现整页滚动条。</p>
+<div class="sl-heading-wrapper level-h3"><h3 id="22-栅格">2.2 栅格</h3><a class="sl-anchor-link" href="#22-栅格"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “2.2 栅格”</span></a></div>
+<div class="expressive-code"><link rel="stylesheet" href="/_astro/ec.w36nc.css"><script type="module" src="/_astro/ec.0vx5m.js"></script><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="text"><code><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">┌──────────────────────────────────────────────────────────────────────┐</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│ 品牌 / 标题 / 副标题                         历史记录 知识库 设置     │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">├────────────────┬──────────────────────────────┬──────────────────────┤</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│ 1 录音控制      │ 2 实时内容                    │ 3 AI 洞察            │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│                │                              │                      │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│ 场景            │ [转录][翻译][AI分析][任务][对话]│ 当前主题             │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│ 语言/音频/AI    │                              │ 关键观点             │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│                │ 发言人 / 时间 / 识别状态       │ 待办事项             │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│ 录音状态        │ 发言文本                      │ 会议摘要             │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│ 计时 / 波形     │                              │                      │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│ 暂停 / 结束     │ ...                           ├──────────────────────┤</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│                │                              │ 4 AI 对话            │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│ 双通道电平      │ 编辑 标记重点 复制 跳转音频 更多│ 提问 / 输入 / 发送    │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">├────────────────┴──────────────────────────────┴──────────────────────┤</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│ ▶ 00:00 / 00:32:18 ─────────────── 1.0× 🔊 ───── ⛶                  │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">└──────────────────────────────────────────────────────────────────────┘</span></div></div></code></pre><div class="copy"><div aria-live="polite"></div><button title="复制到剪贴板" data-copied="复制成功！" data-code="┌──────────────────────────────────────────────────────────────────────┐│ 品牌 / 标题 / 副标题                         历史记录 知识库 设置     │├────────────────┬──────────────────────────────┬──────────────────────┤│ 1 录音控制      │ 2 实时内容                    │ 3 AI 洞察            ││                │                              │                      ││ 场景            │ [转录][翻译][AI分析][任务][对话]│ 当前主题             ││ 语言/音频/AI    │                              │ 关键观点             ││                │ 发言人 / 时间 / 识别状态       │ 待办事项             ││ 录音状态        │ 发言文本                      │ 会议摘要             ││ 计时 / 波形     │                              │                      ││ 暂停 / 结束     │ ...                           ├──────────────────────┤│                │                              │ 4 AI 对话            ││ 双通道电平      │ 编辑 标记重点 复制 跳转音频 更多│ 提问 / 输入 / 发送    │├────────────────┴──────────────────────────────┴──────────────────────┤│ ▶ 00:00 / 00:32:18 ─────────────── 1.0× 🔊 ───── ⛶                  │└──────────────────────────────────────────────────────────────────────┘"><div></div></button></div></figure></div>
+<div class="sl-heading-wrapper level-h3"><h3 id="23-响应式规则">2.3 响应式规则</h3><a class="sl-anchor-link" href="#23-响应式规则"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “2.3 响应式规则”</span></a></div>
+<table>
+<thead>
+<tr>
+<th>宽度</th>
+<th>布局</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>≥ 1360 px</td>
+<td>三栏常驻，按 2.1 比例</td>
+</tr>
+<tr>
+<td>1100–1359 px</td>
+<td>三栏常驻，左栏收窄至 340 px，右栏收窄至 320 px</td>
+</tr>
+<tr>
+<td>960–1099 px</td>
+<td>保留左 + 中两栏；右栏变为可呼出的侧滑面板，顶部“AI 洞察”按钮打开</td>
+</tr>
+<tr>
+<td>&lt; 960 px</td>
+<td>允许窗口最小宽度阻止继续缩小；内容区横向滚动兜底</td>
+</tr>
+</tbody>
+</table>
+<p>高度不足 760 px 时，左栏配置区允许内部滚动；录音控制区仍吸底可见。底部播放器始终保留。</p>
+<div class="sl-heading-wrapper level-h2"><h2 id="3-顶部栏">3. 顶部栏</h2><a class="sl-anchor-link" href="#3-顶部栏"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “3. 顶部栏”</span></a></div>
+<ul>
+<li>左侧品牌：44 px 绿色圆角方块 + Lucide <code dir="auto">Mic</code> 图标；主标题“AI 录音工作台”22 px/700；副标题“录音 · 转录 · AI 洞察 · 知识沉淀”11 px。</li>
+<li>右侧导航：历史记录、知识库、设置，均为图标 + 文案的幽灵按钮；悬停为浅灰底。</li>
+<li>历史记录打开现有录音库弹窗。</li>
+<li>知识库打开 V1.0 占位弹窗，明确“跨录音知识检索将在后续版本提供”。</li>
+<li>设置打开设置入口弹窗，聚合 AI 服务、转写服务与本地数据入口。</li>
+<li>顶部栏不显示录音状态；录音状态属于左栏与底部播放器。</li>
+</ul>
+<div class="sl-heading-wrapper level-h2"><h2 id="4-左栏录音控制中心">4. 左栏：录音控制中心</h2><a class="sl-anchor-link" href="#4-左栏录音控制中心"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “4. 左栏：录音控制中心”</span></a></div>
+<div class="sl-heading-wrapper level-h3"><h3 id="41-面板标题">4.1 面板标题</h3><a class="sl-anchor-link" href="#41-面板标题"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “4.1 面板标题”</span></a></div>
+<ul>
+<li>32 px 圆形数字徽标“1”，背景浅绿，文字深绿。</li>
+<li>标题“录音控制”15 px/650。</li>
+<li>右侧为收起按钮；V1.0 只做禁用/提示，不实现折叠。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="42-录音场景">4.2 录音场景</h3><a class="sl-anchor-link" href="#42-录音场景"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “4.2 录音场景”</span></a></div>
+<ul>
+<li>标题“录音场景”12 px；右侧帮助图标 + 展开箭头。</li>
+<li>六宫格按钮：会议、学习、灵感、访谈、通话、其他。</li>
+<li>每格高 68 px，图标 18 px 在上、名称 11 px 在下；默认 3 列 × 2 行。</li>
+<li>选中态：1 px 绿色描边、极浅绿底、图标/文字变深绿，并保留 <code dir="auto">aria-pressed="true"</code>。</li>
+<li>录音开始后场景切换禁用，<code dir="auto">title</code> 说明“录音中不可切换场景”。</li>
+<li>场景选择写入 <code dir="auto">localStorage</code>（键 <code dir="auto">magnetic-tape.scene</code>），刷新后保留。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="43-配置分组">4.3 配置分组</h3><a class="sl-anchor-link" href="#43-配置分组"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “4.3 配置分组”</span></a></div>
+<p>三组均使用折叠卡：</p>
+<table>
+<thead>
+<tr>
+<th>分组</th>
+<th>摘要行</th>
+<th>展开内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>语言与翻译</td>
+<td>图标 + “自动识别 · 不翻译”</td>
+<td>转写语言、AI 同传目标语言</td>
+</tr>
+<tr>
+<td>音频设备</td>
+<td>图标 + 当前设备摘要</td>
+<td>麦克风、系统输出、重新检测</td>
+</tr>
+<tr>
+<td>AI 模型</td>
+<td>图标 + Provider / 模型</td>
+<td>AI 服务配置、实时字幕开关</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>摘要行高 44 px；展开后内边距 10 px。</li>
+<li>同一时间允许多组展开；默认只展开“语言与翻译”，录音开始后全部收起。</li>
+<li>选择变更继续调用现有 <code dir="auto">persistSettings</code>。</li>
+<li>“AI 模型”右侧显示绿色“已配置”或琥珀“未配置”状态点。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="44-录音状态卡">4.4 录音状态卡</h3><a class="sl-anchor-link" href="#44-录音状态卡"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “4.4 录音状态卡”</span></a></div>
+<ul>
+<li>浅绿渐变卡片，圆角 14 px，内边距 14 px。</li>
+<li>顶部状态胶囊：录音中为红色圆点 + “正在录音”；暂停为琥珀；待机为灰色。</li>
+<li>波形：48 根绿色圆角竖条，高度由实时音频电平驱动；暂停时降饱和并停止动画。</li>
+<li>计时：<code dir="auto">32 px/650</code>，等宽数字，格式 <code dir="auto">MM:SS</code> 或 <code dir="auto">HH:MM:SS</code>。</li>
+<li>状态说明：如“正在录音 · 本地安全保存”。</li>
+<li>主操作行：
+<ul>
+<li>待机：绿色“开始录音”按钮，占满整行。</li>
+<li>录音/暂停：两个并排按钮“暂停/继续”和“结束”；宽度各 50%。</li>
+</ul>
+</li>
+<li>录音卡下方是双通道电平，每行包含图标、名称、进度条；“正常/无声/异常”通过文字和数值说明。</li>
+<li>设备异常提示紧邻录音卡显示，不覆盖主操作。</li>
+</ul>
+<div class="sl-heading-wrapper level-h2"><h2 id="5-中栏实时内容">5. 中栏：实时内容</h2><a class="sl-anchor-link" href="#5-中栏实时内容"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “5. 中栏：实时内容”</span></a></div>
+<div class="sl-heading-wrapper level-h3"><h3 id="51-面板标题">5.1 面板标题</h3><a class="sl-anchor-link" href="#51-面板标题"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “5.1 面板标题”</span></a></div>
+<ul>
+<li>数字徽标“2” + “实时内容”。</li>
+<li>右侧：<code dir="auto">LIVE</code> 胶囊（录音中为浅红点+红字，待机为灰）、全屏/展开图标按钮。</li>
+<li>V1.0 全屏按钮切换中栏为“专注阅读”类（隐藏左右栏），按 <code dir="auto">Esc</code> 退出。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="52-视图-tab">5.2 视图 Tab</h3><a class="sl-anchor-link" href="#52-视图-tab"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “5.2 视图 Tab”</span></a></div>
+<p>五个 Tab：转录、翻译、AI 分析、任务、AI 对话。</p>
+<ul>
+<li>选中态：浅绿底、绿色边框、深绿文字；图标 15 px。</li>
+<li>未选中：透明底、灰色文字；悬停浅灰底。</li>
+<li>Tab 使用 <code dir="auto">role="tab"</code>、<code dir="auto">aria-selected</code>，面板使用 <code dir="auto">role="tabpanel"</code>。</li>
+<li>Tab 切换不重置录音状态、滚动位置与对话历史。</li>
+<li>默认打开“转录”。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="53-转录视图">5.3 转录视图</h3><a class="sl-anchor-link" href="#53-转录视图"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “5.3 转录视图”</span></a></div>
+<ul>
+<li>顶部为说话人条目列表。</li>
+<li>单条结构：
+<ul>
+<li>第一行：发言人彩色圆点 + “发言人 A” + 时间戳 + 右侧“已识别”胶囊 + 播放圆钮。</li>
+<li>第二行：13.5 px/1.75 正文，最多自然换行。</li>
+<li>条目之间用 12 px 间距分隔，不再使用重边框卡片。</li>
+</ul>
+</li>
+<li>发言人颜色循环：绿、蓝、紫、琥珀，颜色只用于圆点与浅底标签。</li>
+<li>时间戳可点击跳转到音频位置，并给该条添加 <code dir="auto">active</code> 高亮。</li>
+<li>识别中占位：居中浅灰胶囊 + 旋转加载点 + “正在识别下一段语音…”。</li>
+<li>空态：居中的磨砂图标砖 + “开始录音后，实时转写会显示在这里”。</li>
+<li>实时字幕到达时：
+<ul>
+<li>用户位于底部则自动跟随。</li>
+<li>用户上滚超过 24 px 后暂停跟随，显示“回到最新内容”浮按钮。</li>
+<li>新片段不得强制改变当前阅读位置。</li>
+</ul>
+</li>
+<li>底部工具条固定在中栏底部：编辑、标记重点、复制、跳转音频、更多。
+<ul>
+<li>无转写时禁用。</li>
+<li>“编辑”进入选中片段的行内编辑；V1.0 至少支持修改最后一段并标记“已编辑”。</li>
+<li>“复制”复制当前可见转写全文。</li>
+<li>“跳转音频”在完成态调用全局播放器定位。</li>
+<li>“更多”打开菜单：导出会议资料、删除音频（仅在完成态可用）。</li>
+</ul>
+</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="54-翻译视图">5.4 翻译视图</h3><a class="sl-anchor-link" href="#54-翻译视图"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “5.4 翻译视图”</span></a></div>
+<ul>
+<li>显示原文 / 译文上下对照；译文使用 Iris 左边线与浅紫底。</li>
+<li>未生成译文时展示空态和“完成转写后生成翻译”说明。</li>
+<li>实时同传结果按段渲染，失败不清空原文。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="55-ai-分析视图">5.5 AI 分析视图</h3><a class="sl-anchor-link" href="#55-ai-分析视图"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “5.5 AI 分析视图”</span></a></div>
+<ul>
+<li>以卡片展示：当前主题、关键观点、待办事项、会议摘要。</li>
+<li>完成态“生成纪要”复用现有 <code dir="auto">summarize_session</code>，结果写入 <code dir="auto">.meeting-notes</code> 并同步右栏摘要。</li>
+<li>记录笔记编辑区与保存按钮保留在完成态。</li>
+<li>未接入独立 AI 分析接口时，卡片明确标注“等待转写”或“AI 生成 · 待确认”。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="56-任务视图">5.6 任务视图</h3><a class="sl-anchor-link" href="#56-任务视图"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “5.6 任务视图”</span></a></div>
+<ul>
+<li>空态说明“任务会从转写中提取，确认后才进入正式记录”。</li>
+<li>已完成且有笔记时，解析 Markdown 复选框行（<code dir="auto">- [ ]</code>、<code dir="auto">- [x]</code>）形成只读任务列表。</li>
+<li>不伪造负责人和截止时间。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="57-ai-对话视图">5.7 AI 对话视图</h3><a class="sl-anchor-link" href="#57-ai-对话视图"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “5.7 AI 对话视图”</span></a></div>
+<ul>
+<li>与右栏 AI 对话共享同一段聊天记录 DOM 数据（切换 Tab 不丢消息）。</li>
+<li>消息结构：用户气泡靠右（浅绿）；AI 回答靠左（白底 + Iris 标识）。</li>
+<li>回答必须标注“基于当前录音内容”，并在失败时显示可读错误。</li>
+<li>输入框占位“输入你的问题…”，回车发送，<code dir="auto">Shift+Enter</code> 换行。</li>
+</ul>
+<div class="sl-heading-wrapper level-h2"><h2 id="6-右栏ai-洞察与-ai-对话">6. 右栏：AI 洞察与 AI 对话</h2><a class="sl-anchor-link" href="#6-右栏ai-洞察与-ai-对话"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “6. 右栏：AI 洞察与 AI 对话”</span></a></div>
+<div class="sl-heading-wrapper level-h3"><h3 id="61-ai-洞察面板">6.1 AI 洞察面板</h3><a class="sl-anchor-link" href="#61-ai-洞察面板"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “6.1 AI 洞察面板”</span></a></div>
+<ul>
+<li>标题：“3 AI 洞察”，右侧 Iris 星标。</li>
+<li>卡片顺序：当前主题 → 关键观点 → 待办事项 → 会议摘要。</li>
+<li>卡片样式：浅色底（主题浅绿、观点白、待办浅绿、摘要浅灰），12 px 圆角，10–12 px 内边距。</li>
+<li>当前主题：显示录音标题、实时主题或“等待开始录音”。</li>
+<li>关键观点：最多 3 条，每条附来源时间；无数据时说明“转写后自动提炼”。</li>
+<li>待办事项：显示数量胶囊；从笔记解析；无数据时“暂未识别到待办”。</li>
+<li>会议摘要：完成态显示笔记摘要或生成按钮；未完成时显示“录音结束后生成”；超过 4 行时“展开”。</li>
+<li>面板内部独立滚动。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="62-ai-对话面板">6.2 AI 对话面板</h3><a class="sl-anchor-link" href="#62-ai-对话面板"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “6.2 AI 对话面板”</span></a></div>
+<ul>
+<li>标题“4 AI 对话”，右侧刷新/清空按钮。</li>
+<li>默认展示一条建议提问气泡。</li>
+<li>输入区：圆角输入框 + 48 px 绿色发送按钮（<code dir="auto">Send</code> 图标）。</li>
+<li>无已配置 AI Key 时，发送后显示“请先在设置中配置 AI 服务”，不阻塞录音。</li>
+<li>聊天请求复用 <code dir="auto">generate_ai</code>，附带当前标题与最近 20 段转写作为上下文。</li>
+</ul>
+<div class="sl-heading-wrapper level-h2"><h2 id="7-底部播放器">7. 底部播放器</h2><a class="sl-anchor-link" href="#7-底部播放器"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “7. 底部播放器”</span></a></div>
+<ul>
+<li>全宽、高 56 px 的白底卡片，圆角 14 px。</li>
+<li>左侧圆形播放按钮（34 px，绿色软底），播放中切换为暂停图标。</li>
+<li>时间显示 <code dir="auto">当前 / 总时长</code>，等宽数字。</li>
+<li>中间为细进度条，绿色已播放段、灰色轨道。</li>
+<li>右侧：倍速选择（0.75×–2×）、音量图标 + 音量条、全屏按钮。</li>
+<li>完成态接入 <code dir="auto">TimelinePlayer</code>，支持拖动进度、倍速和字幕跳转。</li>
+<li>录音中显示实时累计时长；无音频时按钮禁用并给出可读提示。</li>
+<li>播放器不随中间栏滚动。</li>
+</ul>
+<div class="sl-heading-wrapper level-h2"><h2 id="8-状态映射">8. 状态映射</h2><a class="sl-anchor-link" href="#8-状态映射"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “8. 状态映射”</span></a></div>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>左栏</th>
+<th>中栏</th>
+<th>右栏</th>
+<th>播放器</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Idle</td>
+<td>场景可切换、配置可用、开始按钮</td>
+<td>空态 + Tabs</td>
+<td>提示开始录音</td>
+<td>禁用</td>
+</tr>
+<tr>
+<td>Recording</td>
+<td>场景锁定、配置收起、波形活动</td>
+<td>实时转写 / 识别占位</td>
+<td>更新主题与关键观点</td>
+<td>显示累计时长</td>
+</tr>
+<tr>
+<td>Paused</td>
+<td>波形静止、状态琥珀</td>
+<td>保留内容、显示已暂停</td>
+<td>不清空</td>
+<td>显示累计时长</td>
+</tr>
+<tr>
+<td>Stopping</td>
+<td>按钮禁用、保存提示</td>
+<td>保留内容</td>
+<td>保留内容</td>
+<td>保留</td>
+</tr>
+<tr>
+<td>Finished</td>
+<td>显示“录音已保存”、录音按钮变为“开始新录音”</td>
+<td>转写工作台 / 摘要 / 任务</td>
+<td>摘要与待办</td>
+<td>真实时间轴可用</td>
+</tr>
+<tr>
+<td>Error</td>
+<td>错误条 + 可恢复操作</td>
+<td>保留已有内容</td>
+<td>保留已有内容</td>
+<td>保留</td>
+</tr>
+</tbody>
+</table>
+<div class="sl-heading-wrapper level-h2"><h2 id="9-数据与组件边界">9. 数据与组件边界</h2><a class="sl-anchor-link" href="#9-数据与组件边界"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “9. 数据与组件边界”</span></a></div>
+<ul>
+<li>静态骨架由 <code dir="auto">renderApp()</code> 一次性渲染；状态变化由 <code dir="auto">applyView()</code> 更新，避免整页重绘丢失滚动位置。</li>
+<li>录音状态、计时、电平继续由 <code dir="auto">main.ts</code> 的页面控制器管理。</li>
+<li><code dir="auto">renderTranscript()</code> 只负责片段 DOM；时间戳跳转仍走 <code dir="auto">seekFromTranscript()</code>。</li>
+<li>AI 洞察更新函数接收当前转写片段和笔记，不直接调用 Tauri。</li>
+<li>聊天请求由页面控制器发起，UI 只渲染消息。</li>
+<li>不新增 React 或状态库，保持 Vanilla TypeScript。</li>
+</ul>
+<div class="sl-heading-wrapper level-h2"><h2 id="10-可访问性">10. 可访问性</h2><a class="sl-anchor-link" href="#10-可访问性"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “10. 可访问性”</span></a></div>
+<ul>
+<li>所有按钮为原生 <code dir="auto">button</code>；图标按钮必须有 <code dir="auto">aria-label</code> 和 <code dir="auto">title</code>。</li>
+<li>Tabs 支持左右方向键切换、Home/End 跳转。</li>
+<li>录音状态通过 <code dir="auto">aria-live="polite"</code> 播报；计时器不做每秒播报。</li>
+<li>AI 分析、任务等非事实内容标注“AI 生成 · 待确认”。</li>
+<li>焦点环统一 3 px；颜色不是唯一状态信号。</li>
+<li>尊重 <code dir="auto">prefers-reduced-motion</code>；暂停/减少动态效果时波形静止。</li>
+</ul>
+<div class="sl-heading-wrapper level-h2"><h2 id="11-验收标准">11. 验收标准</h2><a class="sl-anchor-link" href="#11-验收标准"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “11. 验收标准”</span></a></div>
+<ol>
+<li>1440 × 960 下呈现三栏；1536 × 1024 下空间比例与参考图一致。</li>
+<li>1220 × 900 下三栏压缩但不重叠；960 × 640 下右栏可呼出，无整页横向滚动。</li>
+<li>左栏场景选中、折叠组、设备摘要和录音控制均可用键盘操作。</li>
+<li>录音开始后实时字幕进入中栏，时间戳和播放按钮可定位。</li>
+<li>五个 Tab 切换不丢失录音状态；空态、加载态、错误态文案明确。</li>
+<li>右栏洞察与聊天在无数据时不伪造内容；配置 AI 后聊天可返回结果。</li>
+<li>完成录音后播放器可播放、拖动与切换倍速。</li>
+<li><code dir="auto">npm run build</code>、<code dir="auto">npm test</code>、<code dir="auto">npm run test:e2e</code> 通过。</li>
+</ol>
+</div><footer class="sl-flex astro-ddtxxk7k"><div class="meta sl-flex astro-ddtxxk7k"><a href="https://github.com/fengjutian/MagneticTape/edit/main/apps/site/src/content/docs/src/content/docs/design/workspace-layout-spec.md" class="sl-flex print:hidden astro-qlekgd3o"><svg aria-hidden="true" class="astro-qlekgd3o astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.2em;"><path d="M22 7.24a1 1 0 0 0-.29-.71l-4.24-4.24a1 1 0 0 0-1.1-.22 1 1 0 0 0-.32.22l-2.83 2.83L2.29 16.05a1 1 0 0 0-.29.71V21a1 1 0 0 0 1 1h4.24a1 1 0 0 0 .76-.29l10.87-10.93L21.71 8c.1-.1.17-.2.22-.33a1 1 0 0 0 0-.24v-.14l.07-.05ZM6.83 20H4v-2.83l9.93-9.93 2.83 2.83L6.83 20ZM18.17 8.66l-2.83-2.83 1.42-1.41 2.82 2.82-1.41 1.42Z"/></svg>编辑此页</a></div><div class="pagination-links print:hidden astro-b5raizh3" dir="ltr"><a href="/design/workspace-requirements/" rel="prev" class="astro-b5raizh3"><svg aria-hidden="true" class="astro-b5raizh3 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.5rem;"><path d="M17 11H9.41l3.3-3.29a1.004 1.004 0 1 0-1.42-1.42l-5 5a1 1 0 0 0-.21.33 1 1 0 0 0 0 .76 1 1 0 0 0 .21.33l5 5a1.002 1.002 0 0 0 1.639-.325 1 1 0 0 0-.219-1.095L9.41 13H17a1 1 0 0 0 0-2Z"/></svg><span class="astro-b5raizh3">上一页<br class="astro-b5raizh3"><span class="link-title astro-b5raizh3">AI 录音工作台 UI/UX 需求</span></span></a><a href="/design/workspace-ui-v1-spec/" rel="next" class="astro-b5raizh3"><svg aria-hidden="true" class="astro-b5raizh3 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.5rem;"><path d="M17.92 11.62a1.001 1.001 0 0 0-.21-.33l-5-5a1.003 1.003 0 1 0-1.42 1.42l3.3 3.29H7a1 1 0 0 0 0 2h7.59l-3.3 3.29a1.002 1.002 0 0 0 .325 1.639 1 1 0 0 0 1.095-.219l5-5a1 1 0 0 0 .21-.33 1 1 0 0 0 0-.76Z"/></svg><span class="astro-b5raizh3">下一页<br class="astro-b5raizh3"><span class="link-title astro-b5raizh3">Workspace UI V1.0 详细设计规格</span></span></a></div></footer></div></div></main></div></div></div></div></body></html>

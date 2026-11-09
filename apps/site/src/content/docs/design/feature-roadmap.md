@@ -1,0 +1,345 @@
+---
+title: "功能规划（未完成项）"
+description: "尚未实现或尚未验证的功能清单、优先级与里程碑。"
+sidebar:
+  order: 11
+  label: "功能规划（未完成项）"
+editLink: false
+---
+> 本页由仓库 `doc/功能规划.md` 自动同步，内容以主仓库为准。
+> [在 GitHub 上查看源文件](https://github.com/fengjutian/MagneticTape/blob/main/doc/%E5%8A%9F%E8%83%BD%E8%A7%84%E5%88%92.md)
+
+> 状态：进行中
+> 更新日期：2026-11-08
+> 适用范围：`apps/desktop`、`crates/*`、发布流程
+> 说明：本文档记录**尚未实现或尚未验证**的功能与工程项，作为本地路线图与验收依据。已完成项见 README「当前进度」。
+> 端侧模型选型（MNN-Pocket-0.3B、sherpa 生态）见 [端侧模型选型调研](/design/on-device-model-research/)。
+
+## 1. 总览
+
+### 1.1 已完成（基线）
+
+- 双路录音、Ogg Opus 分片、崩溃恢复、设备 watchdog。
+- 云端转写（MiniMax / SiliconFlow / OpenAI Realtime 实时）、实时字幕、AI 同传。
+- 本地 Whisper：引擎/模型下载与校验、录后转写、**本地实时字幕**、热词提示、CPU 引擎。
+- 统一播放时间轴、字幕点击跳转与高亮、倍速与进度拖动。
+- 翻译、会议纪要（长文本分块 / map-reduce）、导出、历史库、存储清理。
+- 本地日志与诊断：滚动日志（10 MB × 5、保留 7 天）、崩溃报告文件、打开日志目录、导出诊断包（不含音频/密钥/转写正文）。
+- 前端单元测试与覆盖率门禁（vitest + jsdom，28 个用例，时间轴/设置合并/转写状态机/组件渲染）。
+
+### 1.2 未完成项索引
+
+| ID | 功能 | 优先级 | 依赖 | 估算 |
+|---|---|---|---|---|
+| WHISPER-1 | CUDA 引擎运行验证 | P0 | 网络 / NVIDIA GPU | 0.5 天 |
+| WHISPER-2 | 引擎下载优化（断点续传、镜像、限速提示） | P1 | — | 1–2 天 |
+| WHISPER-3 | 本地实时字幕质量（滚动窗口 + VAD + 去重） | P1 | WHISPER-1 | 3–5 天 |
+| WHISPER-4 | Vulkan 引擎变体 | P2 | 硬件 / 驱动测试 | 2–3 天 |
+| WHISPER-5 | 内嵌 whisper.cpp 绑定（去子进程） | P2 | libclang + C++ 工具链 | 5–8 天 |
+| DIAR-1 | 说话人分离 | P1 | 额外 diarization 模型 | 2.5–3.5 天（spike 已完成） |
+| LLM-1 | 本地小模型离线 AI（摘要/翻译） | P2 | 端侧 LLM 运行时 | 3–5 天 |
+| CAP-1 | Opus 编码 VOIP 模式对齐 | P1 | ~~黄金向量比对~~ | ✅ 已完成 |
+| CAP-2 | 断线补拉 | P1 | 现有 manifest | 1–2 天 |
+| CAP-3 | 默认设备切换自动跟随 | P2 | IMMNotificationClient | 1 天 |
+| REL-1 | 代码签名 | P0 | 证书 / 签名服务 | 1–2 天 |
+| REL-2 | 自动更新 | P0 | REL-1 | 2–3 天 |
+| REL-3 | ~~崩溃上报与本地日志~~ ✅ 已完成（本地日志/崩溃报告/诊断包） | P0 | — | 已完成 |
+| REL-4 | 远程崩溃上报（可选、匿名、需用户同意） | P2 | REL-3 | 1–2 天 |
+| QA-1 | 前端单元测试（vitest）✅ 已完成 | P1 | — | 已完成 |
+| QA-2a | 浏览器模式端到端（Playwright + Edge + IPC mock）✅ 已完成 | P1 | QA-1 | 已完成 |
+| QA-2b | 真实 Tauri 进程端到端（tauri-driver + WebdriverIO） | P1 | QA-2a | 3–5 天 |
+| QA-3 | CI 打包冒烟 / 依赖审计 / 覆盖率 | P1 | — | 2 天 |
+| UX-1 | 历史库全文搜索与筛选 | P2 | — | 2–3 天 |
+| UX-2 | 转写编辑、说话人重命名、分段合并 | P2 | DIAR-1 | 3–5 天 |
+| UX-3 | 导出 PDF/DOCX、复制纪要 | P2 | — | 2–3 天 |
+| UX-4 | 托盘 / 单实例 / 全局快捷键 / 录音中退出确认 | P2 | — | 2–3 天 |
+| UX-5 | 数据备份/导入与 schema 迁移 | P2 | — | 3–4 天 |
+| UX-6 | 采集增强：增益/降噪/AEC、进程级回环 | P2 | WASAPI 研究 | 5–10 天 |
+| UX-7 | i18n 与深色模式 | P3 | — | 3–5 天 |
+| PLAT-1 | macOS / Linux 支持 | P3 | 采集层重写 | 15+ 天 |
+
+估算为开发工作量，不含测试环境等待与审核；仅为排序参考。
+
+> 对标飞书妙记的逐项差距与量化见 [对标飞书妙记差距分析](/design/gap-analysis-vs-feishu/)。
+> 结论：录音内核已达 85–90%，妙记产品层约 45–55%，桌面集成约 10–20%。
+
+## 1.3 录音内核补漏（2026-11-08 新增）
+
+以下三项由对标飞书逆向规格时发现，属独立可验收项：
+
+| ID | 功能 | 优先级 | 依赖 | 估算 |
+|---|---|---|---|---|
+| CAP-1 | Opus 编码改为 VOIP 应用模式 | P1 | 黄金向量比对 | 0.5 天 |
+| CAP-2 | 断线补拉（未确认分片重送） | P1 | 现有 manifest | 1–2 天 |
+| CAP-3 | 默认设备切换自动跟随 | P2 | IMMNotificationClient | 1 天 |
+
+### CAP-1 Opus 编码参数对齐 ✅（已完成 2026-11-08）
+
+- 原状：`crates/audio/src/opus.rs:136` 使用 `Application::Audio`；飞书主用 `OPUS_APPLICATION_VOIP`（逆向报告 3.3，立即数计数 6:2）。
+- **实测修正**：原判断「`pre-skip = 312` 是 VOIP 的 lookahead、与 AUDIO 编码器不匹配」**不成立**。探针实测（48 kHz mono，同参数）：
+
+  | 模式 | lookahead | 3 秒音码流 | 实际码率 |
+  |---|---|---|---|
+  | `Application::Audio` | 312 | 12,193 B | 32.5 kbps |
+  | `Application::Voip` | 312 | 12,171 B | 32.5 kbps |
+
+  两种模式 lookahead **都是 312**，码流与码率几乎一致 → 切换模式**不改变 Ogg 封装行为**；收益来自 VOIP 对语音频段的带宽分配与噪声底优化。
+- 已完成：
+  - `opus.rs:136` 改为 `Application::Voip`；
+  - 新增回归测试 `encoder_uses_voip_mode_with_the_expected_lookahead`，锁定 VOIP + `pre_skip == 312`；
+  - 构造期 `pre_skip: 312` 占位值补注释，说明真实来源是 `Encoder::lookahead()`。
+- 验收结果：`cargo fmt --check` ✅ / `cargo clippy --workspace --all-targets -D warnings` ✅ / `cargo test --workspace --all-targets` ✅（桌面端 34 passed + 2 ignored，crate 12 passed）。
+- **仍缺**：黄金向量比对（逆向报告 11 节：用 `VOIXCAP_ENABLE_WAV_DUMP=1` 抓飞书 PCM 做逐字节码流比对）需飞书客户端环境，本机未做。
+
+### CAP-2 断线补拉（P1）
+
+- 背景：逆向报告 7.3 明确点名这是「飞书在真实弱网环境下的关键设计，也是 Rust 复刻时最容易被忽略的一环」。当前只有崩溃恢复（进程重启），**没有断线补拉**（进程存活、网络中断、期间分片未送出的场景）。
+- 工作：在 `RecoveryManifest` 之上增加「云端已确认分片」账本 + 重试队列；单分片失败独立记录与重试，不重跑已成功的分片。
+- 验收：录音中断网 10 分钟后恢复，期间分片全部补送，最终转写无缺口。
+
+### CAP-3 默认设备切换跟随（P2）
+
+- 现状：`crates/audio/src/recording.rs:308` 的 `rebuild()` 需要外部传入新设备 id，只覆盖「设备掉线」；**默认麦克风/输出设备被用户切换时不跟随**。
+- 对应飞书 `HandleDefaultMicrophoneDeviceChanged` / `SetAutoSwitchDevice` / `SetSupportedVirtualAudioDevice`。
+- 工作：接入 `IMMNotificationClient`，默认设备变化时自动重建对应采集流；不支持的虚拟音频设备需显式排除。
+- 验收：录音中在系统设置里切换默认麦克风，采集自动切到新设备且时间轴连续。
+
+## 2. 本地 Whisper 收尾
+
+### WHISPER-1 CUDA 引擎运行验证（P0）
+
+- 背景：CUDA 引擎的下载、解压、优先级与探测代码已完成，但本轮 GitHub CDN 限速（约 0.2 MB/s）导致 285 MB 的 CUDA 包未下载完，未做真实推理验证。
+- 工作：
+  - 在网络正常环境下载 `whisper-bin-win-cuda-11.8.0-x64.zip`，校验 SHA-256；
+  - 确认解压后目录结构（`Release/` 下 exe + DLL + cuBLAS/cuDART），必要时更新 `extract_engine`；
+  - 用 RTX 显卡跑 3 秒样例与 5 秒实时分片，确认 GPU 被使用（whisper 日志含 CUDA）且结果正确；
+  - 验证无 NVIDIA GPU 的机器上自动回退 CPU 且不报错。
+- 验收：设置页显示 GPU 名称与 CUDA 引擎已安装；转写与实时字幕均走 CUDA；卸载/删除 CUDA 目录后自动回退 CPU。
+- 风险：CUDA 11.8 包在较新驱动上缺少运行库；需要显式声明依赖或改用 12.4 包。
+
+### WHISPER-2 引擎下载优化（P1）
+
+- 断点续传：当前 `.part` 失败后从 0 开始；改为 Range 续传并保留进度。
+- 镜像/代理：支持可配置下载源（企业内网），仍强制 SHA-256 校验。
+- 限速提示：下载速度过低时提示切换 CPU 或稍后重试。
+- 验收：中断后重试只补剩余字节；校验失败自动清理；镜像可通过设置覆盖。
+
+### WHISPER-3 本地实时字幕质量（P1）
+
+- 现状：每 5 秒分片独立推理，边界处可能断词、重复；无 VAD。
+- 工作：
+  - 滚动窗口（上一分片 + 当前分片）推理，按时间轴去重；
+  - 集成 Silero VAD（或能量 VAD）过滤静音，减少幻觉；
+    - VAD 用 sherpa-onnx 官方预编译包自带的 Silero VAD / Ten VAD（与 DIAR-1 同一引擎，见 [DIAR-1 spike 报告](/design/diar-1-spike-report/)）；注意官方 VAD 模型包下载曾失败（网络问题），需备好镜像。
+    - 注意：VAD 解决「不该送进模型的片段别送」，与「滚动窗口 + 去重」是两件事，两者都要做。
+  - 字幕合并策略：重叠区间取尾部、相同文本去重；
+  - 延迟目标：95% 分片在 3 秒内出字幕（tiny，CPU 8 核）。
+- 验收：10 分钟连续中文录音无重复句子；边界断词显著减少；CPU 占用可接受。
+
+### WHISPER-4 Vulkan 引擎变体（P2）
+
+- whisper.cpp 官方未提供 Windows Vulkan 预编译包，需要自行构建或使用第三方构建。
+- 需评估：构建流水线（GitHub Actions）、驱动兼容、包体与签名。
+- 验收：无 NVIDIA GPU 但有 Vulkan 设备时可选 Vulkan 引擎并跑通转写。
+
+### WHISPER-5 内嵌 whisper.cpp 绑定（P2）
+
+- 现状：子进程调用 `whisper-cli.exe`，每次启动有模型加载开销，且依赖外部二进制。
+- 工作：
+  - 引入 `whisper-rs`；解决 Windows 下 bindgen/libclang 与 MSVC C++ 构建；
+  - 去掉子进程与临时 JSON，直接拿 segment；保留 `-p` 热词与取消；
+  - 打包与签名：静态/动态库随安装包分发；
+  - 与子进程方案做 A/B，确认启动/内存/稳定性收益后再切换。
+- 风险：构建链复杂、CI 时间增加、崩溃会带崩主进程（需隔离或 panic 处理）。
+
+### DIAR-1 说话人分离（P1）
+
+- 背景：Whisper 不提供说话人分离；tinydiarize 仅有英文 small 模型，不适合中文会议。
+- **路线已定型（2026-11-08 spike 实测，完整数据见 [DIAR-1 spike 报告](/design/diar-1-spike-report/)）**：采用 **sherpa-onnx 官方 Windows x64 预编译包的 CLI 子进程**。
+  - `sherpa-rs`（Rust 绑定）**已排除**：0.6.8 的 bindgen 需要 libclang，本机无 LLVM，且 `sherpa-rs-sys` 未随包发布 `bindings.rs`，跳过生成的开关无效。
+  - CLI 模式与项目现有 `local_whisper.rs` 的「下载 → SHA-256 校验 → 解压 → spawn → 解析」框架完全同构，无新增构建依赖。
+  - C API FFI 作为备选（预编译包自带 `sherpa-onnx-c-api.dll` + 完整 `c-api.h`），若后续要消除进程启动开销再评估。
+  - `alibaba/MNN` 的 `apps/frameworks/sherpa-mnn` 是同一能力的 MNN 后端移植，效果验证后再评估迁移。
+- 模型组合（全部实测下载成功）：
+  - 引擎：`sherpa-onnx-v1.12.9-win-x64-shared.tar.bz2`（24,139,676 B）；
+  - 分割：`sherpa-onnx-pyannote-segmentation-3-0.tar.bz2`（6,958,444 B，含 `model.onnx` 与 `model.int8.onnx`）；
+  - 声纹：`3dspeaker_speech_campplus_sv_zh-cn_16k-common.onnx`（28,281,138 B，中文）。
+  - 校验来源：`v1.12.9` release 的 `checksum.txt`（SHA-256 待回填到实现里）。
+- **实测性能与准确率**（官方中文四人音频 57 s）：
+  - FP32 / 1 线程 → RTF 0.255；INT8 / 1 线程 → 0.111；**INT8 / 4 线程 → RTF 0.087**（4.97 s 跑完），4 组说话人识别正确；
+  - DirectML 可用但更慢（RTF 0.134）→ **默认走 CPU**；
+  - 项目真实录音 `doc/chunk_00000.ogg` → 单说话人 `0.031 -- 0.993 speaker_01`，RTF 0.009，无误判。
+- **参数定型**（实测校准，勿再用默认值）：
+  - INT8 分割模型 + 4 线程；
+  - 自动聚类阈值 **必须显式传 `--clustering.cluster-threshold=0.7`**：0.5（CLI 默认）→ 8 个说话人（过度分割），0.7 → 4 个（与指定簇数一致），0.8/0.9 → 3 个（合并过度）；
+  - 16 kHz 单声道输入。
+- 输出格式稳定：`{start} -- {end} speaker_{NN}`，可用 `^([\d.]+) -- ([\d.]+) speaker_(\d+)$` 解析；`progress xx%` 走 stderr 需过滤。
+- 工作：
+  - 模型管理复用现有下载/校验框架（白名单 URL + SHA-256 + 解压）；
+  - 需求文档先行：说话人数量未知、双轨（麦克风/系统）归属、实时/录后两种模式；
+  - 输出 `speaker` 字段，UI 支持重命名与按说话人筛选；
+  - 与转写合并：按时间重叠分配说话人。
+- 工作量重估：**2.5–3.5 天**（原估 5–8 天；spike 已把引擎接入、参数校准、输出格式三块不确定性全部消掉）。
+- 验收：两人中文会议 ≥ 85% 段落说话人正确；可重命名并导出。
+- **遗留**：缺少双人真实中文会议音频（官方样例是四人、真实场景是双人 + 混响 + 远场），85% 验收线尚未验证。
+- 备注：不要用「麦克风/系统」冒充说话人，会产生误导。
+
+### LLM-1 本地小模型离线 AI（P2）
+
+- 背景：当前 AI 纪要、同传翻译、翻译稿 **100% 依赖云端**（MiniMax / DeepSeek，见 `ai.rs` 的 `AiProvider`），必须有网络与 API Key。补一条完全离线的 AI 链路是隐私与内网场景的硬需求。
+- 候选模型：**MNN-Pocket-0.3B**（Qwen3 架构，300M，Apache-2.0）。选型依据与能力边界见 [端侧模型选型调研](/design/on-device-model-research/)。
+- 关键约束（不可想当然）：
+  - 它是**纯文本 LLM，不是 ASR**，不能替代 whisper.cpp 做转写；
+  - 强项是受约束输出与结构化抽取（IFEval 73.20、IFEval-zh 74.59），弱项是知识与长文推理（C-Eval 38.86、CMMLU 40.11）——**不要用它承担长会议 map-reduce 纪要**；
+  - 官方未公布 Windows 桌面端性能数据，移动端优势（Metal/Hexagon 定制内核）在 Windows 上不一定成立。
+- 接入路径：推荐 **llama.cpp + 官方 GGUF**（`MNN-Pocket-0.3B-Instruct-Q4_1.gguf`）。MNN 原生 INT4 构建（`llm.mnn`，173MB）需自编译且 Windows 预编译不齐，作为备选。
+- 工作：
+  - `ai.rs` 抽出统一的文本生成接口，云端与本地共用分块 / 归并 / 进度 / 取消机制，`AiProvider` 新增 `Local`；
+  - 下载校验完全复用 `local_whisper.rs` 的「白名单 URL + SHA-256 + 子进程调用」模式；
+  - 本地 provider 不读写 Windows 凭据管理器，不需要 API Key；
+  - 只做「要点 / 待办 / 决策项抽取」与「短文本翻译」两个轻任务；长文纪要仍走云端。
+- 验收：断网状态下可生成要点与短译文；网络抓包无外部请求；纪要质量明显低于云端时在 UI 上如实说明。
+- 优先级：v0.4/v0.5，**不进入 v0.2 发布阻塞路径**。
+
+## 3. 发布工程
+
+### REL-1 代码签名（P0）
+
+- Windows Authenticode 证书（OV/EV）或云签名服务；NSIS 安装包与 exe 均签名。
+- CI 中通过密钥库/签名服务注入，不落盘明文证书。
+- 验收：SmartScreen 显示已知发布者；安装包与 exe 签名验证通过。
+
+### REL-2 自动更新（P0）
+
+- 引入 `tauri-plugin-updater`，生成签名更新清单；应用内检查、下载、重启安装。
+- 与 REL-1 共用密钥管理；支持灰度/回滚（至少保留上一版本安装包）。
+- 验收：旧版本可检测到新版本并完成静默/提示更新。
+
+### REL-3 崩溃上报与本地日志 ✅（已完成 2026-11-06）
+
+- 已把 `eprintln!` 替换为结构化日志：`<app data>/logs/app.log`，10 MB 滚动、最多 5 份、保留 7 天。
+- panic hook 写入 `crash-<epoch>.log`，包含 panic 信息与 backtrace。
+- 历史库底部提供「打开日志目录」「导出诊断包」；诊断包包含 `system.txt` 与全部日志/崩溃文件，不含音频、密钥与转写正文。
+- 验收：已通过单元测试（轮转、保留、诊断包内容）与全量构建。
+
+### REL-4 远程崩溃上报（P2）
+
+- 在 REL-3 基础上增加可选的匿名上报（默认关闭、首次询问、可查看将发送的内容）。
+- 需确定接收端（自建或 Sentry 类服务）、限流与隐私字段白名单。
+- 验收：用户同意后崩溃报告可送达；拒绝时完全本地，不发起网络请求。
+
+## 4. 质量与测试
+
+### QA-1 前端单元测试 ✅（已完成 2026-11-06）
+
+- 已引入 vitest + jsdom，`npm test` / `npm run test:coverage` 与 CI 已接入（[vitest.config.ts](../apps/desktop/vitest.config.ts)）。
+- 已覆盖 28 个用例：
+  - `timeline.ts`：分片二分查找、时间轴空档、时间格式化；
+  - `settings.ts`：后端设置合并与非法值回退、UI 快照、云端/本地 provider 切换、实时 provider 选择；
+  - `transcription.ts`：状态机（start/progress/cancel/done/cancelled/error）、进度钳制、错误文案；
+  - `components.ts`：idle/recording/finished 状态渲染、字幕段落与译文、时间格式化。
+- 覆盖率门禁：`timeline.ts` / `settings.ts` / `transcription.ts` 行/函数/语句 ≥ 85%、分支 ≥ 80%（当前行 98.36%、分支 91.66%、函数 100%）。
+- CI 使用 `npm run test:coverage`，未达标会失败。
+
+### QA-2a 浏览器模式端到端（P1，已完成 2026-11-06）
+
+- 方案：Playwright + 本机 Edge（`channel: msedge`）+ Vite dev server；通过 `VITE_E2E=1` 注入内存版 Tauri IPC（[mock-tauri.ts](../apps/desktop/src/e2e/mock-tauri.ts)），让真实 UI 在 Chromium 中运行。
+- 已覆盖 3 条核心用例：
+  1. 录音 → 暂停 → 继续 → 停止，进入完成页；
+  2. 停止 → 转写（校验字幕段落）→ 导出会议资料；
+  3. 完成页 → 转写设置 → 切换到本地 Whisper，校验 GPU/引擎状态。
+- CI 在 windows-latest 上执行 `npm run test:e2e`（Edge 已预装，无需下载浏览器）。
+
+### QA-2b 真实 Tauri 进程端到端（P1）
+
+- 说明：Playwright **不是 WebDriver 客户端**，不能直接驱动 `tauri-driver`；如需真实 WebView2 + Rust 后端，应使用 WebdriverIO/Selenium 连接 `tauri-driver`，并准备与 WebView2 版本匹配的 `msedgedriver`。
+- 工作：
+  - 安装并固定 `tauri-driver` 与 `msedgedriver` 版本；
+  - 覆盖「启动应用 → 录音（虚拟音频设备）→ 转写（本地 mock ASR 或真实模型）→ 退出」；
+  - 处理无音频设备的 CI 环境（测试用虚拟设备或跳过录音断言）。
+- 验收：真实应用窗口可被驱动，3 条核心链路通过。
+
+### QA-3 CI 强化（P1）
+
+- 增加 `cargo audit`（依赖漏洞）、前端依赖审计、覆盖率统计；
+- 增加 Tauri 打包冒烟（debug 安装包构建）；
+- 失败时保留日志与产物。
+- 验收：PR 中可见审计与打包结果。
+
+## 5. 产品体验
+
+### UX-1 历史库全文搜索与筛选（P2）
+
+- 支持转写正文搜索、按「有/无转写」「仅转写」「日期/时长」筛选与排序。
+- 索引方案：SQLite FTS5 或启动时内存索引（数据量小）。
+- 验收：1 万段转写内搜索 < 200ms。
+
+### UX-2 转写编辑与说话人重命名（P2）
+
+- 支持编辑单段文本、合并/拆分段落、重命名说话人；保存回 `transcript.json` 并同步导出。
+- 依赖 DIAR-1 的说话人字段；无分离时也允许手动标注。
+- 验收：编辑后重开/导出保持一致；可撤销。
+
+### UX-3 导出增强（P2）
+
+- 增加 PDF/DOCX 纪要、复制纪要到剪贴板、可选导出含时间戳的双语字幕。
+- 验收：导出文件在 Word/PDF 阅读器中排版正常。
+
+### UX-4 桌面集成（P2）
+
+- 单实例（重复启动聚焦已有窗口）、系统托盘（录音中最小化提示）、全局快捷键（开始/停止）、录音中关闭窗口二次确认。
+- 验收：录音中关窗有确认；重复启动不产生第二实例。
+
+### UX-5 数据备份/导入与迁移（P2）
+
+- 整库导出/导入（zip）、会话 schema 版本与迁移框架、损坏会话隔离。
+- 验收：导入后历史库、转写、笔记完整；旧版本数据可升级。
+
+### UX-6 采集增强（P2）
+
+- 麦克风增益、降噪、回声消除、静音检测；进程级回环（仅录指定应用）。
+- 需先做 WASAPI 能力调研与设备兼容性测试。
+- 验收：增益可调且不削波；可选进程回环在 Teams/浏览器中可用。
+
+### UX-7 国际化与深色模式（P3）
+
+- 抽取文案到 i18n 资源（中/英），支持系统深色主题。
+- 验收：切换语言/主题后无硬编码中文残留；布局不破。
+
+## 6. 平台
+
+### PLAT-1 macOS / Linux（P3）
+
+- 采集层需从 WASAPI 迁移到 CoreAudio/PulseAudio；热键、托盘、打包（dmg/AppImage）均需适配。
+- 明确不在当前 Windows 优先阶段投入，除非有明确需求。
+
+## 7. 明确不做（保持边界）
+
+- 账号体系、团队协作、分享链接、计费与云端存储。
+- 未经用户同意的遥测/音频上传。
+- 用「麦克风/系统」轨道冒充说话人分离。
+
+## 8. 里程碑建议
+
+| 里程碑 | 目标 | 包含 |
+|---|---|---|
+| v0.2 发布可用 | 可安全分发给外部用户 | REL-1、REL-2、WHISPER-1、QA-3、CAP-1、CAP-2 |
+| v0.3 会议可用 | 本地转写质量与整理能力 | WHISPER-3、DIAR-1、UX-1、UX-2、UX-3 |
+| v0.4 桌面完善 | 长驻使用体验 | UX-4、UX-5、QA-2、WHISPER-2、CAP-3 |
+| v0.5 深度能力 | 采集与跨平台 | UX-6、WHISPER-4/5、PLAT-1、LLM-1 |
+
+## 9. 近期行动建议（2026-11-08）
+
+按「解锁下游项数 / 外部依赖数」排序：
+
+1. **CAP-1 Opus VOIP 对齐** ✅ **已完成 2026-11-08** —— `opus.rs:136` 改为 `Application::Voip` + 回归测试锁定 + 全量 fmt/clippy/test 通过。仍缺飞书黄金向量比对。
+2. **DIAR-1 spike** ✅ **已完成 2026-11-08** —— 路线定型为 **sherpa-onnx 官方 CLI 子进程**（sherpa-rs 因需 libclang 已排除）；官方四人中文音频 INT8/4 线程 RTF 0.087、说话人全对，阈值定标 0.7；真实录音链路跑通。详见 [DIAR-1 spike 报告](/design/diar-1-spike-report/)。**剩余**：实现下载校验 + 子进程封装 + 转写合并，2.5–3.5 天；卡点是缺双人真实会议音频，85% 验收线待验。
+3. **CAP-2 断线补拉（1–2 天）** —— 逆向报告点名的关键缺口，当前只有崩溃恢复没有断线补拉。
+4. **QA-3 CI 强化（2 天，v0.2 唯一无外部依赖的 P0）** —— `cargo audit` + 前端依赖审计 + 打包冒烟。
+5. **UX-4 桌面集成提前（2–3 天）** —— 托盘 / 全局快捷键 / 单实例 / 录音中退出确认，全是官方 Tauri 插件无外部依赖，且是「录音中不丢数据」的兜底。原排在 v0.4，但价值密度高于其优先级。
+6. **WHISPER-1 CUDA 验证（0.5 天）** —— 卡点是网络限速而非代码。换镜像源把 285 MB 包拉下来即可验证，或明确接受「CUDA 路径代码就绪但未验证」的风险。
+7. **LLM-1 骨架** —— 先把 `ai.rs` 的 provider 抽象与设置项打通，模型接入可延后。
+
+REL-1（代码签名）与 REL-2（自动更新）依赖证书采购，属于外部依赖阻塞，在拿到证书前无法真正完成。
+
+> 关于实时链路：当前 5 秒分片轮询 vs 飞书的 RTC 流式是**有意的产品取舍**（用延迟换离线），不建议为此引入 RTC。压缩延迟走「滚动窗口 + VAD」路线即可（WHISPER-3），详见 [对标飞书妙记差距分析](/design/gap-analysis-vs-feishu/) 第 6.4 节。

@@ -1,0 +1,876 @@
+<!DOCTYPE html><html lang="zh-CN" dir="ltr" data-theme="dark" data-has-toc data-has-sidebar class="astro-g5ptsecz"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>AI 录音工作台 UI/UX 需求 | MagneticTape</title><link rel="canonical" href="https://magnetictape.netlify.app/design/workspace-requirements/"/><link rel="sitemap" href="/sitemap-index.xml"/><link rel="shortcut icon" href="/./src/assets/favicon.svg" type="image/svg+xml"/><meta name="generator" content="Astro v7.4.7"/><meta name="generator" content="Starlight v0.42.9"/><meta property="og:title" content="AI 录音工作台 UI/UX 需求"/><meta property="og:type" content="article"/><meta property="og:url" content="https://magnetictape.netlify.app/design/workspace-requirements/"/><meta property="og:locale" content="zh-CN"/><meta property="og:description" content="三栏工作台的产品方向、信息架构与交互需求。"/><meta property="og:site_name" content="MagneticTape"/><meta name="twitter:card" content="summary_large_image"/><meta name="description" content="三栏工作台的产品方向、信息架构与交互需求。"/><script>
+	window.StarlightThemeProvider = (() => {
+		const storedTheme =
+			typeof localStorage !== 'undefined' && localStorage.getItem('starlight-theme');
+		const theme =
+			storedTheme ||
+			(window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+		document.documentElement.dataset.theme = theme === 'light' ? 'light' : 'dark';
+		return {
+			updatePickers(theme = storedTheme || 'auto') {
+				document.querySelectorAll('starlight-theme-select').forEach((picker) => {
+					const select = picker.querySelector('select');
+					if (select) select.value = theme;
+					/** @type {HTMLTemplateElement | null} */
+					const tmpl = document.querySelector(`#theme-icons`);
+					const newIcon = tmpl && tmpl.content.querySelector('.' + theme);
+					if (newIcon) {
+						const oldIcon = picker.querySelector('svg.label-icon');
+						if (oldIcon) {
+							oldIcon.replaceChildren(...newIcon.cloneNode(true).childNodes);
+						}
+					}
+				});
+			},
+		};
+	})();
+</script><template id="theme-icons"><svg aria-hidden="true" class="light astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M5 12a1 1 0 0 0-1-1H3a1 1 0 0 0 0 2h1a1 1 0 0 0 1-1Zm.64 5-.71.71a1 1 0 0 0 0 1.41 1 1 0 0 0 1.41 0l.71-.71A1 1 0 0 0 5.64 17ZM12 5a1 1 0 0 0 1-1V3a1 1 0 0 0-2 0v1a1 1 0 0 0 1 1Zm5.66 2.34a1 1 0 0 0 .7-.29l.71-.71a1 1 0 1 0-1.41-1.41l-.66.71a1 1 0 0 0 0 1.41 1 1 0 0 0 .66.29Zm-12-.29a1 1 0 0 0 1.41 0 1 1 0 0 0 0-1.41l-.71-.71a1.004 1.004 0 1 0-1.43 1.41l.73.71ZM21 11h-1a1 1 0 0 0 0 2h1a1 1 0 0 0 0-2Zm-2.64 6A1 1 0 0 0 17 18.36l.71.71a1 1 0 0 0 1.41 0 1 1 0 0 0 0-1.41l-.76-.66ZM12 6.5a5.5 5.5 0 1 0 5.5 5.5A5.51 5.51 0 0 0 12 6.5Zm0 9a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Zm0 3.5a1 1 0 0 0-1 1v1a1 1 0 0 0 2 0v-1a1 1 0 0 0-1-1Z"/></svg><svg aria-hidden="true" class="dark astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21.64 13a1 1 0 0 0-1.05-.14 8.049 8.049 0 0 1-3.37.73 8.15 8.15 0 0 1-8.14-8.1 8.59 8.59 0 0 1 .25-2A1 1 0 0 0 8 2.36a10.14 10.14 0 1 0 14 11.69 1 1 0 0 0-.36-1.05Zm-9.5 6.69A8.14 8.14 0 0 1 7.08 5.22v.27a10.15 10.15 0 0 0 10.14 10.14 9.784 9.784 0 0 0 2.1-.22 8.11 8.11 0 0 1-7.18 4.32v-.04Z"/></svg><svg aria-hidden="true" class="auto astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21 14h-1V7a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v7H3a1 1 0 0 0-1 1v2a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-2a1 1 0 0 0-1-1ZM6 7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v7H6V7Zm14 10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-1h16v1Z"/></svg></template><link rel="stylesheet" href="/_astro/print.C9eyqPGL.css" media="print"><link rel="stylesheet" href="/_astro/common.BA5iwecf.css"><style>@layer starlight.components{svg:where(.astro-hkc32dio){color:var(--sl-icon-color);font-size:var(--sl-icon-size,1em);width:1em;height:1em;overflow:visible}}
+</style><script type="module" src="/_astro/page.cNngjUgL.js"></script></head><body class="astro-g5ptsecz"><a class="sl-skip-link astro-qb7clj6f" href="#_top">跳转到内容</a><div class="page sl-flex astro-yntsjkba"><header class="header astro-yntsjkba"><div class="header astro-by6fddyj"><div class="title-wrapper sl-flex astro-by6fddyj"><a href="/" class="site-title sl-flex astro-6rvad3va"><img class="astro-6rvad3va" alt src="/_astro/logo.MrVzPhLw.svg" width="32" height="32"><span class="astro-6rvad3va" translate="no">MagneticTape</span></a></div><div class="sl-flex print:hidden astro-by6fddyj"><site-search class="astro-by6fddyj astro-b5kgnn7o" data-translations="{&quot;placeholder&quot;:&quot;搜索&quot;}"><button data-open-modal disabled aria-label="搜索" aria-keyshortcuts="Control+K" class="astro-b5kgnn7o"><svg aria-hidden="true" class="astro-b5kgnn7o astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21.71 20.29 18 16.61A9 9 0 1 0 16.61 18l3.68 3.68a.999.999 0 0 0 1.42 0 1 1 0 0 0 0-1.39ZM11 18a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z"/></svg><span class="sl-hidden md:sl-block astro-b5kgnn7o" aria-hidden="true">搜索</span><kbd class="sl-hidden md:sl-flex astro-b5kgnn7o" style="display: none"><kbd class="astro-b5kgnn7o">Ctrl</kbd><kbd class="astro-b5kgnn7o">K</kbd></kbd></button><dialog style="padding: 0" aria-label="搜索" class="astro-b5kgnn7o"><div class="dialog-frame sl-flex astro-b5kgnn7o"><button data-close-modal class="sl-flex md:sl-hidden astro-b5kgnn7o">取消</button><div class="search-container astro-b5kgnn7o"><div id="starlight__search" class="astro-b5kgnn7o"></div></div></div></dialog></site-search><script>
+	(() => {
+		const openBtn = document.querySelector('button[data-open-modal]');
+		const shortcut = openBtn?.querySelector('kbd');
+		if (!openBtn || !(shortcut instanceof HTMLElement)) return;
+		const platformKey = shortcut.querySelector('kbd');
+		if (platformKey && /(Mac|iPhone|iPod|iPad)/i.test(navigator.platform)) {
+			platformKey.textContent = '⌘';
+			openBtn.setAttribute('aria-keyshortcuts', 'Meta+K');
+		}
+		shortcut.style.display = '';
+	})();
+</script><script type="module" src="/_astro/Search.astro_astro_type_script_index_0_lang.CHGOufdi.js"></script></div><div class="sl-hidden md:sl-flex print:hidden right-group astro-by6fddyj"><div class="sl-flex social-icons astro-by6fddyj"><a href="https://github.com/fengjutian/MagneticTape" rel="me" class="sl-flex astro-n2mnl6yq"><span class="sr-only astro-n2mnl6yq">GitHub 仓库</span><svg aria-hidden="true" class="astro-n2mnl6yq astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.83 1.24 1.83 1.24 1.08 1.83 2.81 1.3 3.5 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3Z"/></svg></a></div><starlight-theme-select><label style="--sl-select-width: 6.25em" class="astro-2z5xp7gb"><span class="sr-only astro-2z5xp7gb">选择主题</span><svg aria-hidden="true" class="icon label-icon astro-2z5xp7gb astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21 14h-1V7a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v7H3a1 1 0 0 0-1 1v2a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-2a1 1 0 0 0-1-1ZM6 7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v7H6V7Zm14 10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-1h16v1Z"/></svg><select autocomplete="off" class="astro-2z5xp7gb"><option value="dark" class="astro-2z5xp7gb">深色</option><option value="light" class="astro-2z5xp7gb">浅色</option><option value="auto" selected class="astro-2z5xp7gb">自动</option></select><svg aria-hidden="true" class="icon caret astro-2z5xp7gb astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M17 9.17a1 1 0 0 0-1.41 0L12 12.71 8.46 9.17a1 1 0 1 0-1.41 1.42l4.24 4.24a1.002 1.002 0 0 0 1.42 0L17 10.59a1.002 1.002 0 0 0 0-1.42Z"/></svg></label></starlight-theme-select><script>
+	StarlightThemeProvider.updatePickers();
+</script><script type="module">var e=`starlight-theme`,t=e=>e===`auto`||e===`dark`||e===`light`?e:`auto`,n=()=>t(typeof localStorage<`u`&&localStorage.getItem(e));function r(t){typeof localStorage<`u`&&localStorage.setItem(e,t===`light`||t===`dark`?t:``)}var i=()=>matchMedia(`(prefers-color-scheme: light)`).matches?`light`:`dark`;function a(e){StarlightThemeProvider.updatePickers(e),document.documentElement.dataset.theme=e===`auto`?i():e,r(e)}matchMedia(`(prefers-color-scheme: light)`).addEventListener(`change`,()=>{n()===`auto`&&a(`auto`)});var o=class extends HTMLElement{constructor(){super(),a(n()),this.querySelector(`select`)?.addEventListener(`change`,e=>{e.currentTarget instanceof HTMLSelectElement&&a(t(e.currentTarget.value))})}};customElements.define(`starlight-theme-select`,o);</script><script type="module">var e=class extends HTMLElement{constructor(){super();let e=this.querySelector(`select`);e&&(e.addEventListener(`change`,e=>{e.currentTarget instanceof HTMLSelectElement&&(window.location.pathname=e.currentTarget.value)}),window.addEventListener(`pageshow`,t=>{if(!t.persisted)return;let n=e.querySelector(`option[selected]`)?.index;n!==e.selectedIndex&&(e.selectedIndex=n??0)}))}};customElements.define(`starlight-lang-select`,e);</script></div></div></header><nav class="sidebar print:hidden astro-yntsjkba" aria-label="主要"><button popovertarget="starlight__sidebar" class="sl-menu-button sl-flex md:sl-hidden print:hidden astro-r2osgdlg"><svg aria-hidden="true" class="open-menu astro-r2osgdlg astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M3 8h18a1 1 0 1 0 0-2H3a1 1 0 0 0 0 2Zm18 8H3a1 1 0 0 0 0 2h18a1 1 0 0 0 0-2Zm0-5H3a1 1 0 0 0 0 2h18a1 1 0 0 0 0-2Z"/></svg><svg aria-hidden="true" class="close-menu astro-r2osgdlg astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="m13.41 12 6.3-6.29a1.004 1.004 0 1 0-1.42-1.42L12 10.59l-6.29-6.3a1.004 1.004 0 0 0-1.42 1.42l6.3 6.29-6.3 6.29a1 1 0 0 0 0 1.42.998.998 0 0 0 1.42 0l6.29-6.3 6.29 6.3a.999.999 0 0 0 1.42 0 1 1 0 0 0 0-1.42L13.41 12Z"/></svg><span class="sr-only astro-r2osgdlg">菜单</span></button><script type="module">var e=class extends HTMLElement{constructor(){super();let e=matchMedia(`(min-width: 50em)`),t=()=>{this.popover=e.matches?null:`auto`};t(),e.addEventListener(`change`,()=>t()),this.addEventListener(`toggle`,({newState:e})=>this.trapFocus(e===`open`))}trapFocus(e){document.querySelectorAll(`.main-frame, .sl-skip-link`).forEach(t=>{t.toggleAttribute(`inert`,e)})}};customElements.define(`sl-sidebar-pane`,e);</script><sl-sidebar-pane popover id="starlight__sidebar" class="sidebar-pane astro-yntsjkba"><div class="sidebar-content sl-flex astro-yntsjkba"><sl-sidebar-state-persist data-hash="04s6pek" class="astro-ipdry5cl"><script aria-hidden="true">
+		(() => {
+			try {
+				if (!matchMedia('(min-width: 50em)').matches) return;
+				/** @type {HTMLElement | null} */
+				const target = document.querySelector('sl-sidebar-state-persist');
+				const state = JSON.parse(sessionStorage.getItem('sl-sidebar-state') || '0');
+				if (!target || !state || target.dataset.hash !== state.hash) return;
+				window._starlightScrollRestore = state.scroll;
+				customElements.define(
+					'sl-sidebar-restore',
+					class SidebarRestore extends HTMLElement {
+						connectedCallback() {
+							try {
+								const idx = parseInt(this.dataset.index || '');
+								const details = this.closest('details');
+								if (details && typeof state.open[idx] === 'boolean') details.open = state.open[idx];
+							} catch {}
+						}
+					}
+				);
+			} catch {}
+		})();
+	</script><ul class="top-level astro-rmhv4bp6"><li class="astro-rmhv4bp6"><details open class="astro-rmhv4bp6"><summary class="astro-rmhv4bp6"><span class="group-label astro-rmhv4bp6"><span class="large astro-rmhv4bp6">开始</span></span><svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="0"></sl-sidebar-restore><ul class="astro-rmhv4bp6"><li class="astro-rmhv4bp6"><a href="/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">项目概览</span></a></li><li class="astro-rmhv4bp6"><a href="/start/install/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">安装</span></a></li><li class="astro-rmhv4bp6"><a href="/start/quick-start/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">快速开始</span></a></li></ul></details></li><li class="astro-rmhv4bp6"><details open class="astro-rmhv4bp6"><summary class="astro-rmhv4bp6"><span class="group-label astro-rmhv4bp6"><span class="large astro-rmhv4bp6">使用指南</span></span><svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="1"></sl-sidebar-restore><ul class="astro-rmhv4bp6"><li class="astro-rmhv4bp6"><a href="/guide/recording/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">录音与回放</span></a></li><li class="astro-rmhv4bp6"><a href="/guide/transcription/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">字幕与转写</span></a></li><li class="astro-rmhv4bp6"><a href="/guide/ai/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">AI 能力</span></a></li><li class="astro-rmhv4bp6"><a href="/guide/export/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">导出与整理</span></a></li><li class="astro-rmhv4bp6"><a href="/guide/settings/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">设置参考</span></a></li><li class="astro-rmhv4bp6"><a href="/guide/privacy/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">数据与隐私</span></a></li><li class="astro-rmhv4bp6"><a href="/guide/faq/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">常见问题</span></a></li></ul></details></li><li class="astro-rmhv4bp6"><details open class="astro-rmhv4bp6"><summary class="astro-rmhv4bp6"><span class="group-label astro-rmhv4bp6"><span class="large astro-rmhv4bp6">设计文档</span></span><svg aria-hidden="true" class="caret astro-rmhv4bp6 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></summary><sl-sidebar-restore data-index="2"></sl-sidebar-restore><ul class="astro-rmhv4bp6"><li class="astro-rmhv4bp6"><a href="/design/ui-guidelines/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">UI 设计规范</span></a></li><li class="astro-rmhv4bp6"><a href="/design/visual-style-v7/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">视觉风格 v7：极光玻璃</span></a></li><li class="astro-rmhv4bp6"><a href="/design/recorder-layout/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">录音页面布局需求</span></a></li><li class="astro-rmhv4bp6"><a href="/design/workspace-requirements/" aria-current="page" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">AI 录音工作台 UI/UX 需求</span></a></li><li class="astro-rmhv4bp6"><a href="/design/workspace-layout-spec/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">AI 录音工作台布局实现规格</span></a></li><li class="astro-rmhv4bp6"><a href="/design/workspace-ui-v1-spec/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">Workspace UI V1.0 详细设计规格</span></a></li><li class="astro-rmhv4bp6"><a href="/design/local-whisper-requirements/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">本地 Whisper 转写需求</span></a></li><li class="astro-rmhv4bp6"><a href="/design/on-device-model-research/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">端侧模型选型调研</span></a></li><li class="astro-rmhv4bp6"><a href="/design/diar-1-spike-report/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">DIAR-1 spike 报告</span></a></li><li class="astro-rmhv4bp6"><a href="/design/realtime-subtitle-and-speakers/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">实时字幕与说话人分离</span></a></li><li class="astro-rmhv4bp6"><a href="/design/feature-roadmap/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">功能规划（未完成项）</span></a></li><li class="astro-rmhv4bp6"><a href="/design/technical-improvement-plan/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">技术改进与修复计划</span></a></li><li class="astro-rmhv4bp6"><a href="/design/gap-analysis-vs-feishu/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">对标飞书妙记差距分析</span></a></li><li class="astro-rmhv4bp6"><a href="/design/feishu-memo-reverse-analysis/" class="astro-rmhv4bp6"><span class="astro-rmhv4bp6">飞书妙记「录音」功能逆向分析</span></a></li></ul></details></li></ul><script aria-hidden="true">
+		(() => {
+			const scroller = document.getElementById('starlight__sidebar');
+			if (!window._starlightScrollRestore || !scroller) return;
+			scroller.scrollTop = window._starlightScrollRestore;
+			delete window._starlightScrollRestore;
+		})();
+	</script></sl-sidebar-state-persist><div class="md:sl-hidden"><div class="mobile-preferences sl-flex astro-p4azlveh"><div class="social-icons astro-p4azlveh"><a href="https://github.com/fengjutian/MagneticTape" rel="me" class="sl-flex astro-n2mnl6yq"><span class="sr-only astro-n2mnl6yq">GitHub 仓库</span><svg aria-hidden="true" class="astro-n2mnl6yq astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.83 1.24 1.83 1.24 1.08 1.83 2.81 1.3 3.5 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3Z"/></svg></a></div><starlight-theme-select><label style="--sl-select-width: 6.25em" class="astro-2z5xp7gb"><span class="sr-only astro-2z5xp7gb">选择主题</span><svg aria-hidden="true" class="icon label-icon astro-2z5xp7gb astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21 14h-1V7a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v7H3a1 1 0 0 0-1 1v2a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-2a1 1 0 0 0-1-1ZM6 7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v7H6V7Zm14 10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-1h16v1Z"/></svg><select autocomplete="off" class="astro-2z5xp7gb"><option value="dark" class="astro-2z5xp7gb">深色</option><option value="light" class="astro-2z5xp7gb">浅色</option><option value="auto" selected class="astro-2z5xp7gb">自动</option></select><svg aria-hidden="true" class="icon caret astro-2z5xp7gb astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M17 9.17a1 1 0 0 0-1.41 0L12 12.71 8.46 9.17a1 1 0 1 0-1.41 1.42l4.24 4.24a1.002 1.002 0 0 0 1.42 0L17 10.59a1.002 1.002 0 0 0 0-1.42Z"/></svg></label></starlight-theme-select><script>
+	StarlightThemeProvider.updatePickers();
+</script></div></div></div></sl-sidebar-pane></nav><div class="main-frame astro-yntsjkba"><script type="module">var e=document.getElementById(`starlight__sidebar`),t=e?.querySelector(`sl-sidebar-state-persist`),n=`sl-sidebar-state`,r=()=>{let r=[],i=t?.dataset.hash||``;try{let e=sessionStorage.getItem(n),t=JSON.parse(e||`{}`);Array.isArray(t.open)&&t.hash===i&&(r=t.open)}catch{}return{hash:i,open:r,scroll:e?.scrollTop||0}},i=e=>{try{sessionStorage.setItem(n,JSON.stringify(e))}catch{}},a=()=>i(r()),o=(e,t)=>{let n=r();n.open[t]=e,i(n)};t?.addEventListener(`click`,e=>{if(!(e.target instanceof Element))return;let t=e.target.closest(`summary`)?.closest(`details`);if(!t)return;let n=t.querySelector(`sl-sidebar-restore`),r=parseInt(n?.dataset.index||``);isNaN(r)||o(!t.open,r)}),addEventListener(`visibilitychange`,()=>{document.visibilityState===`hidden`&&a()});</script><div class="lg:sl-flex astro-lrzkfocr"><aside class="right-sidebar-container print:hidden astro-lrzkfocr"><div class="right-sidebar astro-lrzkfocr"><div class="lg:sl-hidden astro-qok35upx"><mobile-starlight-toc data-min-h="2" data-max-h="3" class="astro-66cqc7ze"><nav aria-labelledby="starlight__on-this-page--mobile" class="astro-66cqc7ze"><details id="starlight__mobile-toc" class="astro-66cqc7ze"><summary id="starlight__on-this-page--mobile" class="sl-flex astro-66cqc7ze"><span class="toggle sl-flex astro-66cqc7ze">本页内容<svg aria-hidden="true" class="caret astro-66cqc7ze astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg></span><span class="display-current astro-66cqc7ze"></span></summary><div class="dropdown astro-66cqc7ze"><ul class="isMobile astro-jugkfwgx" style="--depth: 0;"><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#_top" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">概述</span></a></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#0-产品定位与设计原则" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">0. 产品定位与设计原则</span></a><ul class="isMobile astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#01-定位" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">0.1 定位</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#02-核心原则" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">0.2 核心原则</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#03-与现有界面的关系" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">0.3 与现有界面的关系</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#1-重新定义工作台结构" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">1. 重新定义工作台结构</span></a><ul class="isMobile astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#11-三个逻辑区域" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">1.1 三个逻辑区域</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#12-空间规则" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">1.2 空间规则</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#13-自适应建议待详细设计锁定" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">1.3 自适应建议（待详细设计锁定）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#14-参考" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">1.4 参考</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#2-左侧控制面板从配置表单变成录音控制中心" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">2. 左侧控制面板：从配置表单变成录音控制中心</span></a><ul class="isMobile astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#21-录音场景" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">2.1 录音场景</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#22-录音配置" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">2.2 录音配置</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#23-录音状态区域" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">2.3 录音状态区域</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#3-右侧内容工作区五种视图" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">3. 右侧内容工作区：五种视图</span></a><ul class="isMobile astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#31-统一-tab-导航" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">3.1 统一 Tab 导航</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#32-视图-1实时转录" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">3.2 视图 1：实时转录</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#33-视图-2双语翻译" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">3.3 视图 2：双语翻译</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#34-视图-3ai-分析" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">3.4 视图 3：AI 分析</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#35-视图-4任务" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">3.5 视图 4：任务</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#36-视图-5ai-对话" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">3.6 视图 5：AI 对话</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#37-共享上下文与跨视图跳转" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">3.7 共享上下文与跨视图跳转</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#4-实时转录的交互细节" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">4. 实时转录的交互细节</span></a><ul class="isMobile astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#41-片段结构" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">4.1 片段结构</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#42-交互清单" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">4.2 交互清单</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#43-自动滚动规则" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">4.3 自动滚动规则</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#44-未完成片段" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">4.4 未完成片段</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#45-编辑与历史" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">4.5 编辑与历史</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#5-ai-洞察区域不要只做摘要" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">5. AI 洞察区域：不要只做摘要</span></a><ul class="isMobile astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#51-六类洞察" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">5.1 六类洞察</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#52-事实与推断必须区分" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">5.2 事实与推断必须区分</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#53-洞察区域行为" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">5.3 洞察区域行为</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#6-录音结束后的复盘工作区" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">6. 录音结束后的复盘工作区</span></a><ul class="isMobile astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#61-顶部信息" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">6.1 顶部信息</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#62-内容区域" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">6.2 内容区域</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#63-ai-内容确认流程" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">6.3 AI 内容确认流程</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#64-导出" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">6.4 导出</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#7-页面与组件架构" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">7. 页面与组件架构</span></a><ul class="isMobile astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#71-逻辑模块划分" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">7.1 逻辑模块划分</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#72-技术选型建议" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">7.2 技术选型建议</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#73-服务边界与并发" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">7.3 服务边界与并发</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#8-录音工作台的状态设计" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">8. 录音工作台的状态设计</span></a><ul class="isMobile astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#81-三个关键机制" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">8.1 三个关键机制</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#82-状态规则" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">8.2 状态规则</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#9-workspace-v10-功能范围建议" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">9. Workspace V1.0 功能范围建议</span></a></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#10-最终设计决策与下一步" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">10. 最终设计决策与下一步</span></a><ul class="isMobile astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#101-产品信息架构-v10" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">10.1 产品信息架构 V1.0</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#102-进入实现前必须锁定的三件事" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">10.2 进入实现前必须锁定的三件事</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#103-下一步交付物" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">10.3 下一步交付物</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#104-待确认项" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">10.4 待确认项</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#附录参考截图" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">附录：参考截图</span></a></li></ul></div></details></nav></mobile-starlight-toc><script type="module" src="/_astro/MobileTableOfContents.astro_astro_type_script_index_0_lang.C3fM4Kra.js"></script></div><div class="right-sidebar-panel sl-hidden lg:sl-block astro-qok35upx"><div class="sl-container astro-qok35upx"><starlight-toc data-min-h="2" data-max-h="3"><nav aria-labelledby="starlight__on-this-page"><h2 id="starlight__on-this-page">本页内容</h2><ul class="astro-jugkfwgx" style="--depth: 0;"><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#_top" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">概述</span></a></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#0-产品定位与设计原则" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">0. 产品定位与设计原则</span></a><ul class="astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#01-定位" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">0.1 定位</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#02-核心原则" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">0.2 核心原则</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#03-与现有界面的关系" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">0.3 与现有界面的关系</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#1-重新定义工作台结构" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">1. 重新定义工作台结构</span></a><ul class="astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#11-三个逻辑区域" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">1.1 三个逻辑区域</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#12-空间规则" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">1.2 空间规则</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#13-自适应建议待详细设计锁定" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">1.3 自适应建议（待详细设计锁定）</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#14-参考" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">1.4 参考</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#2-左侧控制面板从配置表单变成录音控制中心" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">2. 左侧控制面板：从配置表单变成录音控制中心</span></a><ul class="astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#21-录音场景" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">2.1 录音场景</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#22-录音配置" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">2.2 录音配置</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#23-录音状态区域" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">2.3 录音状态区域</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#3-右侧内容工作区五种视图" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">3. 右侧内容工作区：五种视图</span></a><ul class="astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#31-统一-tab-导航" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">3.1 统一 Tab 导航</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#32-视图-1实时转录" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">3.2 视图 1：实时转录</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#33-视图-2双语翻译" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">3.3 视图 2：双语翻译</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#34-视图-3ai-分析" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">3.4 视图 3：AI 分析</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#35-视图-4任务" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">3.5 视图 4：任务</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#36-视图-5ai-对话" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">3.6 视图 5：AI 对话</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#37-共享上下文与跨视图跳转" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">3.7 共享上下文与跨视图跳转</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#4-实时转录的交互细节" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">4. 实时转录的交互细节</span></a><ul class="astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#41-片段结构" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">4.1 片段结构</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#42-交互清单" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">4.2 交互清单</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#43-自动滚动规则" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">4.3 自动滚动规则</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#44-未完成片段" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">4.4 未完成片段</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#45-编辑与历史" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">4.5 编辑与历史</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#5-ai-洞察区域不要只做摘要" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">5. AI 洞察区域：不要只做摘要</span></a><ul class="astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#51-六类洞察" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">5.1 六类洞察</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#52-事实与推断必须区分" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">5.2 事实与推断必须区分</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#53-洞察区域行为" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">5.3 洞察区域行为</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#6-录音结束后的复盘工作区" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">6. 录音结束后的复盘工作区</span></a><ul class="astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#61-顶部信息" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">6.1 顶部信息</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#62-内容区域" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">6.2 内容区域</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#63-ai-内容确认流程" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">6.3 AI 内容确认流程</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#64-导出" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">6.4 导出</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#7-页面与组件架构" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">7. 页面与组件架构</span></a><ul class="astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#71-逻辑模块划分" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">7.1 逻辑模块划分</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#72-技术选型建议" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">7.2 技术选型建议</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#73-服务边界与并发" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">7.3 服务边界与并发</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#8-录音工作台的状态设计" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">8. 录音工作台的状态设计</span></a><ul class="astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#81-三个关键机制" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">8.1 三个关键机制</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#82-状态规则" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">8.2 状态规则</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#9-workspace-v10-功能范围建议" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">9. Workspace V1.0 功能范围建议</span></a></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#10-最终设计决策与下一步" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">10. 最终设计决策与下一步</span></a><ul class="astro-jugkfwgx" style="--depth: 1;"><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#101-产品信息架构-v10" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">10.1 产品信息架构 V1.0</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#102-进入实现前必须锁定的三件事" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">10.2 进入实现前必须锁定的三件事</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#103-下一步交付物" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">10.3 下一步交付物</span></a></li><li style="--depth: 1;" class="astro-jugkfwgx"><a href="#104-待确认项" style="--depth: 1;" class="astro-jugkfwgx"><span style="--depth: 1;" class="astro-jugkfwgx">10.4 待确认项</span></a></li></ul></li><li style="--depth: 0;" class="astro-jugkfwgx"><a href="#附录参考截图" style="--depth: 0;" class="astro-jugkfwgx"><span style="--depth: 0;" class="astro-jugkfwgx">附录：参考截图</span></a></li></ul></nav></starlight-toc><script type="module" src="/_astro/TableOfContents.astro_astro_type_script_index_0_lang.BpJaGz7G.js"></script></div></div></div></aside><div class="main-pane astro-lrzkfocr"><main data-pagefind-body class="astro-g5ptsecz" lang="zh-CN" dir="ltr"><div class="content-panel astro-a7po4psb"><div class="sl-container astro-a7po4psb"><h1 id="_top" class="astro-bebwqqxs">AI 录音工作台 UI/UX 需求</h1></div></div><div class="content-panel astro-a7po4psb"><div class="sl-container astro-a7po4psb"><div class="sl-markdown-content"><blockquote>
+<p>本页由仓库 <code dir="auto">doc/AI录音工作台-UIUX需求.md</code> 自动同步，内容以主仓库为准。
+<a href="https://github.com/fengjutian/MagneticTape/blob/main/doc/AI%E5%BD%95%E9%9F%B3%E5%B7%A5%E4%BD%9C%E5%8F%B0-UIUX%E9%9C%80%E6%B1%82.md">在 GitHub 上查看源文件</a></p>
+</blockquote>
+<blockquote>
+<p>状态：产品方向已确定，V1.0 三栏布局已落地；详细实现规格见 <a href="/design/workspace-layout-spec/">AI 录音工作台布局实现规格</a><br>
+本文档性质：需求与交互结构输入，不是最终视觉稿；用于锁定 V1.0 设计范围<br>
+适用范围：<code dir="auto">apps/desktop</code> Tauri 桌面端<br>
+更新日期：2026-11-08<br>
+关联文档：<a href="/design/recorder-layout/">录音页面布局需求</a>、<a href="/design/ui-guidelines/">UI 设计规范</a>、<a href="/design/visual-style-v7/">视觉风格 v7：极光玻璃</a>、<a href="/design/feature-roadmap/">功能规划</a></p>
+</blockquote>
+<div class="sl-heading-wrapper level-h2"><h2 id="0-产品定位与设计原则">0. 产品定位与设计原则</h2><a class="sl-anchor-link" href="#0-产品定位与设计原则"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “0. 产品定位与设计原则”</span></a></div>
+<div class="sl-heading-wrapper level-h3"><h3 id="01-定位">0.1 定位</h3><a class="sl-anchor-link" href="#01-定位"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “0.1 定位”</span></a></div>
+<p>产品正式定位为 <strong>AI 录音工作台（AI Recording Workspace）</strong>。</p>
+<p>它不是“录音机 + 转写结果页”，而是以录音为起点、以 AI 理解与知识沉淀为终点的工作空间。</p>
+<div class="sl-heading-wrapper level-h3"><h3 id="02-核心原则">0.2 核心原则</h3><a class="sl-anchor-link" href="#02-核心原则"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “0.2 核心原则”</span></a></div>
+<blockquote>
+<p>录音是入口，实时转录是基础，AI 理解是核心，知识沉淀是最终价值。</p>
+</blockquote>
+<p>四句话对应四层产品职责，也对应界面的四个优先级：</p>
+<table>
+<thead>
+<tr>
+<th>层级</th>
+<th>产品职责</th>
+<th>界面承载</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>入口</td>
+<td>稳定、低摩擦地开始录音</td>
+<td>左侧录音控制中心</td>
+</tr>
+<tr>
+<td>基础</td>
+<td>实时、可读、可定位的转录</td>
+<td>中间内容工作区的转录视图</td>
+</tr>
+<tr>
+<td>核心</td>
+<td>主题、观点、决策、任务与问答</td>
+<td>右侧 AI 洞察 + AI 分析/对话视图</td>
+</tr>
+<tr>
+<td>价值</td>
+<td>可确认、可检索、可复用的记录</td>
+<td>录音复盘工作区与知识中心</td>
+</tr>
+</tbody>
+</table>
+<div class="sl-heading-wrapper level-h3"><h3 id="03-与现有界面的关系">0.3 与现有界面的关系</h3><a class="sl-anchor-link" href="#03-与现有界面的关系"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “0.3 与现有界面的关系”</span></a></div>
+<p>本次<strong>不建议</strong>在原有界面上简单叠加功能，而是重新定义工作台的交互结构，同时保留现有简洁的视觉风格（v7 极光玻璃：极光画布、玻璃主面板、绿/Iris 双语义色）。</p>
+<p>现有左右两栏结构可以保留，但右侧需要进一步升级为可承载多视图的内容工作区，并增加独立的 AI 洞察区域。</p>
+<div class="sl-heading-wrapper level-h2"><h2 id="1-重新定义工作台结构">1. 重新定义工作台结构</h2><a class="sl-anchor-link" href="#1-重新定义工作台结构"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “1. 重新定义工作台结构”</span></a></div>
+<div class="sl-heading-wrapper level-h3"><h3 id="11-三个逻辑区域">1.1 三个逻辑区域</h3><a class="sl-anchor-link" href="#11-三个逻辑区域"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “1.1 三个逻辑区域”</span></a></div>
+<div class="expressive-code"><link rel="stylesheet" href="/_astro/ec.w36nc.css"><script type="module" src="/_astro/ec.0vx5m.js"></script><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="text"><code><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">┌──────────────────────────────────────────────────────────────────────────┐</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│  AI Recording Workspace                                                  │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">├──────────────────┬───────────────────────────────────┬───────────────────┤</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│  左侧控制面板      │  中间内容工作区                     │  右侧 AI 洞察      │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│                  │                                   │                   │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│  录音场景          │  [转录] [翻译] [AI分析] [任务] [对话] │  当前主题          │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│  语音/音频/AI 配置  │                                   │  关键观点          │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│                  │  发言人 01 · 00:03:12              │  决策事项          │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│  录音状态          │  今天主要讨论项目的技术架构……        │  争议与分歧        │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│  计时 / 波形       │                                   │  待办事项          │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│  暂停 / 结束       │  发言人 02 · 00:03:28              │  待确认问题        │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│                  │  我认为需要优先解决稳定性问题……       │                   │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│  双通道电平        │                                   │  来源可点击定位     │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│                  │  正在识别下一段语音……               │                   │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">└──────────────────┴───────────────────────────────────┴───────────────────┘</span></div></div></code></pre><div class="copy"><div aria-live="polite"></div><button title="复制到剪贴板" data-copied="复制成功！" data-code="┌──────────────────────────────────────────────────────────────────────────┐│  AI Recording Workspace                                                  │├──────────────────┬───────────────────────────────────┬───────────────────┤│  左侧控制面板      │  中间内容工作区                     │  右侧 AI 洞察      ││                  │                                   │                   ││  录音场景          │  [转录] [翻译] [AI分析] [任务] [对话] │  当前主题          ││  语音/音频/AI 配置  │                                   │  关键观点          ││                  │  发言人 01 · 00:03:12              │  决策事项          ││  录音状态          │  今天主要讨论项目的技术架构……        │  争议与分歧        ││  计时 / 波形       │                                   │  待办事项          ││  暂停 / 结束       │  发言人 02 · 00:03:28              │  待确认问题        ││                  │  我认为需要优先解决稳定性问题……       │                   ││  双通道电平        │                                   │  来源可点击定位     ││                  │  正在识别下一段语音……               │                   │└──────────────────┴───────────────────────────────────┴───────────────────┘"><div></div></button></div></figure></div>
+<table>
+<thead>
+<tr>
+<th>区域</th>
+<th>职责</th>
+<th>操作频率</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>左侧控制面板</td>
+<td>录音配置、设备、模型、录音控制与状态</td>
+<td>低（开始前与录音中少量操作）</td>
+</tr>
+<tr>
+<td>中间内容工作区</td>
+<td>转录、翻译、内容阅读、任务、AI 对话</td>
+<td>高（录音全程主要阅读区）</td>
+</tr>
+<tr>
+<td>右侧 AI 洞察</td>
+<td>摘要、观点、决策、任务、待确认问题</td>
+<td>中高（浏览与跳转）</td>
+</tr>
+</tbody>
+</table>
+<div class="sl-heading-wrapper level-h3"><h3 id="12-空间规则">1.2 空间规则</h3><a class="sl-anchor-link" href="#12-空间规则"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “1.2 空间规则”</span></a></div>
+<p>这是本次结构设计最重要的决定：</p>
+<p><strong>录音过程中，不能让 AI 分析区域挤占实时转录的主要阅读空间。</strong></p>
+<p>因此右侧 AI 洞察必须支持：</p>
+<ol>
+<li><strong>折叠</strong>：一键收起为窄条或完全隐藏，收起后中间工作区立即扩展。</li>
+<li><strong>调整宽度</strong>：在约定范围内拖拽调整，且中间转录区保持可读的最小宽度。</li>
+<li><strong>独立展开</strong>：可从洞察项展开详情，但不以模态遮罩覆盖正在阅读的转录内容。</li>
+</ol>
+<div class="sl-heading-wrapper level-h3"><h3 id="13-自适应建议待详细设计锁定">1.3 自适应建议（待详细设计锁定）</h3><a class="sl-anchor-link" href="#13-自适应建议待详细设计锁定"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “1.3 自适应建议（待详细设计锁定）”</span></a></div>
+<table>
+<thead>
+<tr>
+<th>窗口宽度</th>
+<th>建议布局</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>≥ 1440 px</td>
+<td>三栏常驻，AI 洞察默认展开</td>
+</tr>
+<tr>
+<td>1100–1440 px</td>
+<td>三栏，AI 洞察默认收起或半宽</td>
+</tr>
+<tr>
+<td>&lt; 1100 px</td>
+<td>保留“控制 + 内容”两栏，AI 洞察改为可呼出的侧滑面板</td>
+</tr>
+<tr>
+<td>最小窗口 960 × 640 px</td>
+<td>不允许控件重叠或整页横向滚动</td>
+</tr>
+</tbody>
+</table>
+<p>具体断点、各栏宽度与拖拽阈值在 Workspace UI V1.0 详细规格中锁定。实际布局可根据窗口宽度自动调整，AI 洞察也可以折叠。</p>
+<div class="sl-heading-wrapper level-h3"><h3 id="14-参考">1.4 参考</h3><a class="sl-anchor-link" href="#14-参考"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “1.4 参考”</span></a></div>
+<ul>
+<li>Voxt About 页（三栏空间关系与视觉调性参考）：<a href="https://voxt.actnow.dev/about">https://voxt.actnow.dev/about</a></li>
+<li>Fellow.ai（录音后复盘工作区参考）：<a href="https://fellow.ai/">https://fellow.ai/</a></li>
+</ul>
+<p>参考仅用于空间关系与信息层级，不做逐像素复刻，不使用对方商标、字体或文案。</p>
+<div class="sl-heading-wrapper level-h2"><h2 id="2-左侧控制面板从配置表单变成录音控制中心">2. 左侧控制面板：从配置表单变成录音控制中心</h2><a class="sl-anchor-link" href="#2-左侧控制面板从配置表单变成录音控制中心"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “2. 左侧控制面板：从配置表单变成录音控制中心”</span></a></div>
+<p>现有左侧功能排列比较平铺。建议按“场景 → 配置 → 状态与控制”三层重新组织，并让录音状态区成为整个左栏视觉与操作的重心。</p>
+<div class="sl-heading-wrapper level-h3"><h3 id="21-录音场景">2.1 录音场景</h3><a class="sl-anchor-link" href="#21-录音场景"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “2.1 录音场景”</span></a></div>
+<p>增加场景预设，场景不是换文案，而是绑定不同的 AI 分析提示词与输出结构。</p>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>说明</th>
+<th>AI 绑定建议</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>会议</td>
+<td>多人讨论、纪要</td>
+<td>决策、待办、负责人、分歧、待确认问题</td>
+</tr>
+<tr>
+<td>学习</td>
+<td>课程、讲座</td>
+<td>知识点、概念解释、例题、复习清单</td>
+</tr>
+<tr>
+<td>灵感</td>
+<td>个人语音记录</td>
+<td>想法归类、可执行下一步、关联主题</td>
+</tr>
+<tr>
+<td>访谈</td>
+<td>一对多问答</td>
+<td>受访者观点、引语、追问建议</td>
+</tr>
+<tr>
+<td>电话记录</td>
+<td>通话纪要</td>
+<td>双方诉求、约定事项、时间点</td>
+</tr>
+<tr>
+<td>自由录音</td>
+<td>不做结构假设</td>
+<td>通用摘要与关键句</td>
+</tr>
+</tbody>
+</table>
+<p>场景切换要求：</p>
+<ul>
+<li>录音开始后不允许切换场景，避免分析上下文错位；可在录音结束后重新分析时选择。</li>
+<li>每个场景必须定义：默认提示词、输出结构、洞察卡片类型、任务提取策略。</li>
+<li>场景选择需持久化，下次打开沿用上次选择。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="22-录音配置">2.2 录音配置</h3><a class="sl-anchor-link" href="#22-录音配置"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “2.2 录音配置”</span></a></div>
+<p>配置分为三个可折叠区域，默认只展开最常用的一组，避免配置长期占据主界面。</p>
+<table>
+<thead>
+<tr>
+<th>分组</th>
+<th>包含项</th>
+<th>默认状态建议</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>语音配置</td>
+<td>语言识别、翻译目标语言、字幕开关</td>
+<td>展开</td>
+</tr>
+<tr>
+<td>音频配置</td>
+<td>麦克风、系统声音、采样率、音频格式</td>
+<td>收起</td>
+</tr>
+<tr>
+<td>AI 配置</td>
+<td>模型、API Key、实时分析频率、提示词</td>
+<td>收起</td>
+</tr>
+</tbody>
+</table>
+<p>要求：</p>
+<ul>
+<li><strong>AI 模型和 API Key 不应长期占据主界面空间</strong>，收起后仅以一行摘要展示当前模型与连接状态。</li>
+<li>API Key 只显示掩码与“已配置/未配置”，编辑入口进入独立设置区，不在主面板明文展示。</li>
+<li>折叠状态持久化；录音中允许修改的项与禁止修改的项必须有明确区分（如语言、模型在录音中变更需二次确认）。</li>
+<li>未配置或不可用的选项要有可理解的禁用原因，而不是静默失败。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="23-录音状态区域">2.3 录音状态区域</h3><a class="sl-anchor-link" href="#23-录音状态区域"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “2.3 录音状态区域”</span></a></div>
+<p>这是整个左侧最重要的部分。录音开始后，配置区应自动收起，把空间让给状态与波形。</p>
+<div class="expressive-code"><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="text"><code><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">Recording</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">00:12:35</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">正在录音 · 本地安全保存</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">[ 暂停 ]   [ 结束 ]</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">麦克风输入        正常   ▁▃▅▇▅▃▁</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">系统声音          正常   ▁▂▄▆▄▂▁</span></div></div></code></pre><div class="copy"><div aria-live="polite"></div><button title="复制到剪贴板" data-copied="复制成功！" data-code="Recording00:12:35正在录音 · 本地安全保存[ 暂停 ]   [ 结束 ]麦克风输入        正常   ▁▃▅▇▅▃▁系统声音          正常   ▁▂▄▆▄▂▁"><div></div></button></div></figure></div>
+<p>要求：</p>
+<ul>
+<li>计时字号为左栏最大视觉元素，格式 <code dir="auto">HH:MM:SS</code>；不足一小时可显示 <code dir="auto">MM:SS</code>，但跨小时后不得跳动布局。</li>
+<li>状态文案必须同时表达“录音中/已暂停”和“本地保存状态”，不能只用颜色。</li>
+<li>暂停/结束为主操作，异步命令执行期间禁用并显示加载态，防止重复提交。</li>
+<li>双通道电平分别展示麦克风与系统声音，并给出“正常/无声/异常”的文字状态。</li>
+<li><strong>波形与电平必须使用音频输入的 RMS 或峰值实时计算</strong>，不得使用静态假数据。示意图中的数据只是视觉演示。</li>
+<li>暂停时波形停止动态并降低饱和度；尊重系统“减少动态效果”设置。</li>
+<li>设备掉线、静音、系统音频未播放等情况需在状态区就地提示，并提供恢复入口。</li>
+</ul>
+<div class="sl-heading-wrapper level-h2"><h2 id="3-右侧内容工作区五种视图">3. 右侧内容工作区：五种视图</h2><a class="sl-anchor-link" href="#3-右侧内容工作区五种视图"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “3. 右侧内容工作区：五种视图”</span></a></div>
+<div class="sl-heading-wrapper level-h3"><h3 id="31-统一-tab-导航">3.1 统一 Tab 导航</h3><a class="sl-anchor-link" href="#31-统一-tab-导航"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “3.1 统一 Tab 导航”</span></a></div>
+<p>内容工作区顶部使用统一 Tab 导航，五个视图共享同一份录音上下文，而不是五个互相独立的页面。</p>
+<table>
+<thead>
+<tr>
+<th>视图</th>
+<th>主要内容</th>
+<th>默认</th>
+<th>数据来源</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>转录</td>
+<td>带时间戳、说话人的实时文本</td>
+<td>默认打开</td>
+<td>ASR / 本地 Whisper</td>
+</tr>
+<tr>
+<td>翻译</td>
+<td>原文与译文对照</td>
+<td>按需</td>
+<td>翻译服务 / 本地模型</td>
+</tr>
+<tr>
+<td>AI 分析</td>
+<td>实时主题、关键观点、争议、决策、待确认问题</td>
+<td>按需</td>
+<td>AI 分析</td>
+</tr>
+<tr>
+<td>任务</td>
+<td>行动项、负责人、截止时间、来源片段</td>
+<td>按需</td>
+<td>AI 提取 + 人工确认</td>
+</tr>
+<tr>
+<td>AI 对话</td>
+<td>基于当前录音内容提问，支持引用原始片段</td>
+<td>按需</td>
+<td>检索 + LLM</td>
+</tr>
+</tbody>
+</table>
+<div class="sl-heading-wrapper level-h3"><h3 id="32-视图-1实时转录">3.2 视图 1：实时转录</h3><a class="sl-anchor-link" href="#32-视图-1实时转录"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “3.2 视图 1：实时转录”</span></a></div>
+<ul>
+<li>产品的主要工作区，录音开始后默认展示。</li>
+<li>每个片段包含：说话人、时间戳、文本、识别状态与独立操作。</li>
+<li>显示识别置信度（如“识别置信度 96%”）与操作入口：“音频定位 · 编辑 · 复制”。</li>
+<li>新片段到达时保持阅读位置稳定，具体规则见第 4 节。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="33-视图-2双语翻译">3.3 视图 2：双语翻译</h3><a class="sl-anchor-link" href="#33-视图-2双语翻译"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “3.3 视图 2：双语翻译”</span></a></div>
+<ul>
+<li>原文与译文上下或左右排列，两者时间戳严格一致。</li>
+<li>默认跟随转录自动滚动；切换为双语后不得丢失当前阅读位置。</li>
+<li>译文使用 Iris 语义色标识 AI 能力，原文保持中性色。</li>
+<li>翻译失败时保留原文，并就地显示“重试/仅看原文”，不得清空已有内容。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="34-视图-3ai-分析">3.4 视图 3：AI 分析</h3><a class="sl-anchor-link" href="#34-视图-3ai-分析"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “3.4 视图 3：AI 分析”</span></a></div>
+<ul>
+<li>实时呈现主题、关键观点、争议与分歧、决策事项、待确认问题。</li>
+<li>每条分析必须可回溯到来源片段（时间范围或片段引用）。</li>
+<li>区分“AI 推断”和“原始事实”，具体规则见第 5 节。</li>
+<li>分析结果按时间增量更新，不得整块重排导致用户正在阅读的内容跳动。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="35-视图-4任务">3.5 视图 4：任务</h3><a class="sl-anchor-link" href="#35-视图-4任务"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “3.5 视图 4：任务”</span></a></div>
+<ul>
+<li>展示行动项、负责人、截止时间、来源片段与确认状态。</li>
+<li>支持确认、编辑、忽略；未确认任务不得进入正式记录或知识库。</li>
+<li>负责人和截止时间未识别时显示“待确认”，不允许 AI 自行编造。</li>
+<li>支持按“待确认 / 已确认 / 已完成”筛选。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="36-视图-5ai-对话">3.6 视图 5：AI 对话</h3><a class="sl-anchor-link" href="#36-视图-5ai-对话"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “3.6 视图 5：AI 对话”</span></a></div>
+<ul>
+<li>基于当前录音内容提问，回答必须带引用，可点击跳转到原始转录片段与对应音频位置。</li>
+<li>支持追问，对话上下文限定在当前录音内；跨录音问答属于后续知识中心能力。</li>
+<li>回答中涉及的每个观点、任务、决策都应可溯源，不允许只给结论不给来源。</li>
+<li>示例：</li>
+</ul>
+<blockquote>
+<p>用户：刚才讨论的三个技术问题是什么？</p>
+<p>AI：分别是系统稳定性、数据处理效率和 AI 接入成本（00:02:13）。其中优先解决稳定性（00:02:35）。[跳转到片段]</p>
+</blockquote>
+<div class="sl-heading-wrapper level-h3"><h3 id="37-共享上下文与跨视图跳转">3.7 共享上下文与跨视图跳转</h3><a class="sl-anchor-link" href="#37-共享上下文与跨视图跳转"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “3.7 共享上下文与跨视图跳转”</span></a></div>
+<p>五个视图不是五个独立页面，必须共享同一份录音上下文：</p>
+<ul>
+<li>统一的数据源：同一份转录、翻译、分析、任务与会话状态。</li>
+<li>任一视图中的引用、时间戳、任务来源均可跳转到对应片段并高亮。</li>
+<li>切换 Tab 不重置滚动位置、筛选条件与对话历史。</li>
+<li>视图之间不复制数据，只引用片段 ID 与时间范围。</li>
+</ul>
+<div class="sl-heading-wrapper level-h2"><h2 id="4-实时转录的交互细节">4. 实时转录的交互细节</h2><a class="sl-anchor-link" href="#4-实时转录的交互细节"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “4. 实时转录的交互细节”</span></a></div>
+<p>转录文本不是普通聊天消息，应按音频内容设计。</p>
+<div class="sl-heading-wrapper level-h3"><h3 id="41-片段结构">4.1 片段结构</h3><a class="sl-anchor-link" href="#41-片段结构"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “4.1 片段结构”</span></a></div>
+<div class="expressive-code"><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="text"><code><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">发言人 01                                   已完成</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">00:03:12</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">今天我们需要确定下一阶段的技术方案。</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">[播放音频] [编辑文本] [复制] [标记重点]</span></div></div></code></pre><div class="copy"><div aria-live="polite"></div><button title="复制到剪贴板" data-copied="复制成功！" data-code="发言人 01                                   已完成00:03:12今天我们需要确定下一阶段的技术方案。[播放音频] [编辑文本] [复制] [标记重点]"><div></div></button></div></figure></div>
+<ul>
+<li>说话人：可点击修改身份或重命名。</li>
+<li>时间戳：可点击跳转音频。</li>
+<li>状态：已完成 / 识别中 / 已编辑 / 识别失败。</li>
+<li>操作：播放、编辑、复制、标记重点；更多操作收纳到菜单。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="42-交互清单">4.2 交互清单</h3><a class="sl-anchor-link" href="#42-交互清单"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “4.2 交互清单”</span></a></div>
+<table>
+<thead>
+<tr>
+<th>交互</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>点击时间戳</td>
+<td>跳转音频到对应位置</td>
+</tr>
+<tr>
+<td>双击文本</td>
+<td>编辑识别结果</td>
+</tr>
+<tr>
+<td>选中文本</td>
+<td>提供 AI 解释、翻译、总结</td>
+</tr>
+<tr>
+<td>标记重点</td>
+<td>加入重要内容与复盘区</td>
+</tr>
+<tr>
+<td>选择说话人</td>
+<td>修改说话人身份</td>
+</tr>
+<tr>
+<td>删除片段</td>
+<td>记录操作历史，可撤销</td>
+</tr>
+<tr>
+<td>固定片段</td>
+<td>防止自动滚动时丢失阅读位置</td>
+</tr>
+</tbody>
+</table>
+<div class="sl-heading-wrapper level-h3"><h3 id="43-自动滚动规则">4.3 自动滚动规则</h3><a class="sl-anchor-link" href="#43-自动滚动规则"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “4.3 自动滚动规则”</span></a></div>
+<p>这是长录音阅读体验的关键：</p>
+<ol>
+<li>用户没有手动滚动时，自动跟随最新转录。</li>
+<li>用户向上浏览历史时，暂停自动滚动。</li>
+<li>暂停跟随期间显示“回到最新内容”按钮，并提示新内容数量。</li>
+<li>新内容到达时不得强制改变用户当前阅读位置。</li>
+<li>用户回到底部后恢复自动跟随；固定片段不因自动滚动被移出视野。</li>
+</ol>
+<div class="sl-heading-wrapper level-h3"><h3 id="44-未完成片段">4.4 未完成片段</h3><a class="sl-anchor-link" href="#44-未完成片段"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “4.4 未完成片段”</span></a></div>
+<ul>
+<li>“识别中”片段使用轻微动态标识，例如低透明度呼吸或渐变边框，<strong>不应频繁闪烁</strong>。</li>
+<li>未完成文本不参与复制全文、导出与 AI 总结，避免半句进入正式记录。</li>
+<li>识别失败片段保留占位与重试入口，不静默丢弃。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="45-编辑与历史">4.5 编辑与历史</h3><a class="sl-anchor-link" href="#45-编辑与历史"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “4.5 编辑与历史”</span></a></div>
+<ul>
+<li>编辑保存后标记“已编辑”，原文保留在操作历史中。</li>
+<li>编辑不得破坏时间戳与音频定位关系；删除片段后时间轴仍可正常回放。</li>
+<li>所有编辑、删除、标记重点操作进入本地操作历史，支持撤销。</li>
+</ul>
+<div class="sl-heading-wrapper level-h2"><h2 id="5-ai-洞察区域不要只做摘要">5. AI 洞察区域：不要只做摘要</h2><a class="sl-anchor-link" href="#5-ai-洞察区域不要只做摘要"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “5. AI 洞察区域：不要只做摘要”</span></a></div>
+<div class="sl-heading-wrapper level-h3"><h3 id="51-六类洞察">5.1 六类洞察</h3><a class="sl-anchor-link" href="#51-六类洞察"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “5.1 六类洞察”</span></a></div>
+<div class="expressive-code"><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="text"><code><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">AI 实时洞察</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">当前主题</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">AI 开发平台技术架构讨论</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">关键观点</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">系统稳定性应该优先于新功能开发。</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">来源：00:03:12～00:03:28</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">决策事项</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">暂定先解决稳定性问题。</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">待人工确认</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">争议与分歧</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">目前尚未检测到明确分歧。</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">待办事项</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">制定系统稳定性优化方案。</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">负责人待确认</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">待确认问题</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">稳定性优化的验收指标是什么？</span></div></div></code></pre><div class="copy"><div aria-live="polite"></div><button title="复制到剪贴板" data-copied="复制成功！" data-code="AI 实时洞察当前主题AI 开发平台技术架构讨论关键观点系统稳定性应该优先于新功能开发。来源：00:03:12～00:03:28决策事项暂定先解决稳定性问题。待人工确认争议与分歧目前尚未检测到明确分歧。待办事项制定系统稳定性优化方案。负责人待确认待确认问题稳定性优化的验收指标是什么？"><div></div></button></div></figure></div>
+<p>以上内容为交互样例，不代表真实 AI 分析结果。</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>说明</th>
+<th>是否可直接成为正式记录</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>当前主题</td>
+<td>当前讨论的主题归纳</td>
+<td>否，需来源</td>
+</tr>
+<tr>
+<td>关键观点</td>
+<td>重要观点及其来源</td>
+<td>否，需来源</td>
+</tr>
+<tr>
+<td>决策事项</td>
+<td>已明确或暂定的决策</td>
+<td>否，默认“待人工确认”</td>
+</tr>
+<tr>
+<td>争议与分歧</td>
+<td>明确分歧或“尚未检测到”</td>
+<td>否</td>
+</tr>
+<tr>
+<td>待办事项</td>
+<td>行动项、负责人、截止时间</td>
+<td>否，需确认</td>
+</tr>
+<tr>
+<td>待确认问题</td>
+<td>尚未有结论的问题</td>
+<td>否</td>
+</tr>
+</tbody>
+</table>
+<div class="sl-heading-wrapper level-h3"><h3 id="52-事实与推断必须区分">5.2 事实与推断必须区分</h3><a class="sl-anchor-link" href="#52-事实与推断必须区分"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “5.2 事实与推断必须区分”</span></a></div>
+<p>AI 推断和原始事实必须在视觉与文案上区分，不能让 AI 把推断当成会议决策。</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>定义</th>
+<th>界面标识</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>原始事实</td>
+<td>发言人实际说了什么</td>
+<td>引用原文 + 时间戳，中性色</td>
+</tr>
+<tr>
+<td>AI 总结</td>
+<td>AI 对内容的归纳</td>
+<td>“AI 总结”标签，Iris 语义色</td>
+</tr>
+<tr>
+<td>AI 推断</td>
+<td>AI 推测的意图、关系或结论</td>
+<td>“AI 推断”标签 + 置信度/不确定性说明</td>
+</tr>
+<tr>
+<td>待确认</td>
+<td>尚未获得明确结论的事项</td>
+<td>“待确认”胶囊，需人工处理</td>
+</tr>
+</tbody>
+</table>
+<p>要求：</p>
+<ul>
+<li>任何决策与任务默认处于“待确认”，不能因为 AI 输出而自动变为已确认。</li>
+<li>推断类内容不得使用与事实相同的视觉权重。</li>
+<li>每条洞察必须展示来源时间范围或片段引用；无来源的推断需明确标注。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="53-洞察区域行为">5.3 洞察区域行为</h3><a class="sl-anchor-link" href="#53-洞察区域行为"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “5.3 洞察区域行为”</span></a></div>
+<ul>
+<li>支持折叠、调整宽度、独立展开。</li>
+<li>洞察按“主题 → 关键观点 → 决策 → 争议 → 待办 → 待确认问题”排序，允许用户固定关注类型。</li>
+<li>新洞察到达时以轻量提示更新，不整块替换正在阅读的内容。</li>
+<li>AI 分析失败时保留已有结果，显示“分析暂停/重试”，且不影响录音与转录。</li>
+</ul>
+<div class="sl-heading-wrapper level-h2"><h2 id="6-录音结束后的复盘工作区">6. 录音结束后的复盘工作区</h2><a class="sl-anchor-link" href="#6-录音结束后的复盘工作区"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “6. 录音结束后的复盘工作区”</span></a></div>
+<p>录音结束后，不应简单跳转到历史记录列表，而应进入独立的录音复盘工作区。</p>
+<div class="sl-heading-wrapper level-h3"><h3 id="61-顶部信息">6.1 顶部信息</h3><a class="sl-anchor-link" href="#61-顶部信息"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “6.1 顶部信息”</span></a></div>
+<ul>
+<li>录音标题（可编辑）</li>
+<li>录音日期与时长</li>
+<li>参与者 / 说话人</li>
+<li>音频播放进度与播放控制</li>
+<li>导出按钮</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="62-内容区域">6.2 内容区域</h3><a class="sl-anchor-link" href="#62-内容区域"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “6.2 内容区域”</span></a></div>
+<table>
+<thead>
+<tr>
+<th>区域</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>录音摘要</td>
+<td>AI 自动总结，标注生成状态</td>
+</tr>
+<tr>
+<td>完整转录</td>
+<td>全部文字与时间戳，可定位、编辑、复制</td>
+</tr>
+<tr>
+<td>关键观点</td>
+<td>重要信息与来源</td>
+</tr>
+<tr>
+<td>决策记录</td>
+<td>已确认的决策，区分“暂定/已确认”</td>
+</tr>
+<tr>
+<td>待办事项</td>
+<td>任务、责任人、截止时间、确认状态</td>
+</tr>
+<tr>
+<td>AI 对话</td>
+<td>对本次录音继续追问，可引用片段</td>
+</tr>
+</tbody>
+</table>
+<p>布局建议：默认“摘要 + 关键观点 + 决策 + 待办”为阅读主线，完整转录作为独立 Tab 或下半区折叠；不要把所有内容一次性纵向铺开成超长页面。</p>
+<div class="sl-heading-wrapper level-h3"><h3 id="63-ai-内容确认流程">6.3 AI 内容确认流程</h3><a class="sl-anchor-link" href="#63-ai-内容确认流程"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “6.3 AI 内容确认流程”</span></a></div>
+<p>录音完成后，AI 生成内容需要经过用户确认才能成为正式记录。</p>
+<p>例如 AI 提取任务：</p>
+<blockquote>
+<p>完成系统稳定性优化方案。</p>
+</blockquote>
+<p>用户可以选择：<strong>确认 / 编辑 / 忽略</strong>。</p>
+<p>要求：</p>
+<ul>
+<li>未确认内容保留“AI 生成”标识，不计入正式纪要、任务列表或知识库。</li>
+<li>确认后记录确认人与确认时间（本地单用户场景记录确认时间即可）。</li>
+<li>编辑后保留原始 AI 输出与修改记录。</li>
+<li>忽略后不删除来源片段，只从正式记录中隐藏。</li>
+<li>批量确认需明确列出将被确认的条目，避免误操作。</li>
+<li>该机制用于避免错误的 AI 结论污染知识库。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="64-导出">6.4 导出</h3><a class="sl-anchor-link" href="#64-导出"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “6.4 导出”</span></a></div>
+<ul>
+<li>导出范围应可选：摘要、完整转录、决策、待办、翻译。</li>
+<li>导出前提示未确认的 AI 内容将如何呈现（排除或标注“未确认”）。</li>
+<li>复用现有导出能力（WAV、TXT/SRT/VTT、Markdown 纪要等），不重复实现。</li>
+</ul>
+<div class="sl-heading-wrapper level-h2"><h2 id="7-页面与组件架构">7. 页面与组件架构</h2><a class="sl-anchor-link" href="#7-页面与组件架构"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “7. 页面与组件架构”</span></a></div>
+<div class="sl-heading-wrapper level-h3"><h3 id="71-逻辑模块划分">7.1 逻辑模块划分</h3><a class="sl-anchor-link" href="#71-逻辑模块划分"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “7.1 逻辑模块划分”</span></a></div>
+<p>Workspace 应设计为独立业务模块，而不是把所有功能堆在一个页面组件里。建议的逻辑结构：</p>
+<div class="expressive-code"><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="text"><code><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">src/</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">├── features/</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│   ├── workspace/</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│   │   ├── WorkspaceLayout.tsx</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│   │   ├── ControlPanel/</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│   │   │   ├── RecordingConfig.tsx</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│   │   │   ├── AudioDeviceSelector.tsx</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│   │   │   ├── AIModelSelector.tsx</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│   │   │   └── RecordingController.tsx</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│   │   ├── ContentWorkspace/</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│   │   │   ├── WorkspaceTabs.tsx</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│   │   │   ├── TranscriptView.tsx</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│   │   │   ├── TranslationView.tsx</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│   │   │   ├── AnalysisView.tsx</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│   │   │   ├── TasksView.tsx</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│   │   │   └── AIChatView.tsx</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│   │   ├── InsightPanel/</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│   │   │   ├── TopicCard.tsx</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│   │   │   ├── KeyPoints.tsx</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│   │   │   ├── Decisions.tsx</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│   │   │   └── ActionItems.tsx</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│   │   └── Timeline/</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│   │       ├── AudioTimeline.tsx</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│   │       └── TranscriptSegment.tsx</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│   └── history/</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│       ├── RecordingList.tsx</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│       └── RecordingDetail.tsx</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">├── services/</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│   ├── audio/</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│   ├── transcription/</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│   ├── translation/</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│   └── ai/</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">└── shared/</span></div></div></code></pre><div class="copy"><div aria-live="polite"></div><button title="复制到剪贴板" data-copied="复制成功！" data-code="src/├── features/│   ├── workspace/│   │   ├── WorkspaceLayout.tsx│   │   ├── ControlPanel/│   │   │   ├── RecordingConfig.tsx│   │   │   ├── AudioDeviceSelector.tsx│   │   │   ├── AIModelSelector.tsx│   │   │   └── RecordingController.tsx│   │   ├── ContentWorkspace/│   │   │   ├── WorkspaceTabs.tsx│   │   │   ├── TranscriptView.tsx│   │   │   ├── TranslationView.tsx│   │   │   ├── AnalysisView.tsx│   │   │   ├── TasksView.tsx│   │   │   └── AIChatView.tsx│   │   ├── InsightPanel/│   │   │   ├── TopicCard.tsx│   │   │   ├── KeyPoints.tsx│   │   │   ├── Decisions.tsx│   │   │   └── ActionItems.tsx│   │   └── Timeline/│   │       ├── AudioTimeline.tsx│   │       └── TranscriptSegment.tsx│   └── history/│       ├── RecordingList.tsx│       └── RecordingDetail.tsx├── services/│   ├── audio/│   ├── transcription/│   ├── translation/│   └── ai/└── shared/"><div></div></button></div></figure></div>
+<blockquote>
+<p>技术栈说明：以上为职责分层参考。当前工程实际为 <strong>Tauri v2 + Vanilla TypeScript</strong>（<code dir="auto">apps/desktop/src</code>），没有 React 运行时。落地时应按同等职责拆分模块与渲染函数，而不是机械引入 React；状态管理、虚拟滚动与持久化方案需结合现有代码评估后确定。</p>
+</blockquote>
+<div class="sl-heading-wrapper level-h3"><h3 id="72-技术选型建议">7.2 技术选型建议</h3><a class="sl-anchor-link" href="#72-技术选型建议"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “7.2 技术选型建议”</span></a></div>
+<table>
+<thead>
+<tr>
+<th>能力</th>
+<th>建议</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>状态管理</td>
+<td>Zustand 或等价轻量 store</td>
+<td>工作台状态集中管理，避免组件各自推断录音状态</td>
+</tr>
+<tr>
+<td>数据请求与缓存</td>
+<td>TanStack Query 或现有请求层</td>
+<td>仅在引入相应运行时后采用</td>
+</tr>
+<tr>
+<td>长转录渲染</td>
+<td>React Virtuoso 或等价虚拟列表</td>
+<td>数百条以上片段必须虚拟化</td>
+</tr>
+<tr>
+<td>波形与电平</td>
+<td>Web Audio API / 后端音频回调</td>
+<td>具体采集能力取决于桌面运行环境</td>
+</tr>
+<tr>
+<td>持久化</td>
+<td>IndexedDB 或本地文件</td>
+<td>按运行环境选择；音频分片仍以本地文件为主</td>
+</tr>
+</tbody>
+</table>
+<p>选型原则：优先复用现有 Tauri 命令、音频分片与历史库能力，不为 UI 重构引入不必要的运行时依赖。</p>
+<div class="sl-heading-wrapper level-h3"><h3 id="73-服务边界与并发">7.3 服务边界与并发</h3><a class="sl-anchor-link" href="#73-服务边界与并发"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “7.3 服务边界与并发”</span></a></div>
+<ul>
+<li><strong>录音、音频写入、ASR、AI 分析应分别运行</strong>，避免 AI 请求阻塞音频采集。</li>
+<li>AI 服务超时、限流或断网不得导致录音中断或音频分片损坏。</li>
+<li>转写、翻译、分析使用独立任务队列与取消机制，互不阻塞。</li>
+<li>前端只订阅状态与增量结果，不在渲染层直接发起长任务。</li>
+</ul>
+<div class="sl-heading-wrapper level-h2"><h2 id="8-录音工作台的状态设计">8. 录音工作台的状态设计</h2><a class="sl-anchor-link" href="#8-录音工作台的状态设计"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “8. 录音工作台的状态设计”</span></a></div>
+<p>这部分容易被忽略，但会直接影响产品稳定性。建议明确以下状态：</p>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>UI 表现</th>
+<th>允许操作</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Idle</td>
+<td>等待录音，配置可用</td>
+<td>配置、开始</td>
+</tr>
+<tr>
+<td>Initializing</td>
+<td>正在初始化设备与音频管线</td>
+<td>取消</td>
+</tr>
+<tr>
+<td>Recording</td>
+<td>正在录音，计时与波形活动</td>
+<td>暂停、结束</td>
+</tr>
+<tr>
+<td>Paused</td>
+<td>已暂停，波形静止，状态明确</td>
+<td>恢复、结束</td>
+</tr>
+<tr>
+<td>Saving</td>
+<td>正在保存音频与元数据</td>
+<td>等待（可查看进度）</td>
+</tr>
+<tr>
+<td>Processing</td>
+<td>AI 后处理中，可继续查看已有内容</td>
+<td>查看进度、取消可取消的任务</td>
+</tr>
+<tr>
+<td>Completed</td>
+<td>已完成，可复盘</td>
+<td>查看、编辑、导出</td>
+</tr>
+<tr>
+<td>Error</td>
+<td>发生异常，说明原因</td>
+<td>恢复、重试、导出已有数据</td>
+</tr>
+</tbody>
+</table>
+<div class="sl-heading-wrapper level-h3"><h3 id="81-三个关键机制">8.1 三个关键机制</h3><a class="sl-anchor-link" href="#81-三个关键机制"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “8.1 三个关键机制”</span></a></div>
+<ol>
+<li><strong>音频采集与 AI 分析解耦</strong>：AI 服务故障不能导致录音中断。</li>
+<li><strong>音频分片持久化</strong>：异常退出后尽量恢复，复用现有 checkpoint 与恢复清单。</li>
+<li><strong>保存状态与 AI 处理状态分开</strong>：录音保存成功不意味着 AI 分析也成功，界面必须分别表达。</li>
+</ol>
+<div class="sl-heading-wrapper level-h3"><h3 id="82-状态规则">8.2 状态规则</h3><a class="sl-anchor-link" href="#82-状态规则"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “8.2 状态规则”</span></a></div>
+<ul>
+<li>保存与 AI 处理是两个独立进度，不能合并为一个“处理中”而隐藏差异。</li>
+<li>结束录音必须幂等，后端确认前不得重复提交。</li>
+<li>错误状态必须保留可导出/可恢复的数据，不允许因 AI 失败阻塞录音结果。</li>
+<li>页面刷新或崩溃恢复后，状态应能从持久化数据重建，而不是依赖内存。</li>
+</ul>
+<div class="sl-heading-wrapper level-h2"><h2 id="9-workspace-v10-功能范围建议">9. Workspace V1.0 功能范围建议</h2><a class="sl-anchor-link" href="#9-workspace-v10-功能范围建议"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “9. Workspace V1.0 功能范围建议”</span></a></div>
+<p>先冻结范围，避免第一版功能膨胀。</p>
+<table>
+<thead>
+<tr>
+<th>功能</th>
+<th>V1.0</th>
+<th>后续版本</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>麦克风录音</td>
+<td>✓</td>
+<td></td>
+</tr>
+<tr>
+<td>系统音频录音</td>
+<td>✓</td>
+<td></td>
+</tr>
+<tr>
+<td>双通道音量监测</td>
+<td>✓</td>
+<td></td>
+</tr>
+<tr>
+<td>录音波形</td>
+<td>✓</td>
+<td></td>
+</tr>
+<tr>
+<td>实时语音转录</td>
+<td>✓</td>
+<td></td>
+</tr>
+<tr>
+<td>转录编辑</td>
+<td>✓</td>
+<td></td>
+</tr>
+<tr>
+<td>时间戳和音频定位</td>
+<td>✓</td>
+<td></td>
+</tr>
+<tr>
+<td>AI 摘要</td>
+<td>✓</td>
+<td></td>
+</tr>
+<tr>
+<td>AI 对话</td>
+<td>✓</td>
+<td></td>
+</tr>
+<tr>
+<td>录音历史</td>
+<td>✓</td>
+<td></td>
+</tr>
+<tr>
+<td>双语翻译</td>
+<td>✓</td>
+<td></td>
+</tr>
+<tr>
+<td>说话人分离</td>
+<td></td>
+<td>✓</td>
+</tr>
+<tr>
+<td>自动任务提取</td>
+<td>基础版</td>
+<td>增强版</td>
+</tr>
+<tr>
+<td>跨录音知识搜索</td>
+<td></td>
+<td>✓</td>
+</tr>
+<tr>
+<td>多录音关联分析</td>
+<td></td>
+<td>✓</td>
+</tr>
+<tr>
+<td>决策追踪</td>
+<td></td>
+<td>✓</td>
+</tr>
+</tbody>
+</table>
+<p>范围原则：V1.0 不必同时实现复杂的实时说话人分离和跨录音知识图谱。先保证<strong>录音 → 转录 → AI 内容溯源</strong>形成闭环。</p>
+<div class="sl-heading-wrapper level-h2"><h2 id="10-最终设计决策与下一步">10. 最终设计决策与下一步</h2><a class="sl-anchor-link" href="#10-最终设计决策与下一步"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “10. 最终设计决策与下一步”</span></a></div>
+<div class="sl-heading-wrapper level-h3"><h3 id="101-产品信息架构-v10">10.1 产品信息架构 V1.0</h3><a class="sl-anchor-link" href="#101-产品信息架构-v10"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “10.1 产品信息架构 V1.0”</span></a></div>
+<div class="expressive-code"><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="text"><code><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">AI Recording Workspace</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">├── 录音工作台</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│   └── 录音控制 · 实时转录 · AI 洞察</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">├── 历史录音</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│   └── 录音列表 · 搜索 · 回放 · 复盘</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">├── 知识中心</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│   └── 跨录音搜索 · 知识关联 · AI 问答</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">└── 系统设置</span></div></div><div class="ec-line"><div class="code"><span class="indent"><span style="--0:#d6deeb;--1:#403f53">    </span></span><span style="--0:#d6deeb;--1:#403f53">└── AI 模型 · API Key · 音频 · 数据安全</span></div></div></code></pre><div class="copy"><div aria-live="polite"></div><button title="复制到剪贴板" data-copied="复制成功！" data-code="AI Recording Workspace├── 录音工作台│   └── 录音控制 · 实时转录 · AI 洞察├── 历史录音│   └── 录音列表 · 搜索 · 回放 · 复盘├── 知识中心│   └── 跨录音搜索 · 知识关联 · AI 问答└── 系统设置    └── AI 模型 · API Key · 音频 · 数据安全"><div></div></button></div></figure></div>
+<p>导航层级建议：录音工作台为默认入口；历史录音与复盘共用录音数据模型；知识中心在 V1.0 可只保留入口与占位，不实现跨录音能力。</p>
+<div class="sl-heading-wrapper level-h3"><h3 id="102-进入实现前必须锁定的三件事">10.2 进入实现前必须锁定的三件事</h3><a class="sl-anchor-link" href="#102-进入实现前必须锁定的三件事"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “10.2 进入实现前必须锁定的三件事”</span></a></div>
+<ol>
+<li><strong>录音控制面板的宽度、配置层级和状态变化</strong>：三栏还是“控制 + 内容 + 可呼出洞察”，各断点宽度，配置折叠默认值，录音中各状态下的可见项。</li>
+<li><strong>实时转录与 AI 洞察的空间关系</strong>：洞察默认宽度、折叠方式、拖拽范围、最小转录宽度，以及新洞察到达时的更新方式。</li>
+<li><strong>录音过程中、暂停时、结束后三种主要交互状态</strong>：每屏可见内容、主操作、允许的次要操作、状态文案与错误恢复路径。</li>
+</ol>
+<div class="sl-heading-wrapper level-h3"><h3 id="103-下一步交付物">10.3 下一步交付物</h3><a class="sl-anchor-link" href="#103-下一步交付物"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “10.3 下一步交付物”</span></a></div>
+<p>先完成 <strong>Workspace UI V1.0 详细设计规格</strong>，再进入代码实现。详细规格见 <a href="/design/workspace-ui-v1-spec/">Workspace UI V1.0 详细设计规格</a>。建议规格包含：</p>
+<ul>
+<li>三栏/断点线框与像素标注（默认 1220 × 900，最小 960 × 640）。</li>
+<li>左栏配置层级与折叠规则、录音状态区组件规格。</li>
+<li>五个视图的线框、空态、加载态、错误态。</li>
+<li>转录片段与 AI 洞察卡片的组件规格、交互状态与来源跳转规则。</li>
+<li>事实/推断/待确认的视觉标识规范（补充进 <a href="/design/ui-guidelines/">UI 设计规范</a>）。</li>
+<li>复盘工作区与确认流程的线框。</li>
+<li>状态机与关键时序（开始、暂停、结束、保存失败、AI 失败、崩溃恢复）。</li>
+</ul>
+<div class="sl-heading-wrapper level-h3"><h3 id="104-待确认项">10.4 待确认项</h3><a class="sl-anchor-link" href="#104-待确认项"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “10.4 待确认项”</span></a></div>
+<p>以下问题需要在详细设计阶段给出结论：</p>
+<ol>
+<li>V1.0 是否引入说话人分离，还是先用单说话人/顺序编号占位？</li>
+<li>翻译默认目标语言与语言对策略；是否支持“仅翻译不转录”？</li>
+<li>AI 洞察默认展开还是默认收起，取决于目标窗口尺寸与主要使用场景。</li>
+<li>双通道电平是否需要在波形上分轨显示，还是一条混合波形加两条电平条？</li>
+<li>复盘工作区与历史录音详情是否复用同一套视图，避免两套实现。</li>
+<li>知识中心在 V1.0 的占位程度：仅导航入口，还是提供跨录音搜索的只读列表。</li>
+</ol>
+<div class="sl-heading-wrapper level-h2"><h2 id="附录参考截图">附录：参考截图</h2><a class="sl-anchor-link" href="#附录参考截图"><span aria-hidden="true" class="sl-anchor-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="m12.11 15.39-3.88 3.88a2.52 2.52 0 0 1-3.5 0 2.47 2.47 0 0 1 0-3.5l3.88-3.88a1 1 0 1 0-1.42-1.42l-3.88 3.89a4.48 4.48 0 0 0 6.33 6.33l3.89-3.88a1 1 0 0 0-1.42-1.42m8.58-12.08a4.49 4.49 0 0 0-6.33 0l-3.89 3.88a1 1 0 1 0 1.42 1.42l3.88-3.88a2.52 2.52 0 0 1 3.5 0 2.47 2.47 0 0 1 0 3.5l-3.88 3.88a1 1 0 0 0 0 1.42 1 1 0 0 0 1.42 0l3.88-3.89a4.49 4.49 0 0 0 0-6.33M8.83 15.17a1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.92-4.92a1 1 0 1 0-1.42-1.42l-4.92 4.92a1 1 0 0 0 0 1.42"></path></svg></span><span class="sr-only" data-pagefind-ignore>Section titled “附录：参考截图”</span></a></div>
+<ul>
+<li>Voxt About：<a href="https://voxt.actnow.dev/about">https://voxt.actnow.dev/about</a></li>
+<li>Fellow.ai：<a href="https://fellow.ai/">https://fellow.ai/</a></li>
+</ul>
+<p>截图仅作为布局与氛围参考。实现时使用 MagneticTape 自有品牌、图标与文案，遵循 <a href="/design/ui-guidelines/">UI 设计规范</a> 与 <a href="/design/visual-style-v7/">视觉风格 v7</a>。</p>
+</div><footer class="sl-flex astro-ddtxxk7k"><div class="meta sl-flex astro-ddtxxk7k"><a href="https://github.com/fengjutian/MagneticTape/edit/main/apps/site/src/content/docs/src/content/docs/design/workspace-requirements.md" class="sl-flex print:hidden astro-qlekgd3o"><svg aria-hidden="true" class="astro-qlekgd3o astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.2em;"><path d="M22 7.24a1 1 0 0 0-.29-.71l-4.24-4.24a1 1 0 0 0-1.1-.22 1 1 0 0 0-.32.22l-2.83 2.83L2.29 16.05a1 1 0 0 0-.29.71V21a1 1 0 0 0 1 1h4.24a1 1 0 0 0 .76-.29l10.87-10.93L21.71 8c.1-.1.17-.2.22-.33a1 1 0 0 0 0-.24v-.14l.07-.05ZM6.83 20H4v-2.83l9.93-9.93 2.83 2.83L6.83 20ZM18.17 8.66l-2.83-2.83 1.42-1.41 2.82 2.82-1.41 1.42Z"/></svg>编辑此页</a></div><div class="pagination-links print:hidden astro-b5raizh3" dir="ltr"><a href="/design/recorder-layout/" rel="prev" class="astro-b5raizh3"><svg aria-hidden="true" class="astro-b5raizh3 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.5rem;"><path d="M17 11H9.41l3.3-3.29a1.004 1.004 0 1 0-1.42-1.42l-5 5a1 1 0 0 0-.21.33 1 1 0 0 0 0 .76 1 1 0 0 0 .21.33l5 5a1.002 1.002 0 0 0 1.639-.325 1 1 0 0 0-.219-1.095L9.41 13H17a1 1 0 0 0 0-2Z"/></svg><span class="astro-b5raizh3">上一页<br class="astro-b5raizh3"><span class="link-title astro-b5raizh3">录音页面布局需求</span></span></a><a href="/design/workspace-layout-spec/" rel="next" class="astro-b5raizh3"><svg aria-hidden="true" class="astro-b5raizh3 astro-hkc32dio" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.5rem;"><path d="M17.92 11.62a1.001 1.001 0 0 0-.21-.33l-5-5a1.003 1.003 0 1 0-1.42 1.42l3.3 3.29H7a1 1 0 0 0 0 2h7.59l-3.3 3.29a1.002 1.002 0 0 0 .325 1.639 1 1 0 0 0 1.095-.219l5-5a1 1 0 0 0 .21-.33 1 1 0 0 0 0-.76Z"/></svg><span class="astro-b5raizh3">下一页<br class="astro-b5raizh3"><span class="link-title astro-b5raizh3">AI 录音工作台布局实现规格</span></span></a></div></footer></div></div></main></div></div></div></div></body></html>

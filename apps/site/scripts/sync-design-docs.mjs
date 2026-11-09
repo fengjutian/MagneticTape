@@ -8,7 +8,7 @@
  *
  * 用法：npm run sync:docs（已由 npm run build 自动调用）
  */
-import { readFile, writeFile, readdir, mkdir, rm } from "node:fs/promises";
+import { readFile, writeFile, readdir, mkdir, rm, copyFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -18,6 +18,8 @@ const siteRoot = resolve(here, "..");
 const repoRoot = resolve(siteRoot, "..", "..");
 const docDir = join(repoRoot, "doc");
 const outDir = join(siteRoot, "src", "content", "docs", "design");
+const designAssetDir = join(siteRoot, "public", "screenshots", "design");
+const manifestPath = join(here, "design-image-manifest.json");
 
 const GITHUB_BLOB = "https://github.com/fengjutian/MagneticTape/blob/main";
 
@@ -145,6 +147,21 @@ function stripLeadingTitle(body) {
   return lines.join("\n").trimStart();
 }
 
+/**
+ * 把正文里的相对图片路径改写成站点路径 `/screenshots/design/<file>`。
+ * 源文件存在就复制过去；不存在则登记进清单，由 make-placeholder.ps1 生成占位图。
+ */
+function rewriteImages(body, registry) {
+  return body.replace(/!\[([^\]]*)\]\(([^)\s]+)(\s+"[^"]*")?\)/g, (match, alt, src) => {
+    if (/^(https?:)?\/\//.test(src) || src.startsWith("/")) return match;
+    const file = src.split("/").pop();
+    if (!registry.has(file)) {
+      registry.set(file, { file, alt: alt.trim(), source: join(docDir, file) });
+    }
+    return `![${alt}](/screenshots/design/${file})`;
+  });
+}
+
 function frontmatter(doc) {
   return [
     "---",
@@ -176,6 +193,12 @@ async function main() {
     await rm(outDir, { recursive: true, force: true });
   }
   await mkdir(outDir, { recursive: true });
+  if (existsSync(designAssetDir)) {
+    await rm(designAssetDir, { recursive: true, force: true });
+  }
+  await mkdir(designAssetDir, { recursive: true });
+
+  const imageRegistry = new Map();
 
   for (const doc of DOCS) {
     if (!sources.includes(doc.file)) {
@@ -183,7 +206,7 @@ async function main() {
       continue;
     }
     const raw = await readFile(join(docDir, doc.file), "utf8");
-    const body = rewriteLinks(stripLeadingTitle(raw));
+    const body = rewriteLinks(rewriteImages(stripLeadingTitle(raw), imageRegistry));
     const note = [
       `> 本页由仓库 \`doc/${doc.file}\` 自动同步，内容以主仓库为准。`,
       `> [在 GitHub 上查看源文件](${GITHUB_BLOB}/doc/${encodeURI(doc.file)})`,
@@ -193,7 +216,20 @@ async function main() {
     await writeFile(join(outDir, `${doc.slug}.md`), content, "utf8");
   }
 
-  console.log(`[sync-docs] 已同步 ${known.length} 篇设计文档 → ${outDir}`);
+  // 复制仓库里真实存在的配图，登记缺失的配图供占位脚本生成
+  const missing = [];
+  for (const entry of imageRegistry.values()) {
+    if (existsSync(entry.source)) {
+      await copyFile(entry.source, join(designAssetDir, entry.file));
+    } else {
+      missing.push({ file: entry.file, alt: entry.alt });
+    }
+  }
+  await writeFile(manifestPath, `${JSON.stringify(missing, null, 2)}\n`, "utf8");
+
+  console.log(
+    `[sync-docs] 已同步 ${known.length} 篇设计文档 → ${outDir}（配图 ${imageRegistry.size} 张，其中 ${missing.length} 张待补）`,
+  );
 }
 
 await main();

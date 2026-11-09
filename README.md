@@ -73,8 +73,9 @@ MagneticTape 是一个面向 Windows 的本地优先会议录音与转写工具�
 ```text
 MagneticTape/
 ├── apps/
-│   └── desktop/          # Tauri v2 + Vanilla TypeScript 桌面端
-│       └── src-tauri/    # 桌面端 Rust 后端
+│   ├── desktop/          # Tauri v2 + Vanilla TypeScript 桌面端
+│   │   └── src-tauri/    # 桌面端 Rust 后端
+│   └── site/             # Astro + Starlight 文档站（纯静态）
 ├── crates/
 │   ├── audio/            # Windows 双路音频采集、实时电平和 Ogg Opus 分片编码
 │   └── core/             # 时间轴、分片元数据和崩溃恢复领域库
@@ -115,9 +116,22 @@ cd apps/desktop
 npm run tauri dev
 ```
 
+## 文档站
+
+公开文档站位于 `apps/site/`（Astro + Starlight，纯静态输出）：
+
+```powershell
+cd apps/site
+npm install
+npm run dev      # http://localhost:4321
+npm run build    # 产物在 apps/site/dist
+```
+
+站点的使用指南手写维护，`doc/` 下的设计文档由 `npm run sync:docs` 自动同步进站。部署配置见仓库根的 `netlify.toml`（Netlify 静态托管），细节见 [apps/site/README.md](apps/site/README.md)。
+
 ## 测试与质量检查
 
-运行 Rust 格式检查、Clippy、全部单元测试、前端单元测试和前端生产构建：
+运行 Rust 格式检查、Clippy、全部单元测试、前端单元测试、前端生产构建和文档站构建：
 
 ```powershell
 ./scripts/check.ps1

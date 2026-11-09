@@ -12,6 +12,10 @@ import starlight from "@astrojs/starlight";
 export default defineConfig({
   site: "https://magnetictape.netlify.app",
   trailingSlash: "ignore",
+  markdown: {
+    // 允许在 .md 页面里使用 <figure> 等原生 HTML（截图展示依赖它）
+    html: true,
+  },
   build: {
     format: "directory",
   },
@@ -24,7 +28,8 @@ export default defineConfig({
         src: "./src/assets/logo.svg",
         replacesTitle: false,
       },
-      favicon: "./src/assets/favicon.svg",
+      favicon: "/favicon.svg",
+      defaultTheme: "light",
       social: [
         {
           icon: "github",
@@ -39,9 +44,6 @@ export default defineConfig({
         },
       },
       defaultLocale: "root",
-      accent: {
-        color: "#128456",
-      },
       customCss: ["./src/styles/aurora.css"],
       lastUpdated: true,
       editLink: {
@@ -71,7 +73,7 @@ export default defineConfig({
         },
         {
           label: "设计文档",
-          autogenerate: { directory: "design" },
+          items: [{ autogenerate: { directory: "design" } }],
         },
       ],
     }),
