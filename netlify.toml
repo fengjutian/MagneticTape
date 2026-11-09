@@ -1,0 +1,23 @@
+# Netlify 部署配置（文档站）
+#
+# Netlify 控制台新建站点时选择仓库 fengjutian/MagneticTape，
+# 本文件会自动指定构建目录、命令与发布目录，无需在控制台另填。
+#
+#   构建目录 base      : apps/site
+#   构建命令 command   : npm run build
+#   发布目录 publish   : dist
+
+[build]
+  base = "apps/site"
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# 纯静态站点，无需重写规则；此段仅为将来加 404 页留位。
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

@@ -49,3 +49,22 @@ jobs:
 
       - name: Test Rust workspace
         run: cargo test --workspace --all-targets
+
+  site:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/site/package-lock.json
+
+      - name: Install site dependencies
+        working-directory: apps/site
+        run: npm ci
+
+      - name: Build docs site
+        working-directory: apps/site
+        run: npm run build

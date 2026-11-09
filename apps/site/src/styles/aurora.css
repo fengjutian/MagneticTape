@@ -1,0 +1,226 @@
+/* MagneticTape 文档站视觉令牌
+ * 与桌面端《视觉风格 v7：极光玻璃》共用同一套色彩与圆角语义：
+ * 绿 = 本地 / 录制 / 安全，Iris 紫 = AI 能力。
+ * 详见 doc/视觉风格-v7-极光玻璃.md。
+ */
+
+:root {
+  /* 主色 · 本地与录制 */
+  --mt-primary: #128456;
+  --mt-primary-hover: #0c6b44;
+  --mt-primary-soft: #e6f6ef;
+  --mt-primary-line: rgba(18, 132, 86, 0.24);
+
+  /* 第二语义色 · AI 能力 */
+  --mt-iris: #6c5ce7;
+  --mt-iris-hover: #5a4bd1;
+  --mt-iris-soft: #efebfe;
+  --mt-iris-ink: #4e3fc8;
+
+  /* 中性 */
+  --mt-ink: #232338;
+  --mt-muted: #646a7e;
+  --mt-faint: #8a8fa2;
+  --mt-line: rgba(84, 90, 126, 0.12);
+
+  /* 形状 */
+  --mt-radius-panel: 26px;
+  --mt-radius-hero: 20px;
+  --mt-radius-card: 16px;
+  --mt-radius-control: 12px;
+
+  /* Starlight 主题色对齐 */
+  --sl-color-accent-low: #0c6b44;
+  --sl-color-accent: #128456;
+  --sl-color-accent-high: #e6f6ef;
+  --sl-color-white: #ffffff;
+  --sl-color-gray-1: #f4f6fb;
+  --sl-color-gray-2: #eef0f6;
+  --sl-color-gray-3: #e2e5ef;
+  --sl-color-gray-4: #d5d9e6;
+  --sl-color-gray-5: #c3c8da;
+  --sl-color-gray-6: #a8aec2;
+  --sl-color-black: #232338;
+}
+
+/* 极光画布：只做氛围，不抢内容 */
+:root {
+  --sl-color-bg: #f7f9fd;
+  --mt-canvas:
+    radial-gradient(1100px 700px at 6% -8%, rgba(110, 231, 183, 0.34), transparent 62%),
+    radial-gradient(900px 620px at 98% -6%, rgba(167, 155, 245, 0.26), transparent 60%),
+    radial-gradient(900px 700px at 78% 108%, rgba(147, 197, 253, 0.24), transparent 62%),
+    linear-gradient(135deg, #f7fbf9 0%, #f4f6fc 46%, #f7f3fd 100%);
+}
+
+body {
+  background-image: var(--mt-canvas);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+
+/* 标题与正文 */
+.sl-markdown-content h1,
+.sl-markdown-content h2,
+.sl-markdown-content h3 {
+  letter-spacing: -0.02em;
+  color: var(--mt-ink);
+}
+
+.sl-markdown-content p,
+.sl-markdown-content li {
+  color: var(--mt-ink);
+}
+
+.sl-markdown-content a:not(:where(:not([class]))):not(.headerlink) {
+  text-decoration-color: var(--mt-primary-line);
+  text-underline-offset: 3px;
+}
+
+.sl-markdown-content a:not(:where(:not([class]))):not(.headerlink):hover {
+  color: var(--mt-primary-hover);
+}
+
+/* 卡片：白玻璃 + 轻阴影 */
+.sl-markdown-content .card {
+  border-radius: var(--mt-radius-card);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.54));
+  box-shadow:
+    0 2px 8px rgba(64, 58, 112, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+.sl-markdown-content .card:hover {
+  border-color: var(--mt-primary-line);
+  box-shadow:
+    0 8px 24px rgba(64, 58, 112, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+/* 落地页 hero（Starlight splash 模板的 .hero 结构） */
+.hero {
+  padding: 3rem 0 1.6rem;
+}
+
+.hero h1 {
+  margin: 0.8rem 0 0.6rem;
+  font-size: clamp(1.9rem, 1.2rem + 2.2vw, 2.6rem);
+  line-height: 1.22;
+  font-weight: 650;
+  color: var(--mt-ink);
+}
+
+.hero .tagline,
+.hero-tagline {
+  max-width: 42rem;
+  font-size: 1.02rem;
+  line-height: 1.7;
+  color: var(--mt-muted);
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.6rem;
+}
+
+.hero-actions a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.62rem 1.15rem;
+  border-radius: var(--mt-radius-control);
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-decoration: none;
+  transition:
+    transform 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.hero-actions a:hover {
+  transform: translateY(-1px);
+}
+
+.hero-actions a[aria-label="下载安装包"],
+.hero-actions a.primary {
+  background: var(--mt-primary);
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(18, 132, 86, 0.22);
+}
+
+.hero-actions a[aria-label="下载安装包"]:hover,
+.hero-actions a.primary:hover {
+  background: var(--mt-primary-hover);
+}
+
+.mt-note {
+  margin-top: 1rem;
+  font-size: 0.85rem;
+  color: var(--mt-faint);
+}
+
+/* 截图占位与真实截图 */
+.mt-shot {
+  margin: 0 0 1.6rem;
+  border-radius: var(--mt-radius-panel);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.66);
+  box-shadow:
+    0 24px 60px rgba(64, 58, 112, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+.mt-shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.mt-shot figcaption {
+  padding: 0.7rem 1rem;
+  font-size: 0.85rem;
+  color: var(--mt-muted);
+  border-top: 1px solid var(--mt-line);
+}
+
+/* 语义标签：AI 能力用 Iris，其余用绿 */
+.mt-tag {
+  display: inline-block;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.mt-tag--local {
+  background: var(--mt-primary-soft);
+  color: var(--mt-primary-hover);
+  border: 1px solid var(--mt-primary-line);
+}
+
+.mt-tag--ai {
+  background: var(--mt-iris-soft);
+  color: var(--mt-iris-ink);
+  border: 1px solid rgba(108, 92, 231, 0.26);
+}
+
+/* 焦点环：键盘可见 */
+:focus-visible {
+  outline: 2px solid var(--mt-primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mt-button {
+    transition: none;
+  }
+
+  .mt-button:hover {
+    transform: none;
+  }
+}

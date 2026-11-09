@@ -1,0 +1,68 @@
+---
+title: MagneticTape
+description: Windows 本地优先的 AI 录音工作台：双路录音、本地转写、实时字幕与会议纪要，默认数据不出本机。
+template: splash
+hero:
+  tagline: Windows 上的本地优先 AI 录音工作台。麦克风与系统声音分开采集、转写、翻译与生成纪要，默认数据不出本机。
+  actions:
+    - text: 下载安装包
+      link: https://github.com/fengjutian/MagneticTape/releases/latest
+      variant: primary
+      icon: right-arrow
+    - text: 快速开始
+      link: /start/quick-start/
+      icon: open-book
+    - text: GitHub
+      link: https://github.com/fengjutian/MagneticTape
+      icon: github
+---
+
+import { Card, CardGrid } from "@astrojs/starlight/components";
+
+<CardGrid>
+  <Card title="双路录音" icon="seti:record">
+    麦克风与系统声音**分别采集**并映射到同一条时间轴，回放时互不抢占。
+  </Card>
+  <Card title="本地转写" icon="seti:ai">
+    录后转写走**本地 Whisper**，离线完成，无需 API Key；实时字幕默认也是本地引擎。
+  </Card>
+  <Card title="实时字幕" icon="seti:subtitle">
+    本地流式识别，约 **1 秒出字**；引擎不可用时自动回退，录音不受影响。
+  </Card>
+  <Card title="说话人区分" icon="seti:user">
+    实时字幕按声纹在线聚类，直接显示「发言人 A/B/…」。
+  </Card>
+  <Card title="AI 纪要" icon="seti:sparkle">
+    同传、翻译与纪要分片提取 + 归并，长会议不会被单次输出上限截断。
+  </Card>
+  <Card title="崩溃可恢复" icon="seti:shield">
+    每 5 秒一个独立可解码分片，配合只增不改的 checkpoint，异常退出后可续。
+  </Card>
+</CardGrid>
+
+## 三步开始
+
+1. **安装**：从 [Releases](https://github.com/fengjutian/MagneticTape/releases/latest) 下载 `MagneticTape_<版本>_x64-setup.exe`。
+2. **选设备**：在录音页确认麦克风与系统输出设备，实时电平会随你说话跳动。
+3. **开录**：点击开始录音，工作台右侧实时出现字幕与译文，结束后可转写、导出。
+
+细节见 [安装](/start/install/) 与 [快速开始](/start/quick-start/)。
+
+## 下载
+
+当前处于早期开发阶段：双路录音、分片恢复、转写、实时字幕、设备自动重连与安装包都已可用，但**安装包未做代码签名**，Windows SmartScreen 会提示「未知发布者」，选择「仍要运行」即可；**自动更新也尚未接入**，新版本请手动下载。
+
+:::caution
+请不要把它当作重要会议的唯一录音工具。首次使用前请用一段短录音完整验证一遍你的设备组合。
+:::
+
+## 本地优先
+
+录音、转写与笔记默认全部保存在本机；只有在你自己配置了 API Key 并显式触发云端能力（云端转写 / 翻译 / 纪要 / 对话）时，数据才会离开这台电脑。详见 [数据与隐私](/guide/privacy/)。
+
+## 文档导航
+
+- **使用指南**：录音与回放、字幕与转写、AI 能力、导出与整理、设置参考、常见问题
+- **设计文档**：仓库 `doc/` 下的完整设计资料（UI 规范、视觉风格、需求规格、选型调研与路线图），随主仓库自动同步
+
+项目源码与问题追踪：[github.com/fengjutian/MagneticTape](https://github.com/fengjutian/MagneticTape)（MIT License）。
