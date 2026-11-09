@@ -12,3 +12,6 @@
 apps/site/node_modules/
 /apps/site/dist/
 /apps/site/.astro/
+
+# agent scratch directory
+.dsh-tmp/
