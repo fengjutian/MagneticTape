@@ -1,8 +1,9 @@
 ---
-title: MagneticTape
-description: Windows 本地优先的 AI 录音工作台：双路录音、本地转写、实时字幕与会议纪要，默认数据不出本机。
+title: 文档站
+description: MagneticTape 的使用指南与设计文档：Windows 本地优先的 AI 录音工作台，默认数据不出本机。
 template: splash
 hero:
+  title: MagneticTape
   tagline: Windows 上的本地优先 AI 录音工作台。麦克风与系统声音分开采集、转写、翻译与生成纪要，默认数据不出本机。
   actions:
     - text: 下载安装包
@@ -11,31 +12,38 @@ hero:
       icon: right-arrow
     - text: 快速开始
       link: /start/quick-start/
+      variant: secondary
       icon: open-book
     - text: GitHub
       link: https://github.com/fengjutian/MagneticTape
+      variant: minimal
       icon: github
 ---
 
 import { Card, CardGrid } from "@astrojs/starlight/components";
 
+<figure class="mt-shot">
+  <img src="/screenshots/app-workspace.png" alt="MagneticTape 三栏工作台界面" />
+  <figcaption>三栏工作台：录音控制、实时转录、AI 洞察</figcaption>
+</figure>
+
 <CardGrid>
-  <Card title="双路录音" icon="seti:record">
+  <Card title="双路录音">
     麦克风与系统声音**分别采集**并映射到同一条时间轴，回放时互不抢占。
   </Card>
-  <Card title="本地转写" icon="seti:ai">
+  <Card title="本地转写">
     录后转写走**本地 Whisper**，离线完成，无需 API Key；实时字幕默认也是本地引擎。
   </Card>
-  <Card title="实时字幕" icon="seti:subtitle">
+  <Card title="实时字幕">
     本地流式识别，约 **1 秒出字**；引擎不可用时自动回退，录音不受影响。
   </Card>
-  <Card title="说话人区分" icon="seti:user">
+  <Card title="说话人区分">
     实时字幕按声纹在线聚类，直接显示「发言人 A/B/…」。
   </Card>
-  <Card title="AI 纪要" icon="seti:sparkle">
+  <Card title="AI 纪要">
     同传、翻译与纪要分片提取 + 归并，长会议不会被单次输出上限截断。
   </Card>
-  <Card title="崩溃可恢复" icon="seti:shield">
+  <Card title="崩溃可恢复">
     每 5 秒一个独立可解码分片，配合只增不改的 checkpoint，异常退出后可续。
   </Card>
 </CardGrid>
