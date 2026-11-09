@@ -2,6 +2,9 @@
  * 与桌面端《视觉风格 v7：极光玻璃》共用同一套色彩与圆角语义：
  * 绿 = 本地 / 录制 / 安全，Iris 紫 = AI 能力。
  * 详见 doc/视觉风格-v7-极光玻璃.md。
+ *
+ * 注意：Starlight 的 --sl-color-white / --sl-color-black 是「前景 / 背景」语义，
+ * 且随主题变化，因此这里不覆写它们，只改品牌强调色与画布背景。
  */
 
 :root {
@@ -29,28 +32,31 @@
   --mt-radius-card: 16px;
   --mt-radius-control: 12px;
 
-  /* Starlight 主题色对齐 */
+  /* 品牌强调色（两套主题通用） */
   --sl-color-accent-low: #0c6b44;
   --sl-color-accent: #128456;
   --sl-color-accent-high: #e6f6ef;
-  --sl-color-white: #ffffff;
-  --sl-color-gray-1: #f4f6fb;
-  --sl-color-gray-2: #eef0f6;
-  --sl-color-gray-3: #e2e5ef;
-  --sl-color-gray-4: #d5d9e6;
-  --sl-color-gray-5: #c3c8da;
-  --sl-color-gray-6: #a8aec2;
-  --sl-color-black: #232338;
 }
 
-/* 极光画布：只做氛围，不抢内容 */
-:root {
-  --sl-color-bg: #f7f9fd;
+/* 极光画布：浅色主题 */
+:root[data-theme='light'] {
   --mt-canvas:
     radial-gradient(1100px 700px at 6% -8%, rgba(110, 231, 183, 0.34), transparent 62%),
     radial-gradient(900px 620px at 98% -6%, rgba(167, 155, 245, 0.26), transparent 60%),
     radial-gradient(900px 700px at 78% 108%, rgba(147, 197, 253, 0.24), transparent 62%),
     linear-gradient(135deg, #f7fbf9 0%, #f4f6fc 46%, #f7f3fd 100%);
+}
+
+/* 极光画布：深色主题 */
+:root[data-theme='dark'] {
+  --sl-color-accent-low: #6ee7b7;
+  --sl-color-accent: #34d399;
+  --sl-color-accent-high: #064e3b;
+  --mt-canvas:
+    radial-gradient(1100px 700px at 6% -8%, rgba(52, 211, 153, 0.18), transparent 62%),
+    radial-gradient(900px 620px at 98% -6%, rgba(139, 124, 246, 0.16), transparent 60%),
+    radial-gradient(900px 700px at 78% 108%, rgba(96, 165, 250, 0.14), transparent 62%),
+    linear-gradient(135deg, #0e1018 0%, #121422 48%, #14121e 100%);
 }
 
 body {
@@ -59,17 +65,11 @@ body {
   background-repeat: no-repeat;
 }
 
-/* 标题与正文 */
+/* 标题与链接 */
 .sl-markdown-content h1,
 .sl-markdown-content h2,
 .sl-markdown-content h3 {
   letter-spacing: -0.02em;
-  color: var(--mt-ink);
-}
-
-.sl-markdown-content p,
-.sl-markdown-content li {
-  color: var(--mt-ink);
 }
 
 .sl-markdown-content a:not(:where(:not([class]))):not(.headerlink) {
@@ -77,25 +77,13 @@ body {
   text-underline-offset: 3px;
 }
 
-.sl-markdown-content a:not(:where(:not([class]))):not(.headerlink):hover {
-  color: var(--mt-primary-hover);
-}
-
-/* 卡片：白玻璃 + 轻阴影 */
+/* 卡片：圆角 + 悬停时的品牌色描边 */
 .sl-markdown-content .card {
   border-radius: var(--mt-radius-card);
-  border: 1px solid rgba(255, 255, 255, 0.7);
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.54));
-  box-shadow:
-    0 2px 8px rgba(64, 58, 112, 0.04),
-    inset 0 1px 0 rgba(255, 255, 255, 0.85);
 }
 
 .sl-markdown-content .card:hover {
   border-color: var(--mt-primary-line);
-  box-shadow:
-    0 8px 24px rgba(64, 58, 112, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.85);
 }
 
 /* 落地页 hero（Starlight splash 模板的 .hero 结构） */
@@ -108,7 +96,6 @@ body {
   font-size: clamp(1.9rem, 1.2rem + 2.2vw, 2.6rem);
   line-height: 1.22;
   font-weight: 650;
-  color: var(--mt-ink);
 }
 
 .hero .tagline,
@@ -116,7 +103,6 @@ body {
   max-width: 42rem;
   font-size: 1.02rem;
   line-height: 1.7;
-  color: var(--mt-muted);
 }
 
 .hero-actions {
@@ -145,14 +131,14 @@ body {
   transform: translateY(-1px);
 }
 
-.hero-actions a[aria-label="下载安装包"],
+.hero-actions a[aria-label='下载安装包'],
 .hero-actions a.primary {
   background: var(--mt-primary);
   color: #fff;
   box-shadow: 0 6px 18px rgba(18, 132, 86, 0.22);
 }
 
-.hero-actions a[aria-label="下载安装包"]:hover,
+.hero-actions a[aria-label='下载安装包']:hover,
 .hero-actions a.primary:hover {
   background: var(--mt-primary-hover);
 }
@@ -160,19 +146,15 @@ body {
 .mt-note {
   margin-top: 1rem;
   font-size: 0.85rem;
-  color: var(--mt-faint);
 }
 
-/* 截图占位与真实截图 */
+/* 截图容器 */
 .mt-shot {
   margin: 0 0 1.6rem;
   border-radius: var(--mt-radius-panel);
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  background: rgba(255, 255, 255, 0.66);
-  box-shadow:
-    0 24px 60px rgba(64, 58, 112, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  border: 1px solid var(--mt-line);
+  box-shadow: 0 24px 60px rgba(64, 58, 112, 0.1);
 }
 
 .mt-shot img {
@@ -184,7 +166,7 @@ body {
 .mt-shot figcaption {
   padding: 0.7rem 1rem;
   font-size: 0.85rem;
-  color: var(--mt-muted);
+  opacity: 0.85;
   border-top: 1px solid var(--mt-line);
 }
 
@@ -216,11 +198,11 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .mt-button {
+  .hero-actions a {
     transition: none;
   }
 
-  .mt-button:hover {
+  .hero-actions a:hover {
     transform: none;
   }
 }

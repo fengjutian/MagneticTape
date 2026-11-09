@@ -29,7 +29,6 @@ export default defineConfig({
         replacesTitle: false,
       },
       favicon: "/favicon.svg",
-      defaultTheme: "light",
       social: [
         {
           icon: "github",
