@@ -33,7 +33,7 @@ const defaultSettings: AppSettings = {
   microphoneId: null,
   systemOutputId: null,
   language: "auto",
-  translation: "none",
+  translation: "auto",
   retainAudio: true,
   liveCaptions: false,
   liveStreaming: true,

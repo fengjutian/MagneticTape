@@ -1,7 +1,7 @@
 import type { AppSettings, AsrConfiguration, AsrProviderId } from "./types";
 
 const LANGUAGES = ["auto", "zh-CN", "en-US"];
-const TRANSLATIONS = ["none", "zh-CN", "en-US"];
+const TRANSLATIONS = ["auto", "none", "zh-CN", "en-US"];
 const ASR_PROVIDERS: AsrProviderId[] = [
   "minimax",
   "silicon_flow",
@@ -32,7 +32,7 @@ export function mergeSettings(
 ): AppSettings {
   const next = { ...current, ...(incoming ?? {}) };
   const language = LANGUAGES.includes(next.language) ? next.language : "auto";
-  const translation = TRANSLATIONS.includes(next.translation) ? next.translation : "none";
+  const translation = TRANSLATIONS.includes(next.translation) ? next.translation : "auto";
   const asrProvider = ASR_PROVIDERS.includes(next.asrProvider) ? next.asrProvider : "minimax";
   return {
     ...next,

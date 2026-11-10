@@ -118,7 +118,7 @@ impl Default for AppSettings {
             microphone_id: None,
             system_output_id: None,
             language: "auto".into(),
-            translation: "none".into(),
+            translation: "auto".into(),
             retain_audio: true,
             live_captions: false,
             live_streaming: true,
@@ -137,8 +137,11 @@ impl AppSettings {
         if !matches!(self.language.as_str(), "auto" | "zh-CN" | "en-US") {
             self.language = "auto".into();
         }
-        if !matches!(self.translation.as_str(), "none" | "zh-CN" | "en-US") {
-            self.translation = "none".into();
+        if !matches!(
+            self.translation.as_str(),
+            "auto" | "none" | "zh-CN" | "en-US"
+        ) {
+            self.translation = "auto".into();
         }
         if !matches!(
             self.asr_provider.as_str(),
@@ -4113,7 +4116,7 @@ mod tests {
 
         let loaded = load_settings(directory.path());
         assert_eq!(loaded.language, "auto");
-        assert_eq!(loaded.translation, "none");
+        assert_eq!(loaded.translation, "auto");
         assert_eq!(loaded.asr_provider, "minimax");
         assert_eq!(loaded.microphone_id, None);
         assert!(loaded.asr_profiles.is_empty());

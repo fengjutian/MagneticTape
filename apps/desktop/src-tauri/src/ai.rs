@@ -241,8 +241,13 @@ pub async fn translate_live_segments(
     if target_language.is_empty() {
         return Err("翻译目标语言不能为空".into());
     }
+    let instruction = if target_language == "中英双向" {
+        "逐项判断主要语言：中文内容翻译为自然英文，英文内容翻译为简体中文；中英混合内容按主要语言翻译到另一种语言".to_owned()
+    } else {
+        format!("把每一项翻译为{target_language}")
+    };
     let prompt = format!(
-        "把下面 JSON 数组中的每一项翻译为{target_language}。保留原意、说话语气和专有名词，不要解释。只返回长度完全相同的 JSON 字符串数组，不要使用 Markdown 代码块。\n\n{source}"
+        "{instruction}。保留原意、说话语气和专有名词，不要解释。只返回与下面输入长度完全相同的 JSON 字符串数组，不要使用 Markdown 代码块。\n\n{source}"
     );
     let content = generate_text(provider, &prompt, &state).await?;
     parse_translation_array(&content, segments.len())

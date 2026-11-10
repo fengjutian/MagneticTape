@@ -45,7 +45,7 @@ describe("mergeSettings", () => {
       whisperHotwords: `  ${"热".repeat(600)}  `,
     });
     expect(merged.language).toBe("auto");
-    expect(merged.translation).toBe("none");
+    expect(merged.translation).toBe("auto");
     expect(merged.asrProvider).toBe("minimax");
     expect(merged.autoCleanupDays).toBe(0);
     expect(merged.storageQuotaMb).toBe(0);

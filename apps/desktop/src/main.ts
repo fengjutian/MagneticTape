@@ -121,7 +121,7 @@ let settings: AppSettings = {
   microphoneId: null,
   systemOutputId: null,
   language: "auto",
-  translation: "none",
+  translation: "auto",
   retainAudio: true,
   liveCaptions: false,
   liveStreaming: true,
@@ -260,7 +260,7 @@ function renderLive(): void {
         placeholder.querySelector("p")!.textContent = livePendingChunks > 0 && liveProcessedChunks > 0
           ? `已完成 ${liveProcessedChunks} 个分片，正在等待最新结果。`
           : liveStreamingActive
-            ? "本地流式识别中，说完一句约 0.8 秒出字；开启 AI 同传可同步生成译文。"
+            ? "本地流式识别中，说完一句约 1.2 秒出字；开启 AI 同传可同步生成译文。"
             : settings.liveStreaming
               ? "本地流式引擎未就绪，将按当前转写服务生成字幕；可在「转写服务」里下载引擎与流式模型。"
               : "实时字幕将在识别到语音后显示；开启 AI 同传可同步生成译文。";
@@ -296,7 +296,7 @@ function renderLive(): void {
     if (!translation) return;
     const translated = document.createElement("span");
     translated.className = "live-translation-text";
-    translated.lang = settings.translation === "zh-CN" ? "zh-CN" : "en";
+    translated.lang = settings.translation === "auto" ? "" : settings.translation === "zh-CN" ? "zh-CN" : "en";
     translated.textContent = translation;
     line.append(translated);
   });
@@ -306,7 +306,7 @@ function renderLive(): void {
     status.textContent = liveTranslationError
       ? `AI 同传将在稍后重试：${liveTranslationError}`
       : liveTranslationBusy
-        ? `AI 正在翻译为${translationLabel(settings.translation)} · ${liveTranslatedCount}/${liveSegments.length} 段`
+        ? `AI 正在${settings.translation === "auto" ? "进行中英双向翻译" : `翻译为${translationLabel(settings.translation)}`} · ${liveTranslatedCount}/${liveSegments.length} 段`
         : `AI 同传 ${translationLabel(settings.translation)} · 已翻译 ${liveTranslatedCount}/${liveSegments.length} 段`;
     stream.append(status);
   }
@@ -341,11 +341,12 @@ function renderLiveTranslationSummary(): void {
   const list = app.querySelector<HTMLElement>(".live-translation-list");
   if (!list) return;
   if (liveSegments.length === 0) return;
+  const disabled = settings.translation === "none";
   list.innerHTML = liveSegments.map((segment, index) => `
     <article class="live-translation-item">
       <header><span>${escapeForHtml(speakerName(segment.speaker))}</span><time>${formatElapsed(segment.startMs)}</time></header>
       <p>${escapeForHtml(segment.text)}</p>
-      <div class="translation-text">${escapeForHtml(liveTranslations[index] ?? "等待 AI 译文…")}</div>
+      <div class="translation-text">${escapeForHtml(liveTranslations[index] ?? (disabled ? "AI 翻译未开启" : "等待 AI 译文…"))}</div>
     </article>`).join("");
 }
 
@@ -361,6 +362,7 @@ function speakerName(speaker: string | undefined): string {
 }
 
 function translationLabel(value: string): string {
+  if (value === "auto") return "中英双向";
   if (value === "zh-CN" || value === "zh") return "中文";
   if (value === "en-US" || value === "en") return "English";
   return value;
@@ -482,7 +484,7 @@ liveButton.addEventListener("click", () => {
   setLiveIndicator(false);
   void persistSettings();
 });
-let view: RecorderViewState = { title: "新录音", status: "idle", elapsedMs: 0, language: "auto", translation: "none", retainAudio: true, volumeLevel: 0, sessionId: null, microphoneChunks: [], systemChunks: [] };
+let view: RecorderViewState = { title: "新录音", status: "idle", elapsedMs: 0, language: "auto", translation: "auto", retainAudio: true, volumeLevel: 0, sessionId: null, microphoneChunks: [], systemChunks: [] };
 
 function pinStorageKey(): string {
   return `magnetic-tape.pins.${view.sessionId ?? "draft"}`;

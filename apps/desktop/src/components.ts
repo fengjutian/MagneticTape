@@ -155,12 +155,12 @@ export function renderApp(): string {
               <details class="config-group" open>
                 <summary>
                   <span class="config-icon">${iconNode(Languages)}</span>
-                  <span class="config-copy"><strong>语音配置</strong><small class="language-summary">自动识别 · 不翻译</small></span>
+                  <span class="config-copy"><strong>语音配置</strong><small class="language-summary">自动识别 · 中英双向</small></span>
                   <span class="config-chevron">${iconNode(ChevronDown)}</span>
                 </summary>
                 <div class="config-body">
                   <label class="field-row"><span>${iconNode(FileText)}转写语言</span><select data-option="language" aria-label="转写语言"><option value="auto">自动识别</option><option value="zh-CN">中文</option><option value="en-US">English</option></select></label>
-                  <label class="field-row"><span>${iconNode(Radio)}AI 同传</span><select data-option="translation" aria-label="实时翻译语言"><option value="none">不翻译</option><option value="zh-CN">实时翻译为中文</option><option value="en-US">Live English translation</option></select></label>
+                  <label class="field-row"><span>${iconNode(Radio)}AI 同传</span><select data-option="translation" aria-label="实时翻译语言"><option value="auto">中英双向（自动）</option><option value="zh-CN">实时翻译为中文</option><option value="en-US">Live English translation</option><option value="none">不翻译</option></select></label>
                 </div>
               </details>
 
@@ -669,7 +669,7 @@ export function applyView(root: HTMLElement, state: RecorderViewState, forceCont
 
 function updateLanguageSummary(root: HTMLElement, state: RecorderViewState): void {
   const language = state.language === "zh-CN" ? "中文" : state.language === "en-US" ? "English" : "自动识别";
-  const translation = state.translation === "zh-CN" ? "中文" : state.translation === "en-US" ? "English" : state.translation === "none" ? "不翻译" : state.translation;
+  const translation = state.translation === "auto" ? "中英双向" : state.translation === "zh-CN" ? "中文" : state.translation === "en-US" ? "English" : state.translation === "none" ? "不翻译" : state.translation;
   const summary = root.querySelector<HTMLElement>(".language-summary");
   if (summary) summary.textContent = `${language} · ${translation}`;
 }
