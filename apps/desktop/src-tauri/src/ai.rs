@@ -22,6 +22,9 @@ const FINAL_INPUT_CHUNK_CHARS: usize = 16_000;
 const MAX_OUTPUT_TOKENS: u32 = 2_048;
 /// Long inputs need more than the original 60 seconds.
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(180);
+/// Live captions must fail fast enough to retry while the conversation is
+/// still current. Long-form minutes keep the larger timeout above.
+const LIVE_TRANSLATION_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -249,7 +252,12 @@ pub async fn translate_live_segments(
     let prompt = format!(
         "{instruction}。保留原意、说话语气和专有名词，不要解释。只返回与下面输入长度完全相同的 JSON 字符串数组，不要使用 Markdown 代码块。\n\n{source}"
     );
-    let content = generate_text(provider, &prompt, &state).await?;
+    let content = tokio::time::timeout(
+        LIVE_TRANSLATION_TIMEOUT,
+        generate_text(provider, &prompt, &state),
+    )
+    .await
+    .map_err(|_| "实时翻译请求超过 30 秒，正在准备重试".to_owned())??;
     parse_translation_array(&content, segments.len())
 }
 

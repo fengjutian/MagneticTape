@@ -342,11 +342,18 @@ function renderLiveTranslationSummary(): void {
   if (!list) return;
   if (liveSegments.length === 0) return;
   const disabled = settings.translation === "none";
+  const pendingText = disabled
+    ? "AI 翻译未开启"
+    : liveTranslationError
+      ? `翻译失败，稍后重试：${liveTranslationError}`
+      : liveTranslationBusy
+        ? "AI 正在翻译…"
+        : "等待 AI 译文…";
   list.innerHTML = liveSegments.map((segment, index) => `
     <article class="live-translation-item">
       <header><span>${escapeForHtml(speakerName(segment.speaker))}</span><time>${formatElapsed(segment.startMs)}</time></header>
       <p>${escapeForHtml(segment.text)}</p>
-      <div class="translation-text">${escapeForHtml(liveTranslations[index] ?? (disabled ? "AI 翻译未开启" : "等待 AI 译文…"))}</div>
+      <div class="translation-text${liveTranslationError && !liveTranslations[index] ? " live-error" : ""}">${escapeForHtml(liveTranslations[index] ?? pendingText)}</div>
     </article>`).join("");
 }
 
