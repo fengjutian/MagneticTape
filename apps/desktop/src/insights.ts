@@ -20,6 +20,10 @@ export interface DerivedInsights {
 }
 
 const DECISION_PATTERN = /(决策|决定|结论)/;
+// Keep this deliberately stricter than a generic future-tense matcher. These
+// phrases express an agreement, choice, approval, or concrete commitment and
+// are useful before the post-recording AI notes have been generated.
+const LIVE_DECISION_PATTERN = /(?:达成一致|一致(?:同意|通过)|(?:已经|现已|最终)?决定|(?:已经|现已|最终)?确定|(?:予以|一致)?通过|(?:已经|表示)?同意|批准|就按|按.+(?:执行|推进|处理)|这就安排|(?:我|我们|公司|团队)?(?:会|将|要)安排|保证(?:以后|后续|下次)|(?:以后|后续|下次)(?:不再|改为|由|安排))/;
 const DISPUTE_PATTERN = /(分歧|争议)/;
 const QUESTION_PATTERN = /[?？]\s*$/;
 
@@ -45,6 +49,26 @@ function clip(value: string, max: number): string {
   return value.length > max ? `${value.slice(0, max)}…` : value;
 }
 
+function transcriptSentences(segments: TranscriptSegment[]): string[] {
+  return segments.flatMap((segment) =>
+    segment.text
+      .replace(/\s+/g, " ")
+      .match(/[^。！？!?；;]+[。！？!?；;]?/g)
+      ?.map((line) => line.trim())
+      .filter((line) => line.length > 0) ?? [],
+  );
+}
+
+function uniqueLines(lines: string[]): string[] {
+  const seen = new Set<string>();
+  return lines.filter((line) => {
+    const key = line.replace(/[\s。！？!?；;：:，,]/g, "");
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 /**
  * Single source of truth for the lightweight, local insight extraction.
  * AI-generated notes are parsed here; richer analysis can replace this later
@@ -53,7 +77,9 @@ function clip(value: string, max: number): string {
 export function deriveInsights(notes: string, segments: TranscriptSegment[]): DerivedInsights {
   const bullets = noteBullets(notes);
   const tasks = parseTasks(notes);
-  const decisions = bullets.filter((line) => DECISION_PATTERN.test(line)).map((line) => clip(line, 120));
+  const noteDecisions = bullets.filter((line) => DECISION_PATTERN.test(line));
+  const liveDecisions = transcriptSentences(segments).filter((line) => LIVE_DECISION_PATTERN.test(line));
+  const decisions = uniqueLines([...noteDecisions, ...liveDecisions]).map((line) => clip(line, 120));
   const disputes = bullets.filter((line) => DISPUTE_PATTERN.test(line)).map((line) => clip(line, 120));
   const questions = bullets.filter((line) => QUESTION_PATTERN.test(line)).map((line) => clip(line, 120));
   const special = (line: string): boolean =>

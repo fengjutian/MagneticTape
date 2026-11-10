@@ -119,6 +119,22 @@ describe("workspace", () => {
     expect(root.querySelector(".insight-questions-list")!.textContent).toContain("验收指标");
   });
 
+  it("extracts explicit decisions from live transcript before notes exist", () => {
+    const root = mount(baseState);
+    applyInsights(root, {
+      title: "新录音",
+      status: "recording",
+      segments: [
+        { startMs: 0, endMs: 1_000, text: "这个方案还需要讨论。" },
+        { startMs: 1_000, endMs: 2_000, text: "我这就安排，保证以后不再发生。" },
+      ],
+      notes: "",
+    });
+    const decisions = root.querySelector(".insight-decisions-list")!.textContent!;
+    expect(decisions).toContain("我这就安排");
+    expect(decisions).not.toContain("这个方案还需要讨论");
+  });
+
   it("shows the compact scene summary and chunk count while recording", () => {
     const root = mount({
       ...baseState,
