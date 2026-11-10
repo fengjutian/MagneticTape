@@ -1245,7 +1245,9 @@ fn spawn_checkpointer(
             let mut last_health_check = Instant::now();
             let mut last_checkpoint = Instant::now();
             loop {
-                thread::sleep(Duration::from_millis(500));
+                // `stop_session` unparks this thread so finalization does not
+                // pay the whole polling interval before joining it.
+                thread::park_timeout(Duration::from_millis(500));
                 let mut guard = recorder.lock().expect("audio recorder state poisoned");
                 let Some(active) = guard.as_mut() else {
                     break;
@@ -1956,6 +1958,49 @@ fn stop_session(
         .expect("audio recorder state poisoned")
         .take()
         .ok_or_else(|| "录音器未运行".to_owned())?;
+    // Wake the checkpoint worker now that the shared recorder slot is empty.
+    // It can exit while the audio writer seals its final chunk.
+    {
+        let state = state.lock().expect("session state poisoned");
+        if let Some(checkpointer) = state.checkpointer.as_ref() {
+            checkpointer.thread().unpark();
+        }
+    }
+
+    // Drain audio captured since the last 250 ms live poll and commit the
+    // recognizer's final partial clause before destroying the streaming ASR.
+    let tail_pcm = active.drain_realtime_pcm();
+    let mut tail_segments = Vec::new();
+    {
+        let mut guard = sherpa_live.lock().expect("sherpa live state poisoned");
+        if let Some(session) = guard.as_mut() {
+            if let Ok(chunks) = session.asr.push(&tail_pcm) {
+                for chunk in chunks {
+                    let embedding = session
+                        .speaker
+                        .as_ref()
+                        .and_then(|engine| engine.compute(&chunk.audio).ok());
+                    let speaker = embedding.map(|values| session.gallery.assign(&values));
+                    tail_segments.push(sherpa::labeled_segment(&chunk, speaker));
+                }
+            }
+            if let Some(chunk) = session.asr.finish_partial() {
+                let embedding = session
+                    .speaker
+                    .as_ref()
+                    .and_then(|engine| engine.compute(&chunk.audio).ok());
+                let speaker = embedding.map(|values| session.gallery.assign(&values));
+                tail_segments.push(sherpa::labeled_segment(&chunk, speaker));
+            }
+        }
+    }
+    if !tail_segments.is_empty() {
+        let mut live = live.lock().expect("live transcription state poisoned");
+        live.segments.extend(tail_segments);
+        live.segments
+            .sort_by_key(|segment| (segment.start_ms, segment.end_ms));
+        live.partial_text.clear();
+    }
     let snapshot = match active.finish() {
         Ok(snapshot) => snapshot,
         Err(error) => {

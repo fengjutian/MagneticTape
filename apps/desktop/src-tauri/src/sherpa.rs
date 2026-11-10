@@ -966,10 +966,11 @@ impl StreamingAsr {
         config.decoding_method = decoding.as_ptr();
         config.max_active_paths = 4;
         config.enable_endpoint = 1;
-        // 0.8 s after speech keeps the caption close to the speaker's pause;
-        // the default 1.2 s feels laggy in a live transcript.
+        // Chinese speakers often pause briefly inside a sentence. 0.8 s was
+        // eager enough to split clauses and change the apparent meaning, so
+        // keep a little more context before finalizing an utterance.
         config.rule1_min_trailing_silence = 2.0;
-        config.rule2_min_trailing_silence = 0.8;
+        config.rule2_min_trailing_silence = 1.2;
         config.rule3_min_utterance_length = 20.0;
 
         let recognizer = unsafe { (api.create_recognizer)(&config) };
@@ -1056,6 +1057,25 @@ impl StreamingAsr {
         } else {
             vec![chunk]
         })
+    }
+
+    /// Commits the recognizer's current non-final result when recording ends.
+    /// Without this, stopping during speech silently drops the last clause.
+    pub fn finish_partial(&mut self) -> Option<FinalChunk> {
+        let text = self.partial.trim();
+        if text.is_empty() {
+            return None;
+        }
+        let chunk = FinalChunk {
+            start_ms: self.segment_start_samples * 1_000 / SAMPLE_RATE as u64,
+            end_ms: self.fed_samples * 1_000 / SAMPLE_RATE as u64,
+            text: text.to_owned(),
+            audio: resample_24k_to_16k(&self.segment_audio),
+        };
+        self.segment_start_samples = self.fed_samples;
+        self.segment_audio.clear();
+        self.partial.clear();
+        Some(chunk)
     }
 
     fn read_result(&self) -> (String, bool) {
